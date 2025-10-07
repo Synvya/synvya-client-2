@@ -1,0 +1,17 @@
+# Environment secrets
+client/.env
+client/.env.local
+client/.env.*
+
+# Internal files
+.cursorrules
+internal/*
+
+# Other files
+.DS_Store
+client/node_modules/
+client/dist/
+client/.vite/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
