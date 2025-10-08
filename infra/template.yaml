@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Synvya Retail Onboarder - Upload Proxy
+
+Parameters:
+  UploadSecretArn:
+    Type: String
+    Description: ARN of the Secrets Manager secret containing the NIP-98 upload nsec.
+  UploadSecretKey:
+    Type: String
+    Default: synvya-nsec
+    Description: Optional key within the secret JSON that stores the nsec.
+  AllowedOrigins:
+    Type: CommaDelimitedList
+    Default: "*"
+    Description: Comma separated list of allowed origins for CORS.
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 10
+    MemorySize: 256
+    Handler: handler.handler
+    Environment:
+      Variables:
+        UPLOAD_SECRET_ARN: !Ref UploadSecretArn
+        UPLOAD_SECRET_KEY: !Ref UploadSecretKey
+        CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
+    Architectures:
+      - arm64
+
+Resources:
+  UploadApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: !Ref AllowedOrigins
+        AllowHeaders:
+          - "*"
+        AllowMethods:
+          - OPTIONS
+          - POST
+
+  UploadProxyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Description: Proxies NIP-96 uploads to nostr.build, signing requests with NIP-98.
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref UploadSecretArn
+      Events:
+        UploadApi:
+          Type: HttpApi
+          Properties:
+            Path: /media/upload
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+
+Outputs:
+  UploadProxyEndpoint:
+    Description: API Gateway endpoint for the upload proxy.
+    Value: !Sub "https://${UploadApi}.execute-api.${AWS::Region}.amazonaws.com/media/upload"

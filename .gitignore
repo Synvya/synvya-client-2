@@ -15,3 +15,6 @@ client/.vite/
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+infra/lambda/node_modules/
+infra/lambda.zip
+infra/.aws-sam/

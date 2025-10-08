@@ -1,0 +1,11 @@
+{
+  "name": "synvya-upload-proxy",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "main": "handler.js",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.588.0",
+    "nostr-tools": "^2.7.2"
+  }
+}
