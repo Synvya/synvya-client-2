@@ -15,17 +15,26 @@ export function OnboardingGate({ children }: OnboardingGateProps): JSX.Element {
   const needsBackup = useAuth((state) => state.needsBackup);
   const lastGeneratedNsec = useAuth((state) => state.lastGeneratedNsec);
   const markBackedUp = useAuth((state) => state.markBackedUp);
+  const revealSecret = useAuth((state) => state.revealSecret);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
-    void initialize();
-  }, [initialize]);
+    if (status === "idle" || status === "error" || status === "needs-setup") {
+      void initialize();
+    }
+  }, [status, initialize]);
 
   useEffect(() => {
     if (needsBackup && lastGeneratedNsec) {
       setDrawerOpen(true);
     }
   }, [needsBackup, lastGeneratedNsec]);
+
+  useEffect(() => {
+    if (drawerOpen && needsBackup && !lastGeneratedNsec) {
+      void revealSecret();
+    }
+  }, [drawerOpen, needsBackup, lastGeneratedNsec, revealSecret]);
 
   const fallback = useMemo(() => {
     if (status === "loading" || status === "idle") {
