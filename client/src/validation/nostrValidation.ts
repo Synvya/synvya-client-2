@@ -1,6 +1,5 @@
 import Ajv, { type AnySchema, type ErrorObject, type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
-import type { Event } from "nostr-tools";
 import kind0Schema from "@nostrability/schemata/dist/nips/nip-01/kind-0/schema.json";
 import kind1Schema from "@nostrability/schemata/dist/nips/nip-01/kind-1/schema.json";
 import noteSchema from "@nostrability/schemata/dist/@/note.json";
@@ -8,6 +7,16 @@ import noteSchema from "@nostrability/schemata/dist/@/note.json";
 type KnownSchema = {
   kind: number;
   schema: unknown;
+};
+
+export type ValidatableEvent = {
+  id: string;
+  pubkey: string;
+  sig: string;
+  kind: number;
+  created_at: number;
+  content: string;
+  tags: string[][];
 };
 
 const ajv = new Ajv({
@@ -143,10 +152,10 @@ const schemas: KnownSchema[] = [
   }
 ];
 
-const validators = new Map<number, ValidateFunction<Event>>();
+const validators = new Map<number, ValidateFunction<ValidatableEvent>>();
 
 for (const { kind, schema } of schemas) {
-  validators.set(kind, ajv.compile<Event>(schema as AnySchema));
+  validators.set(kind, ajv.compile<ValidatableEvent>(schema as AnySchema));
 }
 
 function formatErrors(errors: ErrorObject[] | null | undefined): string {
@@ -163,13 +172,14 @@ function formatErrors(errors: ErrorObject[] | null | undefined): string {
     .join("\n");
 }
 
-export function validateEvent(event: Event): void {
-  const validator = validators.get(event.kind);
+export function validateEvent(event: ValidatableEvent): void {
+  const eventKind = (event as { kind: number }).kind;
+  const validator = validators.get(eventKind);
   if (!validator) {
     return;
   }
   const valid = validator(event);
   if (!valid) {
-    throw new Error(`Nostr event validation failed for kind ${event.kind}: ${formatErrors(validator.errors)}`);
+    throw new Error(`Nostr event validation failed for kind ${eventKind}: ${formatErrors(validator.errors)}`);
   }
 }

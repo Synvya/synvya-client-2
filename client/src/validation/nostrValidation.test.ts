@@ -1,8 +1,7 @@
 import { describe, expect, test } from "vitest";
-import type { Event } from "nostr-tools";
-import { validateEvent } from "./nostrValidation";
+import { validateEvent, type ValidatableEvent } from "./nostrValidation";
 
-const baseEvent: Event = {
+const baseEvent: ValidatableEvent = {
   id: "a".repeat(64),
   pubkey: "b".repeat(64),
   sig: "c".repeat(128),
@@ -18,16 +17,16 @@ describe("validateEvent", () => {
   });
 
   test("throws for an invalid kind 1 event", () => {
-    const invalidEvent: Event = {
+    const invalidEvent: ValidatableEvent = {
       ...baseEvent,
       id: "123"
-    } as Event;
+    } as ValidatableEvent;
 
     expect(() => validateEvent(invalidEvent)).toThrow(/validation failed/i);
   });
 
   test("passes for a valid kind 0 event", () => {
-    const kind0: Event = {
+    const kind0: ValidatableEvent = {
       ...baseEvent,
       kind: 0,
       content: JSON.stringify({ name: "Synvya", about: "Testing" })
@@ -37,7 +36,7 @@ describe("validateEvent", () => {
   });
 
   test("throws for invalid kind 0 event", () => {
-    const invalid: Event = {
+    const invalid: ValidatableEvent = {
       ...baseEvent,
       kind: 0,
       content: 123 as unknown as string
@@ -47,7 +46,7 @@ describe("validateEvent", () => {
   });
 
   test("passes for valid kind 30402 event", () => {
-    const kind30402: Event = {
+    const kind30402: ValidatableEvent = {
       ...baseEvent,
       kind: 30402,
       created_at: 1_700_000_010,
@@ -61,7 +60,7 @@ describe("validateEvent", () => {
   });
 
   test("throws for kind 30402 event with invalid price tag", () => {
-    const invalid30402: Event = {
+    const invalid30402: ValidatableEvent = {
       ...baseEvent,
       kind: 30402,
       tags: [["price", "abc", "USD"]]
@@ -71,7 +70,7 @@ describe("validateEvent", () => {
   });
 
   test("ignores unsupported kinds", () => {
-    const unsupported: Event = {
+    const unsupported: ValidatableEvent = {
       ...baseEvent,
       kind: 9999
     };
