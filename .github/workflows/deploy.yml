@@ -19,6 +19,10 @@ jobs:
         working-directory: client
     env:
       VITE_UPLOAD_PROXY_URL: ${{ secrets.VITE_UPLOAD_PROXY_URL }}
+      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      VITE_SQUARE_ENV: ${{ secrets.VITE_SQUARE_ENV }}
+      VITE_SQUARE_APPLICATION_ID: ${{ secrets.VITE_SQUARE_APPLICATION_ID }}
+      VITE_SQUARE_REDIRECT_URI: ${{ secrets.VITE_SQUARE_REDIRECT_URI }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
