@@ -17,7 +17,7 @@ const ajv = new Ajv({
 
 addFormats(ajv);
 
-const kind30402Schema = {
+const kind30402Schema: Record<string, unknown> = {
   $schema: "http://json-schema.org/draft-07/schema#",
   title: "kind30402",
   description: "Classified Listing (NIP-99). Addressable event describing a listing with structured metadata in tags.",
@@ -131,11 +131,11 @@ const kind30402Schema = {
 const schemas: KnownSchema[] = [
   {
     kind: 0,
-    schema: kind0Schema
+    schema: kind0Schema as unknown
   },
   {
     kind: 1,
-    schema: kind1Schema
+    schema: kind1Schema as unknown
   },
   {
     kind: 30402,
@@ -168,7 +168,7 @@ export function validateEvent(event: Event): void {
   if (!validator) {
     return;
   }
-  const valid = validator(event);
+  const valid = (validator as ValidateFunction<Event>)(event);
   if (!valid) {
     throw new Error(`Nostr event validation failed for kind ${event.kind}: ${formatErrors(validator.errors)}`);
   }
