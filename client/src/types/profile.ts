@@ -18,6 +18,7 @@ export interface BusinessProfile {
   categories: string[];
   phone?: string;
   street?: string;
+  city?: string;
   state?: string;
   zip?: string;
   location?: string;

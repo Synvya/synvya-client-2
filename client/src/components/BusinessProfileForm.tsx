@@ -95,6 +95,7 @@ function createInitialProfile(): BusinessProfile {
     categories: [],
     phone: "",
     street: "",
+    city: "",
     state: "",
     zip: "",
     location: ""
@@ -147,8 +148,9 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       .filter(Boolean);
 
     if (parts[0]) patch.street = parts[0];
-    if (parts[1]) patch.state = parts[1];
-    if (parts[2]) patch.zip = parts[2];
+    if (parts[1]) patch.city = parts[1];
+    if (parts[2]) patch.state = parts[2];
+    if (parts[3]) patch.zip = parts[3];
   }
 
   if (categories.length) {
@@ -200,6 +202,7 @@ export function BusinessProfileForm(): JSX.Element {
       categories: derivedCategories,
       phone: profile.phone?.trim() || undefined,
       street: profile.street?.trim() || undefined,
+      city: profile.city?.trim() || undefined,
       state: profile.state?.trim() || undefined,
       zip: profile.zip?.trim() || undefined
     };
@@ -223,10 +226,10 @@ export function BusinessProfileForm(): JSX.Element {
         bannerUrl = await uploadMedia(pendingFiles.banner, "banner");
       }
 
-      const locationParts = [payload.street, payload.state, payload.zip].filter(
+      const locationParts = [payload.street, payload.city, payload.state, payload.zip].filter(
         (value): value is string => Boolean(value)
       );
-      const fullLocation = locationParts.length ? `${locationParts.join(", ")}, USA` : undefined;
+      const fullLocation = locationParts.length >= 2 ? `${locationParts.join(", ")}, USA` : undefined;
 
       const finalPayload: BusinessProfile = {
         ...payload,
@@ -245,6 +248,7 @@ export function BusinessProfileForm(): JSX.Element {
         banner: bannerUrl,
         phone: payload.phone ?? "",
         street: payload.street ?? "",
+        city: payload.city ?? "",
         state: payload.state ?? "",
         zip: payload.zip ?? "",
         location: fullLocation ?? "",
@@ -335,6 +339,7 @@ export function BusinessProfileForm(): JSX.Element {
           categories: patch.categories ?? prev.categories,
           phone: patch.phone ?? prev.phone,
           street: patch.street ?? prev.street,
+          city: patch.city ?? prev.city,
           state: patch.state ?? prev.state,
           zip: patch.zip ?? prev.zip,
           location: patch.location ?? prev.location
@@ -431,6 +436,18 @@ export function BusinessProfileForm(): JSX.Element {
                 placeholder="123 Main St"
                 value={profile.street ?? ""}
                 onChange={(event) => updateField("street", event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="city">City</Label>
+              <Input
+                id="city"
+                placeholder="San Francisco"
+                value={profile.city ?? ""}
+                onChange={(event) => updateField("city", event.target.value)}
               />
             </div>
           </div>
