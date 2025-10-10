@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Synvya Retail Onboarder - Upload Proxy
+Description: Synvya Retail Onboarder - API
 
 Parameters:
   UploadSecretArn:
@@ -14,6 +14,27 @@ Parameters:
     Type: CommaDelimitedList
     Default: "*"
     Description: Comma separated list of allowed origins for CORS.
+  SquareEnvironment:
+    Type: String
+    Default: sandbox
+    AllowedValues:
+      - production
+      - sandbox
+    Description: Square environment to use for API calls.
+  SquareApplicationId:
+    Type: String
+    Description: Square OAuth application ID.
+  SquareClientSecret:
+    Type: String
+    Default: ""
+    Description: Optional Square OAuth client secret (required for token refresh in some accounts).
+  SquareRedirectUri:
+    Type: String
+    Description: Redirect URI configured in Square for OAuth callbacks.
+  SquareVersion:
+    Type: String
+    Default: "2025-01-23"
+    Description: Square API version header.
 
 Globals:
   Function:
@@ -39,6 +60,7 @@ Resources:
           - "*"
         AllowMethods:
           - OPTIONS
+          - GET
           - POST
 
   UploadProxyFunction:
@@ -57,8 +79,62 @@ Resources:
             Method: POST
             PayloadFormatVersion: "2.0"
             ApiId: !Ref UploadApi
+  SquareConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pubkey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pubkey
+          KeyType: HASH
+
+  SquareIntegrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: square.handler
+      Description: Handles Square OAuth exchange and catalog sync for NIP-99 listings.
+      Environment:
+        Variables:
+          CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
+          SQUARE_CONNECTIONS_TABLE: !Ref SquareConnectionsTable
+          SQUARE_ENV: !Ref SquareEnvironment
+          SQUARE_APPLICATION_ID: !Ref SquareApplicationId
+          SQUARE_CLIENT_SECRET: !Ref SquareClientSecret
+          SQUARE_REDIRECT_URI: !Ref SquareRedirectUri
+          SQUARE_VERSION: !Ref SquareVersion
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SquareConnectionsTable
+      Events:
+        Status:
+          Type: HttpApi
+          Properties:
+            Path: /square/status
+            Method: GET
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+        Exchange:
+          Type: HttpApi
+          Properties:
+            Path: /square/oauth/exchange
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+        Publish:
+          Type: HttpApi
+          Properties:
+            Path: /square/publish
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
 
 Outputs:
+  ApiBaseUrl:
+    Description: Base URL for the Synvya Retail Onboarder API.
+    Value: !Sub "https://${UploadApi}.execute-api.${AWS::Region}.amazonaws.com"
   UploadProxyEndpoint:
     Description: API Gateway endpoint for the upload proxy.
     Value: !Sub "https://${UploadApi}.execute-api.${AWS::Region}.amazonaws.com/media/upload"
