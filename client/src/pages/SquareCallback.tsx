@@ -93,7 +93,7 @@ export function SquareCallbackPage(): JSX.Element {
         setProcessing("error");
       }
     })();
-  }, [authStatus, pubkey, navigate, handled]);
+  }, [authStatus, pubkey, navigate, handled, relays, cachedProfileLocation, setCachedProfileLocation]);
 
   const statusMessage = useMemo(() => {
     switch (processing) {

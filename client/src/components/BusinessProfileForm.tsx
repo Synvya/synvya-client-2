@@ -152,9 +152,6 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
     if (parts[1]) patch.city = parts[1];
     if (parts[2]) patch.state = parts[2];
     if (parts[3]) patch.zip = parts[3];
-    setProfileLocation(locationValue);
-  } else {
-    setProfileLocation(null);
   }
 
   if (categories.length) {
@@ -334,6 +331,8 @@ export function BusinessProfileForm(): JSX.Element {
         }
 
         const { patch, categories } = parseKind0ProfileEvent(event);
+
+        setProfileLocation(patch.location ?? null);
 
         if (cancelled) {
           return;
