@@ -18,14 +18,16 @@ Synvya’s merchant-facing web client for onboarding, profile management, and Sq
   ```
 - The dev server runs on `http://localhost:5173`.
 
-### Required `.env` values
+### Required `.env` values for local testing
 | Variable | Purpose |
 | --- | --- |
-| `VITE_UPLOAD_NSEC` | nostr.build upload secret for local media testing. |
+| `VITE_UPLOAD_NSEC` | nostr.build upload secret for photo storage |
 | `VITE_UPLOAD_PROXY_URL` | Base URL that exposes `/media/upload` (CloudFront routes to the Lambda proxy). |
 | `VITE_API_BASE_URL` | Base URL for the API Gateway that fronts the Lambda functions. |
 | `VITE_DEFAULT_RELAYS` | Comma-separated relay list for publishing profile events. |
-| `VITE_SQUARE_*` | Square OAuth configuration (env, application id, redirect URI). |
+| `VITE_SQUARE_ENV` | `sandbox` or `production` |
+| `VITE_SQUARE_APPLICATION_ID` | sandbox-sq****-********************** |
+| `VITE_SQUARE_REDIRECT_UR`I` | http://localhost:5173/square/callback |
 
 ## Build & Continuous Delivery
 - Production builds are generated with `npm run build` from `client/` which creates `client/dist/`.
@@ -34,13 +36,18 @@ Synvya’s merchant-facing web client for onboarding, profile management, and Sq
   - Assume IAM role `arn:aws:iam::122610503853:role/SynvyaClientGithubActions`.
   - `aws s3 sync dist/ s3://client2-synvya-com --delete`.
   - Optionally invalidate CloudFront distribution `E10XBQFR9NDURM`.
-- GitHub repository secrets (documented in `internal/github_variables.md`) drive the workflow:
-  | Secret | Value |
-  | --- | --- |
-  | `AWS_REGION` | `us-east-1` |
-  | `AWS_ROLE_ARN` | `arn:aws:iam::122610503853:role/SynvyaClientGithubActions` |
-  | `VITE_UPLOAD_PROXY_URL` | `https://client2.synvya.com` |
-  | `CLOUDFRONT_DISTRIBUTION_ID` | `E10XBQFR9NDURM` |
+- GitHub repository secrets drive the workflow:
+
+| Secret | Example Value |
+| --- | --- |
+| `AWS_REGION` | `us-east-1` |
+| `AWS_ROLE_ARN` | `arn:aws:iam::123456789012:role/SynvyaClientGithubActions` |
+| `CLOUDFRONT_DISTRIBUTION_ID` | `E1234567890ABC` |
+| `VITE_UPLOAD_PROXY_URL` | `https://client2.synvya.com` |
+| `VITE_API_BASE_URL` | `https://abc123.execute-api.us-east-1.amazonaws.com` |
+| `VITE_SQUARE_ENV` | `sandbox` |
+| `VITE_SQUARE_APPLICATION_ID` | `sandbox-sq0idb-xxxxxxxxxxxxxxxxxxxx` |
+| `VITE_SQUARE_REDIRECT_URI` | `https://client2.synvya.com/square/callback` |
 
 ## AWS Infrastructure
 
@@ -56,28 +63,23 @@ The static hosting stack was configured directly via the AWS console:
    - Default root object `index.html`, error responses mapped for SPA routing (404 → 200).
    - Additional behavior: `/media/*` (and other API paths such as `/square/*`) forward to the API Gateway domain created below.
 3. **Route 53** record – `client2.synvya.com` ALIAS → CloudFront distribution.
-4. Tested that `https://client2.synvya.com` served the built assets and that `/media/upload` proxied requests to the Lambda API.
 
-### Backend API (SAM stack + console hand-offs)
-`infra/template.yaml` defines the upload proxy and Square integration. Deployment steps:
-1. Packaged the Lambda source (see zipped artifacts in `infra/`) using `npm install --production` and `zip`.
-2. Uploaded the template through **CloudFormation → Create stack → With new resources (standard)**.
-   - Template source: uploaded local copy of `infra/template.yaml`.
-   - Parameters:
-     - `UploadSecretArn`: ARN of the Secrets Manager secret holding the nostr `nsec`.
-     - `AllowedOrigins`: `https://client2.synvya.com`.
-     - `SquareEnvironment`: `production`.
-     - `SquareApplicationId`, `SquareClientSecret`, `SquareRedirectUri` (copied from Square Developer dashboard).
-     - `NostrRelays`: coma-separated relay list used for publishing catalog events.
-     - `NostrNsec`: server-held Nostr secret key for signing NIP-99 listings.
-3. After stack creation, verified resources in the console:
-   - `AWS::Serverless::HttpApi` – base URL exported as stack output.
-   - Lambda functions `UploadProxyFunction` and `SquareIntegrationFunction`.
-   - DynamoDB table for Square connections.
-4. Captured the API base URL (e.g., `https://xxxxx.execute-api.us-east-1.amazonaws.com`) and updated:
-   - `VITE_API_BASE_URL` (frontend build-time variable) so Square API calls hit the HttpApi.
-   - CloudFront behavior origins so `/media/*` routes to `{ApiBaseUrl}` while static assets continue to use S3.
-   - Local `.env` for developer testing; for production builds set an environment variable or GitHub secret before running `npm run build`.
+
+### Backend API (current state)
+The API Gateway, Lambda functions, and DynamoDB table were provisioned once (manually) and now run as managed infrastructure. 
+
+- **Resources in service**
+  - HTTP API Gateway forwarding `/media/*` to the upload proxy lambda and `/square/*` to the Square integration lambda.
+  - DynamoDB table that stores Square OAuth connections.
+  - Secrets Manager entries holding the upload and Nostr signing keys.
+
+- **Updating Lambda code**
+  - Follow the steps in [Working on the Square Integration lambda locally](#working-on-the-square-integration-lambda-locally) (or the analogous upload proxy instructions) to build a zip containing `square.js`, `handler.js`, `package*.json`, and `node_modules` at the archive root.
+  - Upload the zip through the Lambda console. No CloudFormation stack update is required for code-only changes.
+
+- **Reprovisioning (only if the infrastructure must be rebuilt)**
+  - `infra/template.yaml` captures the original SAM stack used to create the API, Lambda functions, and DynamoDB table. If the stack ever needs to be recreated from scratch, deploy that template via CloudFormation and supply fresh parameter values (`UploadSecretArn`, `AllowedOrigins`, `SquareEnvironment`, `SquareApplicationId`, `SquareClientSecret`, `SquareRedirectUri`, `NostrRelays`, `NostrNsec`).
+  - After the stack is recreated, update `VITE_API_BASE_URL`, CloudFront behaviors, and any environment variables/secrets to point at the new resources.
 
 ### Secrets & Keys (manual)
 1. **AWS Secrets Manager**
@@ -101,15 +103,42 @@ The static hosting stack was configured directly via the AWS console:
 4. Stored the role ARN in GitHub secrets and validated `aws sts get-caller-identity` from a workflow run.
 
 ### Manual Lambda Maintenance
+- **Lambda functions in production**
+  - `synvya-upload-proxy` – the NIP-98 upload proxy invoked by `/media/upload`.
+  - `synvya-square-integration` – handles Square OAuth, catalogue sync, and classified listing generation.
 - Zipped artifacts `infra/lambda.zip` (upload proxy) and `infra/synvya-square-integration.zip` mirror the versions currently deployed. They can be re-uploaded via the Lambda console when an urgent hotfix is required without going through CloudFormation.
+
+#### Working on the Square Integration lambda locally
+
+1. **Install dependencies**
+   ```bash
+   cd infra/lambda
+   npm install
+   ```
+2. **Manual packaging** – create the ZIP that Lambda expects. Files must live at the root (no `lambda/` folder):
+   ```bash
+   cd infra/lambda
+   npm install --production
+   zip -qr ../synvya-square-integration.zip \
+     square.js handler.js package.json package-lock.json node_modules
+   ```
+3. **Upload** – in the AWS console open `synvya-square-integration`, choose **Code → Upload from → .zip file**, and select `infra/synvya-square-integration.zip`.
+
+4. **Environment variables** 
+
+
+| Variable | Example Value | Notes |
+| --- | --- | --- |
+| `CORS_ALLOW_ORIGIN` | `https://client2.synvya.com` | Must include the frontend origin so fetches succeed. |
+| `NOSTR_RELAYS` | `wss://relay.damus.io,wss://nos.lol` | Relays queried for the merchant’s kind‑0 profile. |
+| `SQUARE_ENV` | `sandbox` | `sandbox` or `production`. |
+| `SQUARE_APPLICATION_ID` | `sandbox-sq0idb-...` | Copied from Square developer portal. |
+| `SQUARE_REDIRECT_URI` | `https://client2.synvya.com/square/callback` | Must match the Square app configuration. |
+| `SQUARE_CONNECTIONS_TABLE` | `SynvyaSquareConnections` | DynamoDB table name created by the SAM template. |
+| `SQUARE_PRIMARY_KEY` | `npub` | DynamoDB partition key (defaults to `npub`). |
+| `SQUARE_VERSION` | `2025-01-23` | Square API version header. |
 
 ## Operations Checklist
 - **Local testing**: `npm run dev`, `npm run build`, `npm run preview`.
 - **Deployment**: merge to `main` or trigger the “Deploy Frontend” GitHub Action.
 - **Cache busting**: workflow triggers CloudFront invalidation; re-run if assets appear stale.
-- **Secrets rotation**: update Secrets Manager value, then re-deploy the SAM stack (or trigger environment variables via console) and update GitHub secrets if URLs change.
-
-## Troubleshooting
-- Frontend returning 403 → confirm CloudFront OAC has read access to the S3 bucket and that `aws s3 sync` uploaded the latest build.
-- Upload proxy CORS errors → ensure `AllowedOrigins` parameter includes the site origin and redeploy the SAM stack.
-- Square OAuth failures → double-check redirect URI in Square Developer dashboard and the `VITE_SQUARE_*` values in both `.env` and SAM parameters.
