@@ -81,6 +81,26 @@ export function SettingsPage(): JSX.Element {
   }, [pubkey, statusVersion]);
 
   useEffect(() => {
+    if (!pubkey || cachedProfileLocation) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const location = await resolveProfileLocation(pubkey, relays, null);
+        if (!cancelled && location) {
+          setCachedProfileLocation(location);
+        }
+      } catch (error) {
+        console.warn("Failed to resolve profile location for Square publish", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pubkey, relays, cachedProfileLocation, setCachedProfileLocation]);
+
+  useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("square") === "connected") {
       setSquareNotice("Square connection completed.");
