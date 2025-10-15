@@ -33,11 +33,12 @@ function extractLocationFromEvent(event: Event | null | undefined): string | nul
 
 export async function resolveProfileLocation(
   pubkey: string | null | undefined,
-  relays: string[] | null | undefined
+  relays: string[] | null | undefined,
+  fallback?: string | null
 ): Promise<string | null> {
-  if (!pubkey) return null;
+  if (!pubkey) return fallback ?? null;
   const targets = Array.from(new Set((relays ?? []).map((relay) => relay.trim()).filter(Boolean)));
-  if (!targets.length) return null;
+  if (!targets.length) return fallback ?? null;
 
   const pool = getPool();
   try {
@@ -45,9 +46,10 @@ export async function resolveProfileLocation(
       kinds: [0],
       authors: [pubkey]
     });
-    return extractLocationFromEvent(event);
+    const resolved = extractLocationFromEvent(event);
+    return resolved ?? (fallback ?? null);
   } catch (error) {
     console.warn("Unable to load profile location", error);
-    return null;
+    return fallback ?? null;
   }
 }

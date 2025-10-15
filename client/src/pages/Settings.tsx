@@ -11,6 +11,7 @@ import { fetchSquareStatus, publishSquareCatalog, type SquareConnectionStatus } 
 import { publishToRelays } from "@/lib/relayPool";
 import { validateEvent } from "@/validation/nostrValidation";
 import { resolveProfileLocation } from "@/lib/profileLocation";
+import { useBusinessProfile } from "@/state/useBusinessProfile";
 
 export function SettingsPage(): JSX.Element {
   const npub = useAuth((state) => state.npub);
@@ -21,6 +22,10 @@ export function SettingsPage(): JSX.Element {
   const addRelay = useRelays((state) => state.addRelay);
   const removeRelay = useRelays((state) => state.removeRelay);
   const resetRelays = useRelays((state) => state.resetRelays);
+  const { location: cachedProfileLocation, setLocation: setCachedProfileLocation } = useBusinessProfile((state) => ({
+    location: state.location,
+    setLocation: state.setLocation
+  }));
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
@@ -60,6 +65,9 @@ export function SettingsPage(): JSX.Element {
         setSquareStatus(status);
         if (!status.connected) {
           setSquareNotice(null);
+        }
+        if (status.profileLocation) {
+          setCachedProfileLocation(status.profileLocation);
         }
       })
       .catch((error) => {
@@ -118,12 +126,19 @@ export function SettingsPage(): JSX.Element {
     setSquareNotice(null);
     setResyncBusy(true);
     try {
-      const profileLocation = await resolveProfileLocation(pubkey, relays);
-      const effectiveLocation = profileLocation ?? squareStatus?.profileLocation ?? null;
+      const profileLocation = await resolveProfileLocation(pubkey, relays, cachedProfileLocation);
+      if (profileLocation && profileLocation !== cachedProfileLocation) {
+        setCachedProfileLocation(profileLocation);
+      }
+      const effectiveLocation =
+        profileLocation ?? squareStatus?.profileLocation ?? cachedProfileLocation ?? null;
       const { events } = await publishSquareCatalog({
         pubkey,
         profileLocation: effectiveLocation ?? undefined
       });
+      if (effectiveLocation && effectiveLocation !== cachedProfileLocation) {
+        setCachedProfileLocation(effectiveLocation);
+      }
       if (!events.length) {
         setSquareNotice("Square catalog is already up to date.");
         setStatusVersion((value) => value + 1);

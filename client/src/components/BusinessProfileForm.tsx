@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { uploadMedia } from "@/services/upload";
 import type { Event } from "nostr-tools";
 import { CheckCircle2, Image as ImageIcon, UploadCloud } from "lucide-react";
+import { useBusinessProfile } from "@/state/useBusinessProfile";
 
 interface FormStatus {
   type: "idle" | "success" | "error";
@@ -151,6 +152,9 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
     if (parts[1]) patch.city = parts[1];
     if (parts[2]) patch.state = parts[2];
     if (parts[3]) patch.zip = parts[3];
+    setProfileLocation(locationValue);
+  } else {
+    setProfileLocation(null);
   }
 
   if (categories.length) {
@@ -165,6 +169,7 @@ export function BusinessProfileForm(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
   const authStatus = useAuth((state) => state.status);
   const relays = useRelays((state) => state.relays);
+  const setProfileLocation = useBusinessProfile((state) => state.setLocation);
   const [profile, setProfile] = useState<BusinessProfile>(createInitialProfile);
   const [categoriesInput, setCategoriesInput] = useState("");
   const [status, setStatus] = useState<FormStatus>({ type: "idle", message: null });
@@ -237,6 +242,7 @@ export function BusinessProfileForm(): JSX.Element {
         banner: bannerUrl,
         location: fullLocation
       };
+      setProfileLocation(fullLocation ?? null);
 
       const template = buildProfileEvent(finalPayload);
       const signed = await signEvent(template);

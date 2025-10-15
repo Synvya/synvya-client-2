@@ -6,6 +6,7 @@ import { exchangeSquareCode } from "@/services/square";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { resolveProfileLocation } from "@/lib/profileLocation";
+import { useBusinessProfile } from "@/state/useBusinessProfile";
 
 type ProcessingState = "initializing" | "exchanging" | "completed" | "error";
 
@@ -15,6 +16,10 @@ export function SquareCallbackPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
   const initialize = useAuth((state) => state.initialize);
   const relays = useRelays((state) => state.relays);
+  const { location: cachedProfileLocation, setLocation: setCachedProfileLocation } = useBusinessProfile((state) => ({
+    location: state.location,
+    setLocation: state.setLocation
+  }));
   const [processing, setProcessing] = useState<ProcessingState>("initializing");
   const [error, setError] = useState<string | null>(null);
   const [handled, setHandled] = useState(false);
@@ -66,8 +71,16 @@ export function SquareCallbackPage(): JSX.Element {
 
     void (async () => {
       try {
-        const profileLocation = await resolveProfileLocation(pubkey, relays);
-        await exchangeSquareCode({ code, codeVerifier, pubkey, profileLocation });
+        const profileLocation = await resolveProfileLocation(pubkey, relays, cachedProfileLocation);
+        if (profileLocation && profileLocation !== cachedProfileLocation) {
+          setCachedProfileLocation(profileLocation);
+        }
+        await exchangeSquareCode({
+          code,
+          codeVerifier,
+          pubkey,
+          profileLocation: profileLocation ?? undefined
+        });
         clearSquareState();
         setProcessing("completed");
         setTimeout(() => {
