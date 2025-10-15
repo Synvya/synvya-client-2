@@ -1,5 +1,6 @@
 import type { Event } from "nostr-tools";
 import { getPool } from "@/lib/relayPool";
+import { cacheProfileLocation, getCachedProfileLocation } from "@/lib/profileLocationCache";
 
 function extractLocationFromEvent(event: Event | null | undefined): string | null {
   if (!event) return null;
@@ -31,13 +32,38 @@ function extractLocationFromEvent(event: Event | null | undefined): string | nul
   return null;
 }
 
+function normalizeFallback(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function firstFallback(...candidates: Array<unknown>): string | null {
+  for (const candidate of candidates) {
+    const normalized = normalizeFallback(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return null;
+}
+
 export async function resolveProfileLocation(
   pubkey: string | null | undefined,
-  relays: string[] | null | undefined
+  relays: string[] | null | undefined,
+  ...fallbacks: Array<unknown>
 ): Promise<string | null> {
-  if (!pubkey) return null;
+  const cached = getCachedProfileLocation();
+  const fallback = firstFallback(...fallbacks, cached);
+  if (!pubkey) {
+    if (fallback) cacheProfileLocation(fallback);
+    return fallback;
+  }
   const targets = Array.from(new Set((relays ?? []).map((relay) => relay.trim()).filter(Boolean)));
-  if (!targets.length) return null;
+  if (!targets.length) {
+    if (fallback) cacheProfileLocation(fallback);
+    return fallback;
+  }
 
   const pool = getPool();
   try {
@@ -45,9 +71,16 @@ export async function resolveProfileLocation(
       kinds: [0],
       authors: [pubkey]
     });
-    return extractLocationFromEvent(event);
+    const resolved = extractLocationFromEvent(event);
+    if (resolved) {
+      cacheProfileLocation(resolved);
+      return resolved;
+    }
+    if (fallback) cacheProfileLocation(fallback);
+    return fallback;
   } catch (error) {
     console.warn("Unable to load profile location", error);
-    return null;
+    if (fallback) cacheProfileLocation(fallback);
+    return fallback;
   }
 }

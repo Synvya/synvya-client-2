@@ -118,8 +118,12 @@ export function SettingsPage(): JSX.Element {
     setSquareNotice(null);
     setResyncBusy(true);
     try {
-      const profileLocation = await resolveProfileLocation(pubkey, relays);
-      const { events } = await publishSquareCatalog({ pubkey, profileLocation });
+      const profileLocation = await resolveProfileLocation(pubkey, relays, squareStatus?.profileLocation);
+      const effectiveLocation = profileLocation ?? squareStatus?.profileLocation ?? null;
+      const { events } = await publishSquareCatalog({
+        pubkey,
+        profileLocation: effectiveLocation ?? undefined
+      });
       if (!events.length) {
         setSquareNotice("Square catalog is already up to date.");
         setStatusVersion((value) => value + 1);
