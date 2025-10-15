@@ -20,6 +20,16 @@ const geohashPrecision =
 
 const geocodeCache = new Map();
 
+function isCompleteAddress(location) {
+  if (!location) return false;
+  const parts = location
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => part.toUpperCase() !== "USA");
+  return parts.length >= 4;
+}
+
 function jsonResponse(statusCode, body, headers = {}) {
   return {
     statusCode,
@@ -506,37 +516,34 @@ async function fetchNormalizedCatalog(record) {
   };
 }
 
-async function performSync(record, options = {}) {
+async function performSync(record, options) {
   const refreshed = await refreshAccessToken(record);
   const catalog = await fetchNormalizedCatalog(refreshed);
-  const hasRequestedLocation = Object.prototype.hasOwnProperty.call(options, "profileLocation");
-  const requestedLocationRaw = hasRequestedLocation ? options.profileLocation : undefined;
-  const requestedLocation =
-    typeof requestedLocationRaw === "string" && requestedLocationRaw.trim()
-      ? requestedLocationRaw.trim()
-      : null;
+  const requestedLocationRaw = options?.profileLocation;
+  const hasRequestedLocation =
+    typeof requestedLocationRaw === "string" && requestedLocationRaw.trim().length > 0;
+  const requestedLocation = hasRequestedLocation ? requestedLocationRaw.trim() : null;
   const existingLocation =
     typeof record.profileLocation === "string" && record.profileLocation.trim()
       ? record.profileLocation.trim()
       : null;
   const profileLocation = hasRequestedLocation ? requestedLocation : existingLocation;
-  const locationChanged = hasRequestedLocation ? requestedLocation !== existingLocation : false;
+  const locationChanged =
+    hasRequestedLocation && requestedLocation !== existingLocation && (requestedLocation || existingLocation);
   const existingGeoHash =
     typeof record.profileGeoHash === "string" && record.profileGeoHash.trim()
       ? record.profileGeoHash.trim()
       : null;
 
   let profileGeoHash = existingGeoHash;
-  if (locationChanged) {
-    if (profileLocation) {
+  const locationHasFullAddress = profileLocation ? isCompleteAddress(profileLocation) : false;
+  if (locationHasFullAddress) {
+    if (locationChanged || !existingGeoHash) {
       const { geohash } = await geocodeLocation(profileLocation);
       profileGeoHash = geohash || null;
-    } else {
-      profileGeoHash = null;
     }
-  } else if (profileLocation && !profileGeoHash) {
-    const { geohash } = await geocodeLocation(profileLocation);
-    profileGeoHash = geohash || null;
+  } else if (locationChanged && existingGeoHash) {
+    profileGeoHash = null;
   }
 
   const events = buildEvents(catalog, profileLocation, profileGeoHash);
@@ -653,8 +660,8 @@ async function handleExchange(event) {
     return jsonResponse(400, { error: "code, codeVerifier, and pubkey are required" });
   }
   const rawProfileLocation =
-    typeof body.profileLocation === "string" ? body.profileLocation.trim() : "";
-  const profileLocation = rawProfileLocation || null;
+    typeof body.profileLocation === "string" ? body.profileLocation.trim() : null;
+  const profileLocation = rawProfileLocation && rawProfileLocation.length ? rawProfileLocation : null;
 
   const token = await exchangeAuthorizationCode({ code, codeVerifier });
 
@@ -723,8 +730,8 @@ async function handlePublish(event) {
     return jsonResponse(400, { error: "pubkey is required" });
   }
   const rawProfileLocation =
-    typeof body.profileLocation === "string" ? body.profileLocation.trim() : "";
-  const profileLocation = rawProfileLocation || null;
+    typeof body.profileLocation === "string" ? body.profileLocation.trim() : null;
+  const profileLocation = rawProfileLocation && rawProfileLocation.length ? rawProfileLocation : null;
   const record = await loadConnection(pubkey);
   if (!record) {
     return jsonResponse(404, { error: "Square connection not found" });

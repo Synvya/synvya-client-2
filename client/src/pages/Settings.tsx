@@ -118,7 +118,7 @@ export function SettingsPage(): JSX.Element {
     setSquareNotice(null);
     setResyncBusy(true);
     try {
-      const profileLocation = await resolveProfileLocation(pubkey, relays, squareStatus?.profileLocation);
+      const profileLocation = await resolveProfileLocation(pubkey, relays);
       const effectiveLocation = profileLocation ?? squareStatus?.profileLocation ?? null;
       const { events } = await publishSquareCatalog({
         pubkey,

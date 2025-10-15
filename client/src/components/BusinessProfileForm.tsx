@@ -11,7 +11,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { uploadMedia } from "@/services/upload";
 import type { Event } from "nostr-tools";
 import { CheckCircle2, Image as ImageIcon, UploadCloud } from "lucide-react";
-import { cacheProfileLocation } from "@/lib/profileLocationCache";
 
 interface FormStatus {
   type: "idle" | "success" | "error";
@@ -152,7 +151,6 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
     if (parts[1]) patch.city = parts[1];
     if (parts[2]) patch.state = parts[2];
     if (parts[3]) patch.zip = parts[3];
-    cacheProfileLocation(locationValue);
   }
 
   if (categories.length) {
@@ -232,7 +230,6 @@ export function BusinessProfileForm(): JSX.Element {
         (value): value is string => Boolean(value)
       );
       const fullLocation = locationParts.length >= 2 ? `${locationParts.join(", ")}, USA` : undefined;
-      cacheProfileLocation(fullLocation);
 
       const finalPayload: BusinessProfile = {
         ...payload,
