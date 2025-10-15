@@ -1,6 +1,23 @@
-import { createHash } from "node:crypto";
+import { createHash, webcrypto } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import WebSocket from "ws";
+import { SimplePool } from "nostr-tools";
+
+if (typeof globalThis.WebSocket === "undefined") {
+  globalThis.WebSocket = WebSocket;
+}
+
+if (typeof globalThis.crypto === "undefined") {
+  globalThis.crypto = webcrypto;
+}
+
+const profileRelays = (process.env.NOSTR_RELAYS || "wss://relay.damus.io,wss://relay.snort.social,wss://nos.lol")
+  .split(",")
+  .map((relay) => relay.trim())
+  .filter(Boolean);
+
+const nostrPool = profileRelays.length ? new SimplePool() : null;
 import ngeohash from "ngeohash";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -14,11 +31,77 @@ const squareVersion = process.env.SQUARE_VERSION || "2025-01-23";
 const geocodeEndpoint =
   process.env.GEOCODE_ENDPOINT || "https://nominatim.openstreetmap.org/search";
 const geocodeUserAgent =
-  process.env.GEOCODE_USER_AGENT || "SynvyaSquareIntegration/1.0 (+https://synvya.com)";
+  process.env.GEOCODE_USER_AGENT || "SynvyaSquareIntegration/1.0 (contact@synvya.com)";
+const geocodeContactEmail = process.env.GEOCODE_CONTACT_EMAIL || "contact@synvya.com";
+const fallbackGeocodeEndpoint =
+  process.env.FALLBACK_GEOCODE_ENDPOINT || "https://geocode.maps.co/search";
 const geohashPrecision =
   Number.parseInt(process.env.GEOHASH_PRECISION ?? "", 10) || 9;
 
 const geocodeCache = new Map();
+
+function extractLocationFromKind0(event) {
+  if (!event) return null;
+  for (const tag of event.tags || []) {
+    if (Array.isArray(tag) && tag.length >= 2 && tag[0] === "i" && typeof tag[1] === "string") {
+      if (tag[1].toLowerCase().startsWith("location:")) {
+        const value = tag[1].slice("location:".length).trim();
+        if (value) return value;
+      }
+    }
+  }
+  if (event.content) {
+    try {
+      const parsed = JSON.parse(event.content);
+      const value = parsed?.location;
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    } catch (error) {
+      console.warn("Failed to parse kind 0 content for location", error);
+    }
+  }
+  return null;
+}
+
+async function fetchProfileLocationFromRelays(pubkey) {
+  if (!nostrPool || !profileRelays.length) {
+    return null;
+  }
+  try {
+    const timeoutMs = Number.parseInt(process.env.PROFILE_FETCH_TIMEOUT_MS ?? "2000", 10);
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
+    const getPromise = nostrPool
+      .get(profileRelays, {
+        kinds: [0],
+        authors: [pubkey]
+      })
+      .catch((error) => {
+        console.warn("Failed to fetch kind 0 profile", { pubkey, error: error?.message || error });
+        return null;
+      });
+    const event = await Promise.race([getPromise, timeoutPromise]);
+    if (!event) {
+      console.warn("No kind 0 profile found on configured relays", { pubkey, relays: profileRelays });
+      return null;
+    }
+    const derived = extractLocationFromKind0(event);
+    if (!derived) {
+      console.warn("Kind 0 profile missing location tag", { pubkey, event });
+    }
+    return derived;
+  } catch (error) {
+    console.warn("Failed to load kind 0 profile from relays", { pubkey, error: error?.message || error });
+    return null;
+  }
+  finally {
+    try {
+      nostrPool?.close(profileRelays);
+    } catch {
+      // ignore
+    }
+  }
+}
 
 function isCompleteAddress(location) {
   if (!location) return false;
@@ -122,6 +205,76 @@ function precisionWithinBounds(value) {
   return Math.min(Math.max(value, 1), 12);
 }
 
+function buildAddressVariants(location) {
+  const base = location.trim();
+  const variants = new Set();
+  if (base) variants.add(base);
+
+  const parts = base
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 3) {
+    variants.add(parts.slice(1).join(", "));
+    variants.add(parts.slice(-3).join(", "));
+  }
+
+  if (parts.length) {
+    variants.add(parts.join(" "));
+  }
+  return Array.from(variants);
+}
+
+async function queryGeocoder(endpoint, address) {
+  if (!endpoint) return null;
+  try {
+    const url = new URL(endpoint);
+    url.searchParams.set("q", address);
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("limit", "1");
+    url.searchParams.set("addressdetails", "0");
+    if (geocodeContactEmail) {
+      url.searchParams.set("email", geocodeContactEmail);
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": geocodeUserAgent,
+        Accept: "application/json"
+      }
+    });
+    if (!response.ok) {
+      console.warn("Geocode request failed", {
+        endpoint,
+        status: response.status,
+        address
+      });
+      return null;
+    }
+    const payload = await response.json().catch(() => null);
+    const entry = Array.isArray(payload) ? payload[0] : null;
+    if (!entry) {
+      console.warn("Geocode returned empty results", { endpoint, address });
+      return null;
+    }
+    const lat = entry?.lat ? Number.parseFloat(entry.lat) : Number.NaN;
+    const lon = entry?.lon ? Number.parseFloat(entry.lon) : Number.NaN;
+    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+      console.warn("Geocode returned invalid coordinates", { endpoint, address, entry });
+      return null;
+    }
+    return { latitude: lat, longitude: lon };
+  } catch (error) {
+    console.warn("Geocode fetch error", {
+      endpoint,
+      address,
+      error: error instanceof Error ? error.message : error
+    });
+    return null;
+  }
+}
+
 async function geocodeLocation(location) {
   if (!location) return { geohash: null, latitude: null, longitude: null };
   const trimmed = location.trim();
@@ -132,39 +285,41 @@ async function geocodeLocation(location) {
   if (geocodeCache.has(cacheKey)) {
     return geocodeCache.get(cacheKey);
   }
-  const url = new URL(geocodeEndpoint);
-  url.searchParams.set("q", trimmed);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("limit", "1");
-  url.searchParams.set("addressdetails", "0");
 
+  const variants = buildAddressVariants(trimmed);
   try {
-    const response = await fetch(url.toString(), {
-      headers: {
-        "User-Agent": geocodeUserAgent,
-        Accept: "application/json"
+    for (const variant of variants) {
+      const primary = await queryGeocoder(geocodeEndpoint, variant);
+      if (primary) {
+        const safePrecision = precisionWithinBounds(geohashPrecision);
+        const geohash = ngeohash.encode(primary.latitude, primary.longitude, safePrecision);
+        const result = { geohash, latitude: primary.latitude, longitude: primary.longitude };
+        geocodeCache.set(cacheKey, result);
+        return result;
       }
-    });
-    if (!response.ok) {
-      console.warn("Geocode request failed", response.status, trimmed);
-      geocodeCache.set(cacheKey, { geohash: null, latitude: null, longitude: null });
-      return { geohash: null, latitude: null, longitude: null };
     }
-    const json = await response.json();
-    const first = Array.isArray(json) ? json[0] : null;
-    const lat = first?.lat ? Number.parseFloat(first.lat) : Number.NaN;
-    const lon = first?.lon ? Number.parseFloat(first.lon) : Number.NaN;
-    if (Number.isNaN(lat) || Number.isNaN(lon)) {
-      geocodeCache.set(cacheKey, { geohash: null, latitude: null, longitude: null });
-      return { geohash: null, latitude: null, longitude: null };
+
+    if (fallbackGeocodeEndpoint) {
+      for (const variant of variants) {
+        const fallback = await queryGeocoder(fallbackGeocodeEndpoint, variant);
+        if (fallback) {
+          const safePrecision = precisionWithinBounds(geohashPrecision);
+          const geohash = ngeohash.encode(fallback.latitude, fallback.longitude, safePrecision);
+          const result = { geohash, latitude: fallback.latitude, longitude: fallback.longitude };
+          geocodeCache.set(cacheKey, result);
+          return result;
+        }
+      }
     }
-    const safePrecision = precisionWithinBounds(geohashPrecision);
-    const geohash = ngeohash.encode(lat, lon, safePrecision);
-    const result = { geohash, latitude: lat, longitude: lon };
-    geocodeCache.set(cacheKey, result);
-    return result;
+
+    console.warn("Unable to geocode address after attempts", { location: trimmed });
+    geocodeCache.set(cacheKey, { geohash: null, latitude: null, longitude: null });
+    return { geohash: null, latitude: null, longitude: null };
   } catch (error) {
-    console.warn("Failed to geocode location", trimmed, error);
+    console.warn("Failed to geocode location", {
+      location: trimmed,
+      error: error instanceof Error ? error.message : error
+    });
     geocodeCache.set(cacheKey, { geohash: null, latitude: null, longitude: null });
     return { geohash: null, latitude: null, longitude: null };
   }
@@ -527,9 +682,21 @@ async function performSync(record, options) {
     typeof record.profileLocation === "string" && record.profileLocation.trim()
       ? record.profileLocation.trim()
       : null;
-  const profileLocation = hasRequestedLocation ? requestedLocation : existingLocation;
+  const pubkeyValue = extractPubkey(refreshed);
+
+  let profileLocation = hasRequestedLocation ? requestedLocation : existingLocation;
+  let locationSource = hasRequestedLocation ? "request" : existingLocation ? "stored" : null;
+
+  if (!profileLocation) {
+    const fromRelays = await fetchProfileLocationFromRelays(pubkeyValue);
+    if (fromRelays) {
+      profileLocation = fromRelays.trim();
+      locationSource = "kind0";
+    }
+  }
+
   const locationChanged =
-    hasRequestedLocation && requestedLocation !== existingLocation && (requestedLocation || existingLocation);
+    profileLocation && profileLocation !== existingLocation ? true : hasRequestedLocation && !profileLocation && existingLocation ? true : false;
   const existingGeoHash =
     typeof record.profileGeoHash === "string" && record.profileGeoHash.trim()
       ? record.profileGeoHash.trim()
