@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import ngeohash from "ngeohash";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const squareConnectionsTable = process.env.SQUARE_CONNECTIONS_TABLE;
@@ -10,6 +11,14 @@ const squareAppId = process.env.SQUARE_APPLICATION_ID;
 const squareClientSecret = process.env.SQUARE_CLIENT_SECRET;
 const squareRedirectUri = process.env.SQUARE_REDIRECT_URI;
 const squareVersion = process.env.SQUARE_VERSION || "2025-01-23";
+const geocodeEndpoint =
+  process.env.GEOCODE_ENDPOINT || "https://nominatim.openstreetmap.org/search";
+const geocodeUserAgent =
+  process.env.GEOCODE_USER_AGENT || "SynvyaSquareIntegration/1.0 (+https://synvya.com)";
+const geohashPrecision =
+  Number.parseInt(process.env.GEOHASH_PRECISION ?? "", 10) || 9;
+
+const geocodeCache = new Map();
 
 function jsonResponse(statusCode, body, headers = {}) {
   return {
@@ -98,10 +107,66 @@ function slug(itemId, variationId) {
   return `sq-${h}`;
 }
 
-function buildEvents(catalog) {
+function precisionWithinBounds(value) {
+  if (!Number.isInteger(value)) return 9;
+  return Math.min(Math.max(value, 1), 12);
+}
+
+async function geocodeLocation(location) {
+  if (!location) return { geohash: null, latitude: null, longitude: null };
+  const trimmed = location.trim();
+  if (!trimmed) {
+    return { geohash: null, latitude: null, longitude: null };
+  }
+  const cacheKey = trimmed.toLowerCase();
+  if (geocodeCache.has(cacheKey)) {
+    return geocodeCache.get(cacheKey);
+  }
+  const url = new URL(geocodeEndpoint);
+  url.searchParams.set("q", trimmed);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("addressdetails", "0");
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": geocodeUserAgent,
+        Accept: "application/json"
+      }
+    });
+    if (!response.ok) {
+      console.warn("Geocode request failed", response.status, trimmed);
+      geocodeCache.set(cacheKey, { geohash: null, latitude: null, longitude: null });
+      return { geohash: null, latitude: null, longitude: null };
+    }
+    const json = await response.json();
+    const first = Array.isArray(json) ? json[0] : null;
+    const lat = first?.lat ? Number.parseFloat(first.lat) : Number.NaN;
+    const lon = first?.lon ? Number.parseFloat(first.lon) : Number.NaN;
+    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+      geocodeCache.set(cacheKey, { geohash: null, latitude: null, longitude: null });
+      return { geohash: null, latitude: null, longitude: null };
+    }
+    const safePrecision = precisionWithinBounds(geohashPrecision);
+    const geohash = ngeohash.encode(lat, lon, safePrecision);
+    const result = { geohash, latitude: lat, longitude: lon };
+    geocodeCache.set(cacheKey, result);
+    return result;
+  } catch (error) {
+    console.warn("Failed to geocode location", trimmed, error);
+    geocodeCache.set(cacheKey, { geohash: null, latitude: null, longitude: null });
+    return { geohash: null, latitude: null, longitude: null };
+  }
+}
+
+function buildEvents(catalog, profileLocation, profileGeoHash) {
   const catById = new Map((catalog.categories || []).map((c) => [c.id, c.name]));
   const imgById = new Map((catalog.images || []).map((i) => [i.id, i.url]));
-  const locationName = catalog.locations?.[0]?.name;
+  const locationTagValue =
+    typeof profileLocation === "string" && profileLocation.trim() ? profileLocation.trim() : null;
+  const geohashTagValue =
+    typeof profileGeoHash === "string" && profileGeoHash.trim() ? profileGeoHash.trim() : null;
 
   const events = [];
   for (const item of catalog.items || []) {
@@ -126,8 +191,11 @@ SKU: ${variation.sku || "N/A"}`.trim();
           item.description.length > 140 ? `${item.description.slice(0, 140)}…` : item.description;
         tags.push(["summary", summary]);
       }
-      if (locationName) {
-        tags.push(["location", locationName]);
+      if (locationTagValue) {
+        tags.push(["location", locationTagValue]);
+      }
+      if (geohashTagValue) {
+        tags.push(["g", geohashTagValue]);
       }
       for (const imageId of item.imageIds || []) {
         const url = imgById.get(imageId);
@@ -284,6 +352,20 @@ async function fetchNormalizedCatalog(record) {
     throw new Error("Missing Square access token");
   }
 
+  const locationsResponse = await fetchSquare("/v2/locations", { accessToken });
+  const fetchedLocations =
+    locationsResponse.locations?.filter((loc) => typeof loc?.id === "string" && loc.id) || [];
+  const normalizedLocations = fetchedLocations.map((loc) => ({
+    id: loc.id,
+    name: loc.name || loc.address?.address_line_1 || "Location"
+  }));
+  const locations =
+    normalizedLocations.length > 0
+      ? normalizedLocations
+      : Array.isArray(record.locations)
+        ? record.locations
+        : [];
+
   const objects = [];
   let cursor;
   do {
@@ -420,14 +502,44 @@ async function fetchNormalizedCatalog(record) {
     items,
     categories,
     images,
-    locations: record.locations || []
+    locations
   };
 }
 
-async function performSync(record) {
+async function performSync(record, options = {}) {
   const refreshed = await refreshAccessToken(record);
   const catalog = await fetchNormalizedCatalog(refreshed);
-  const events = buildEvents(catalog);
+  const hasRequestedLocation = Object.prototype.hasOwnProperty.call(options, "profileLocation");
+  const requestedLocationRaw = hasRequestedLocation ? options.profileLocation : undefined;
+  const requestedLocation =
+    typeof requestedLocationRaw === "string" && requestedLocationRaw.trim()
+      ? requestedLocationRaw.trim()
+      : null;
+  const existingLocation =
+    typeof record.profileLocation === "string" && record.profileLocation.trim()
+      ? record.profileLocation.trim()
+      : null;
+  const profileLocation = hasRequestedLocation ? requestedLocation : existingLocation;
+  const locationChanged = hasRequestedLocation ? requestedLocation !== existingLocation : false;
+  const existingGeoHash =
+    typeof record.profileGeoHash === "string" && record.profileGeoHash.trim()
+      ? record.profileGeoHash.trim()
+      : null;
+
+  let profileGeoHash = existingGeoHash;
+  if (locationChanged) {
+    if (profileLocation) {
+      const { geohash } = await geocodeLocation(profileLocation);
+      profileGeoHash = geohash || null;
+    } else {
+      profileGeoHash = null;
+    }
+  } else if (profileLocation && !profileGeoHash) {
+    const { geohash } = await geocodeLocation(profileLocation);
+    profileGeoHash = geohash || null;
+  }
+
+  const events = buildEvents(catalog, profileLocation, profileGeoHash);
 
   const previous = record.publishedFingerprints || {};
   const fingerprints = { ...previous };
@@ -449,19 +561,38 @@ async function performSync(record) {
     fingerprints[dTag] = fingerprint;
   }
 
-  const update = new UpdateCommand({
-    TableName: squareConnectionsTable,
-    Key: { [squarePrimaryKey]: extractPubkey(refreshed) },
-    UpdateExpression:
-      "SET lastSyncAt = :sync, lastPublishCount = :count, publishedFingerprints = :fp, updatedAt = :u",
-    ExpressionAttributeValues: {
-      ":sync": new Date().toISOString(),
-      ":count": toPublish.length,
-      ":fp": fingerprints,
-      ":u": new Date().toISOString()
-    }
-  });
-  await dynamo.send(update);
+  const expressionValues = {
+    ":sync": new Date().toISOString(),
+    ":count": toPublish.length,
+    ":fp": fingerprints,
+    ":u": new Date().toISOString(),
+    ":loc": catalog.locations
+  };
+  const removeExpressions = [];
+  let updateExpression =
+    "SET lastSyncAt = :sync, lastPublishCount = :count, publishedFingerprints = :fp, updatedAt = :u, locations = :loc";
+  if (profileLocation) {
+    updateExpression += ", profileLocation = :profileLocation";
+    expressionValues[":profileLocation"] = profileLocation;
+  } else if (locationChanged && existingLocation) {
+    removeExpressions.push("profileLocation");
+  }
+  if (profileGeoHash) {
+    updateExpression += ", profileGeoHash = :profileGeoHash";
+    expressionValues[":profileGeoHash"] = profileGeoHash;
+  } else if ((locationChanged && existingGeoHash) || (!profileGeoHash && existingGeoHash && !profileLocation)) {
+    removeExpressions.push("profileGeoHash");
+  }
+  const finalExpression =
+    removeExpressions.length > 0 ? `${updateExpression} REMOVE ${removeExpressions.join(", ")}` : updateExpression;
+  await dynamo.send(
+    new UpdateCommand({
+      TableName: squareConnectionsTable,
+      Key: { [squarePrimaryKey]: extractPubkey(refreshed) },
+      UpdateExpression: finalExpression,
+      ExpressionAttributeValues: expressionValues
+    })
+  );
 
   return {
     totalEvents: events.length,
@@ -506,7 +637,9 @@ async function handleStatus(event) {
     scopes: record.scopes || [],
     connectedAt: record.connectedAt || null,
     lastSyncAt: record.lastSyncAt || null,
-    lastPublishCount: record.lastPublishCount || 0
+    lastPublishCount: record.lastPublishCount || 0,
+    profileLocation: record.profileLocation || null,
+    profileGeoHash: record.profileGeoHash || null
   });
 }
 
@@ -519,6 +652,9 @@ async function handleExchange(event) {
   if (!code || !codeVerifier || !pubkey) {
     return jsonResponse(400, { error: "code, codeVerifier, and pubkey are required" });
   }
+  const rawProfileLocation =
+    typeof body.profileLocation === "string" ? body.profileLocation.trim() : "";
+  const profileLocation = rawProfileLocation || null;
 
   const token = await exchangeAuthorizationCode({ code, codeVerifier });
 
@@ -555,6 +691,9 @@ async function handleExchange(event) {
     lastPublishCount: 0,
     publishedFingerprints: {}
   };
+  if (profileLocation) {
+    item.profileLocation = profileLocation;
+  }
 
   await dynamo.send(
     new PutCommand({
@@ -563,7 +702,7 @@ async function handleExchange(event) {
     })
   );
 
-  const result = await performSync({ ...item, pubkey });
+  const result = await performSync({ ...item, pubkey }, { profileLocation });
 
   return jsonResponse(200, {
     connected: true,
@@ -583,11 +722,14 @@ async function handlePublish(event) {
   if (!pubkey) {
     return jsonResponse(400, { error: "pubkey is required" });
   }
+  const rawProfileLocation =
+    typeof body.profileLocation === "string" ? body.profileLocation.trim() : "";
+  const profileLocation = rawProfileLocation || null;
   const record = await loadConnection(pubkey);
   if (!record) {
     return jsonResponse(404, { error: "Square connection not found" });
   }
-  const result = await performSync({ ...record, pubkey });
+  const result = await performSync({ ...record, pubkey }, { profileLocation });
   return jsonResponse(200, {
     merchantId: record.merchantId,
     pendingCount: result.pendingCount,

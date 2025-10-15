@@ -10,6 +10,7 @@ import { buildSquareAuthorizeUrl } from "@/lib/square/auth";
 import { fetchSquareStatus, publishSquareCatalog, type SquareConnectionStatus } from "@/services/square";
 import { publishToRelays } from "@/lib/relayPool";
 import { validateEvent } from "@/validation/nostrValidation";
+import { resolveProfileLocation } from "@/lib/profileLocation";
 
 export function SettingsPage(): JSX.Element {
   const npub = useAuth((state) => state.npub);
@@ -117,7 +118,8 @@ export function SettingsPage(): JSX.Element {
     setSquareNotice(null);
     setResyncBusy(true);
     try {
-      const { events } = await publishSquareCatalog(pubkey);
+      const profileLocation = await resolveProfileLocation(pubkey, relays);
+      const { events } = await publishSquareCatalog({ pubkey, profileLocation });
       if (!events.length) {
         setSquareNotice("Square catalog is already up to date.");
         setStatusVersion((value) => value + 1);

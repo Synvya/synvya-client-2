@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { consumeSquareCodeVerifier, clearSquareState, getSquareState } from "@/lib/square/auth";
 import { exchangeSquareCode } from "@/services/square";
 import { useAuth } from "@/state/useAuth";
+import { useRelays } from "@/state/useRelays";
+import { resolveProfileLocation } from "@/lib/profileLocation";
 
 type ProcessingState = "initializing" | "exchanging" | "completed" | "error";
 
@@ -12,6 +14,7 @@ export function SquareCallbackPage(): JSX.Element {
   const authStatus = useAuth((state) => state.status);
   const pubkey = useAuth((state) => state.pubkey);
   const initialize = useAuth((state) => state.initialize);
+  const relays = useRelays((state) => state.relays);
   const [processing, setProcessing] = useState<ProcessingState>("initializing");
   const [error, setError] = useState<string | null>(null);
   const [handled, setHandled] = useState(false);
@@ -63,7 +66,8 @@ export function SquareCallbackPage(): JSX.Element {
 
     void (async () => {
       try {
-        await exchangeSquareCode({ code, codeVerifier, pubkey });
+        const profileLocation = await resolveProfileLocation(pubkey, relays);
+        await exchangeSquareCode({ code, codeVerifier, pubkey, profileLocation });
         clearSquareState();
         setProcessing("completed");
         setTimeout(() => {
