@@ -23,6 +23,17 @@ export function Header(): JSX.Element {
               Profile
             </NavLink>
             <NavLink
+              to="/app/reservations"
+              className={({ isActive }) =>
+                cn(
+                  "transition-colors hover:text-primary",
+                  isActive ? "text-primary" : "text-muted-foreground"
+                )
+              }
+            >
+              Reservations
+            </NavLink>
+            <NavLink
               to="/app/settings"
               className={({ isActive }) =>
                 cn(
