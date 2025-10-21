@@ -11,7 +11,7 @@ import { useRelays } from "@/state/useRelays";
 import { useReservations } from "@/state/useReservations";
 import { buildReservationResponse } from "@/lib/reservationEvents";
 import { publishToRelays } from "@/lib/relayPool";
-import { wrapEvent } from "@/lib/nip59";
+import { wrapEvent, createRumor } from "@/lib/nip59";
 import { loadAndDecryptSecret } from "@/lib/secureStore";
 import { skFromNsec } from "@/lib/nostrKeys";
 import type { ReservationResponse } from "@/types/reservation";
@@ -40,14 +40,14 @@ export interface SuggestOptions {
 }
 
 export function useReservationActions() {
-  const { signEvent, pubkey } = useAuth();
-  const relays = useRelays((state) => state.relays);
-  const addMessage = useReservations((state) => state.addMessage);
-  const [state, setState] = useState<ReservationActionState>({
-    loading: false,
-    error: null,
-    success: false,
-  });
+    const { signEvent, pubkey } = useAuth();
+    const relays = useRelays((state) => state.relays);
+    const addMessage = useReservations((state) => state.addMessage);
+    const [state, setState] = useState<ReservationActionState>({
+        loading: false,
+        error: null,
+        success: false,
+    });
 
     const resetState = useCallback(() => {
         setState({ loading: false, error: null, success: false });
@@ -95,6 +95,9 @@ export function useReservationActions() {
                 // Note: wrapEvent already creates a signed event, but we need to ensure it's properly signed
                 // The wrapEvent function handles this internally
 
+        // Create rumor from the template (adds ID and proper structure)
+        const rumor = createRumor(responseTemplate, privateKey);
+
         // Publish to relays
         await publishToRelays(giftWrap, relays);
 
@@ -102,7 +105,7 @@ export function useReservationActions() {
         // (responses addressed to the agent won't come back to our subscription)
         if (pubkey) {
           const responseMessage: ReservationMessage = {
-            rumor: responseTemplate as any, // Has all properties rumor needs
+            rumor: rumor,
             type: "response",
             payload: response,
             senderPubkey: pubkey, // We're the sender
@@ -111,16 +114,16 @@ export function useReservationActions() {
           addMessage(responseMessage);
         }
 
-        setState({ loading: false, error: null, success: true });
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to send response";
-        setState({ loading: false, error: message, success: false });
-        throw error;
-      }
-    },
-    [relays, addMessage, pubkey]
-  );
+                setState({ loading: false, error: null, success: true });
+            } catch (error) {
+                const message =
+                    error instanceof Error ? error.message : "Failed to send response";
+                setState({ loading: false, error: message, success: false });
+                throw error;
+            }
+        },
+        [relays, addMessage, pubkey]
+    );
 
     const acceptReservation = useCallback(
         async (
