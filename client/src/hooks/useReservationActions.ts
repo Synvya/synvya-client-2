@@ -66,9 +66,10 @@ export function useReservationActions() {
         }
         const privateKey = skFromNsec(nsec);
 
-        // Build reply tags for threading
+        // Build reply tags for threading using the rumor (unwrapped request)
+        // Cast rumor to Event type since it has id and tags which is all buildReplyTags needs
         const replyTags = buildReplyTags(
-          request.giftWrap,
+          request.rumor as any,
           [request.senderPubkey],
           relays[0]
         );
