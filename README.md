@@ -142,3 +142,15 @@ The API Gateway, Lambda functions, and DynamoDB table were provisioned once (man
 - **Local testing**: `npm run dev`, `npm run build`, `npm run preview`.
 - **Deployment**: merge to `main` or trigger the “Deploy Frontend” GitHub Action.
 - **Cache busting**: workflow triggers CloudFront invalidation; re-run if assets appear stale.
+
+## Local Test On Branch Before PR 
+```
+# On the feature branch
+npm test -- --run          # All tests pass
+npm run build             # Build succeeds
+git checkout main         # Switch to main
+git pull                  # Get latest
+git checkout feature-branch
+git merge main            # Merge main into feature
+npm test -- --run          # Test again after merge
+```
