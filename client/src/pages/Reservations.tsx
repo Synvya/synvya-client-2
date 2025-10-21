@@ -428,8 +428,11 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
   const handleSuggest = async () => {
     if (!suggestedTime) return;
     try {
+      // Convert datetime-local to ISO8601 format
+      const isoTime = new Date(suggestedTime).toISOString();
+      
       await suggestAlternativeTime(message, {
-        alternativeTime: suggestedTime,
+        alternativeTime: isoTime,
         message: suggestMessage || undefined,
       });
       setSuggestDialogOpen(false);
