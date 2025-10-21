@@ -8,6 +8,28 @@ import {
   createReservationSubscription,
   type ReservationSubscription,
 } from "@/services/reservationService";
+import { getThreadContext } from "@/lib/nip10";
+import type { ReservationRequest } from "@/types/reservation";
+
+/**
+ * A conversation thread containing related messages
+ */
+export interface ConversationThread {
+  /** Root event ID of the thread */
+  rootEventId: string;
+  /** All messages in this thread, sorted chronologically */
+  messages: ReservationMessage[];
+  /** The initial reservation request */
+  initialRequest: ReservationMessage;
+  /** Latest message in the thread */
+  latestMessage: ReservationMessage;
+  /** Timestamp of the latest message */
+  latestTimestamp: number;
+  /** Conversation partner's public key */
+  partnerPubkey: string;
+  /** Number of messages in thread */
+  messageCount: number;
+}
 
 export interface ReservationState {
   messages: ReservationMessage[];
@@ -22,6 +44,9 @@ export interface ReservationState {
   setError: (error: string | null) => void;
   clearMessages: () => void;
   markAsRead: (messageId: string) => void;
+  
+  // Computed/derived
+  getThreads: () => ConversationThread[];
 }
 
 export const useReservations = create<ReservationState>((set, get) => ({
@@ -92,6 +117,56 @@ export const useReservations = create<ReservationState>((set, get) => ({
     // TODO: Implement read tracking
     // For now, this is a placeholder for future functionality
     console.debug("Mark as read:", messageId);
+  },
+
+  getThreads: () => {
+    const messages = get().messages;
+    if (!messages.length) return [];
+
+    // Group messages by thread
+    const threadMap = new Map<string, ReservationMessage[]>();
+
+    for (const message of messages) {
+      // Extract thread context from rumor tags
+      const context = getThreadContext(message.rumor as any); // Rumor has tags, which is all getThreadContext needs
+      // Use root event ID as thread identifier, or the message ID itself if it's the root
+      const threadId = context.rootId || message.rumor.id;
+      
+      if (!threadMap.has(threadId)) {
+        threadMap.set(threadId, []);
+      }
+      threadMap.get(threadId)!.push(message);
+    }
+
+    // Convert to ConversationThread objects
+    const threads: ConversationThread[] = [];
+    
+    for (const [rootEventId, threadMessages] of threadMap.entries()) {
+      // Sort messages chronologically
+      const sortedMessages = [...threadMessages].sort(
+        (a, b) => a.rumor.created_at - b.rumor.created_at
+      );
+
+      // Find the initial request (first message with type "request")
+      const initialRequest = sortedMessages.find(m => m.type === "request") || sortedMessages[0];
+      const latestMessage = sortedMessages[sortedMessages.length - 1];
+
+      // Determine conversation partner (the other party's pubkey)
+      const partnerPubkey = latestMessage.senderPubkey;
+
+      threads.push({
+        rootEventId,
+        messages: sortedMessages,
+        initialRequest,
+        latestMessage,
+        latestTimestamp: latestMessage.rumor.created_at,
+        partnerPubkey,
+        messageCount: sortedMessages.length,
+      });
+    }
+
+    // Sort threads by latest message timestamp (newest first)
+    return threads.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
   },
 }));
 
