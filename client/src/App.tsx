@@ -3,6 +3,7 @@ import { OnboardingGate } from "@/components/OnboardingGate";
 import { Header } from "@/components/Header";
 import { ProfilePage } from "@/pages/Profile";
 import { SettingsPage } from "@/pages/Settings";
+import { ReservationsPage } from "@/pages/Reservations";
 import { LandingPage } from "@/pages/Landing";
 import { SquareCallbackPage } from "@/pages/SquareCallback";
 
@@ -27,6 +28,7 @@ export function App(): JSX.Element {
       <Route path="/app" element={<ProtectedApp />}>
         <Route index element={<Navigate to="profile" replace />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="reservations" element={<ReservationsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="profile" replace />} />
       </Route>
