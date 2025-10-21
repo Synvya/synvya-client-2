@@ -30,7 +30,9 @@ export function App(): JSX.Element {
         <Route index element={<Navigate to="profile" replace />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="reservations" element={<ReservationsPage />} />
-        <Route path="test-harness" element={<TestHarnessPage />} />
+        {import.meta.env.DEV && (
+          <Route path="test-harness" element={<TestHarnessPage />} />
+        )}
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="profile" replace />} />
       </Route>
