@@ -23,23 +23,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Inbox, Users, Calendar, Clock, MessageSquare, AlertCircle, Check, X, CalendarDays } from "lucide-react";
+import { Inbox, Users, Calendar, Clock, MessageSquare, AlertCircle, Check, X, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
 import type { ReservationRequest, ReservationResponse } from "@/types/reservation";
 import type { ReservationMessage } from "@/services/reservationService";
+import type { ConversationThread } from "@/state/useReservations";
 
 export function ReservationsPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
   const relays = useRelays((state) => state.relays);
   const {
-    messages,
     isConnected,
     error: subscriptionError,
     startListening,
     stopListening,
+    getThreads,
   } = useReservations();
 
+  const threads = getThreads();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+
+  const toggleThread = (threadId: string) => {
+    setExpandedThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(threadId)) {
+        next.delete(threadId);
+      } else {
+        next.add(threadId);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!pubkey || !relays.length) {
@@ -135,7 +150,7 @@ export function ReservationsPage(): JSX.Element {
         </div>
       </div>
 
-      {messages.length === 0 ? (
+      {threads.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12">
           <div className="flex flex-col items-center gap-4 text-center">
             <div className="rounded-full bg-muted p-4">
@@ -151,8 +166,13 @@ export function ReservationsPage(): JSX.Element {
         </div>
       ) : (
         <div className="space-y-4">
-          {messages.map((message) => (
-            <ReservationMessageCard key={message.rumor.id} message={message} />
+          {threads.map((thread) => (
+            <ConversationThreadCard
+              key={thread.rootEventId}
+              thread={thread}
+              isExpanded={expandedThreads.has(thread.rootEventId)}
+              onToggle={() => toggleThread(thread.rootEventId)}
+            />
           ))}
         </div>
       )}
@@ -160,11 +180,204 @@ export function ReservationsPage(): JSX.Element {
   );
 }
 
-interface ReservationMessageCardProps {
-  message: ReservationMessage;
+interface ConversationThreadCardProps {
+  thread: ConversationThread;
+  isExpanded: boolean;
+  onToggle: () => void;
 }
 
-function ReservationMessageCard({ message }: ReservationMessageCardProps): JSX.Element {
+function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationThreadCardProps): JSX.Element {
+  const { initialRequest, latestMessage, messages, messageCount, partnerPubkey } = thread;
+  const request = initialRequest.payload as ReservationRequest;
+  const latestTimestamp = new Date(latestMessage.rumor.created_at * 1000);
+
+  // Determine thread status based on latest message
+  const getThreadStatus = () => {
+    if (latestMessage.type === "response") {
+      const response = latestMessage.payload as ReservationResponse;
+      return response.status;
+    }
+    return "pending";
+  };
+
+  const status = getThreadStatus();
+
+  const statusColors = {
+    pending: "bg-amber-500/10 text-amber-600 border-amber-500/40",
+    confirmed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/40",
+    declined: "bg-red-500/10 text-red-600 border-red-500/40",
+    suggested: "bg-blue-500/10 text-blue-600 border-blue-500/40",
+    expired: "bg-gray-500/10 text-gray-600 border-gray-500/40",
+    cancelled: "bg-gray-500/10 text-gray-600 border-gray-500/40",
+  };
+
+  return (
+    <div className="rounded-lg border bg-card">
+      {/* Thread Summary - Always Visible */}
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2">
+                  <Users className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">
+                    {request.party_size} guests • {new Date(request.iso_time).toLocaleDateString()}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {partnerPubkey.slice(0, 8)}...{partnerPubkey.slice(-8)}
+                  </p>
+                </div>
+              </div>
+              <div className={`rounded-full border px-3 py-1 text-xs font-medium ${statusColors[status]}`}>
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {new Date(request.iso_time).toLocaleTimeString()}
+              </span>
+              <span className="flex items-center gap-1">
+                <MessageSquare className="h-3 w-3" />
+                {messageCount} message{messageCount !== 1 ? "s" : ""}
+              </span>
+              <span className="text-xs">
+                Last: {latestTimestamp.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggle}
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-4 w-4 mr-1" />
+                Collapse
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4 mr-1" />
+                View History
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Expanded Conversation History */}
+      {isExpanded && (
+        <>
+          <div className="border-t bg-muted/30 p-6">
+            <h4 className="mb-4 font-semibold">Conversation History</h4>
+            <div className="space-y-4">
+              {messages.map((message, index) => (
+                <ConversationMessageItem
+                  key={message.rumor.id}
+                  message={message}
+                  isLatest={index === messages.length - 1}
+                />
+              ))}
+            </div>
+          </div>
+          
+          {/* Action buttons for pending requests */}
+          {latestMessage.type === "request" && status === "pending" && (
+            <div className="border-t p-6">
+              <ReservationMessageCard message={latestMessage} />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Actions for pending requests */}
+      {latestMessage.type === "request" && status === "pending" && !isExpanded && (
+        <div className="border-t bg-muted/10 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Awaiting response
+            </p>
+            <Button variant="outline" size="sm" onClick={onToggle}>
+              Expand to respond
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ConversationMessageItemProps {
+  message: ReservationMessage;
+  isLatest: boolean;
+}
+
+function ConversationMessageItem({ message, isLatest }: ConversationMessageItemProps): JSX.Element {
+  const { type, payload, senderPubkey, rumor } = message;
+  const timestamp = new Date(rumor.created_at * 1000);
+
+  if (type === "request") {
+    const request = payload as ReservationRequest;
+    return (
+      <div className={`rounded-lg border bg-card p-4 ${isLatest ? "ring-2 ring-primary/20" : ""}`}>
+        <div className="flex items-start gap-3">
+          <Users className="h-4 w-4 mt-1 text-primary" />
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Request</span>
+              <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
+            </div>
+            <div className="text-sm">
+              <p>{request.party_size} guests on {new Date(request.iso_time).toLocaleString()}</p>
+              {request.notes && <p className="mt-1 text-muted-foreground">{request.notes}</p>}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const response = payload as ReservationResponse;
+  return (
+    <div className={`rounded-lg border bg-card p-4 ${isLatest ? "ring-2 ring-primary/20" : ""}`}>
+      <div className="flex items-start gap-3">
+        <MessageSquare className="h-4 w-4 mt-1 text-muted-foreground" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">
+              Response: {response.status.charAt(0).toUpperCase() + response.status.slice(1)}
+            </span>
+            <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
+          </div>
+          <div className="text-sm">
+            {response.status === "confirmed" && response.iso_time && (
+              <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
+            )}
+            {response.status === "suggested" && response.iso_time && (
+              <p>Suggested: {new Date(response.iso_time).toLocaleString()}</p>
+            )}
+            {response.status === "declined" && <p className="text-destructive">Declined</p>}
+            {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
+            {response.table && <p className="text-xs text-muted-foreground">Table: {response.table}</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ReservationMessageCardProps {
+  message: ReservationMessage;
+  compact?: boolean;
+}
+
+function ReservationMessageCard({ message, compact = false }: ReservationMessageCardProps): JSX.Element {
   const { type, payload, senderPubkey, rumor } = message;
   const timestamp = new Date(rumor.created_at * 1000);
 
