@@ -19,3 +19,4 @@ infra/lambda/node_modules/
 infra/lambda.zip
 infra/.aws-sam/
 infra/*.zip
+*.tsbuildinfo
