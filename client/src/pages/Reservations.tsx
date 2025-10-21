@@ -8,10 +8,22 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { useReservations } from "@/state/useReservations";
+import { useReservationActions } from "@/hooks/useReservationActions";
 import { loadAndDecryptSecret } from "@/lib/secureStore";
 import { skFromNsec } from "@/lib/nostrKeys";
 import { Button } from "@/components/ui/button";
-import { Inbox, Users, Calendar, Clock, MessageSquare, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Inbox, Users, Calendar, Clock, MessageSquare, AlertCircle, Check, X, CalendarDays } from "lucide-react";
 import type { ReservationRequest, ReservationResponse } from "@/types/reservation";
 import type { ReservationMessage } from "@/services/reservationService";
 
@@ -156,73 +168,298 @@ function ReservationMessageCard({ message }: ReservationMessageCardProps): JSX.E
   const { type, payload, senderPubkey, rumor } = message;
   const timestamp = new Date(rumor.created_at * 1000);
 
+  const {
+    state: actionState,
+    resetState,
+    acceptReservation,
+    declineReservation,
+    suggestAlternativeTime,
+  } = useReservationActions();
+
+  const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
+  const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
+  const [suggestDialogOpen, setSuggestDialogOpen] = useState(false);
+
+  const [tableNumber, setTableNumber] = useState("");
+  const [acceptMessage, setAcceptMessage] = useState("");
+  const [declineReason, setDeclineReason] = useState("");
+  const [suggestedTime, setSuggestedTime] = useState("");
+  const [suggestMessage, setSuggestMessage] = useState("");
+
+  const handleAccept = async () => {
+    try {
+      await acceptReservation(message, {
+        table: tableNumber || undefined,
+        message: acceptMessage || undefined,
+      });
+      setAcceptDialogOpen(false);
+      setTableNumber("");
+      setAcceptMessage("");
+    } catch (error) {
+      // Error is handled in the hook state
+    }
+  };
+
+  const handleDecline = async () => {
+    try {
+      await declineReservation(message, {
+        message: declineReason || undefined,
+      });
+      setDeclineDialogOpen(false);
+      setDeclineReason("");
+    } catch (error) {
+      // Error is handled in the hook state
+    }
+  };
+
+  const handleSuggest = async () => {
+    if (!suggestedTime) return;
+    try {
+      await suggestAlternativeTime(message, {
+        alternativeTime: suggestedTime,
+        message: suggestMessage || undefined,
+      });
+      setSuggestDialogOpen(false);
+      setSuggestedTime("");
+      setSuggestMessage("");
+    } catch (error) {
+      // Error is handled in the hook state
+    }
+  };
+
   if (type === "request") {
     const request = payload as ReservationRequest;
     return (
-      <div className="rounded-lg border bg-card p-6 transition-shadow hover:shadow-md">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 space-y-3">
-            {/* Header */}
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-primary/10 p-2">
-                <Users className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold">New Reservation Request</h3>
-                <p className="text-xs text-muted-foreground">
-                  From: {senderPubkey.slice(0, 8)}...{senderPubkey.slice(-8)}
-                </p>
-              </div>
+      <>
+        <div className="rounded-lg border bg-card p-6 transition-shadow hover:shadow-md">
+          {actionState.success && (
+            <div className="mb-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
+              Response sent successfully!
             </div>
-
-            {/* Details */}
-            <div className="grid gap-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{request.party_size} guests</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>{new Date(request.iso_time).toLocaleDateString()}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span>{new Date(request.iso_time).toLocaleTimeString()}</span>
-              </div>
-              {request.notes && (
-                <div className="flex items-start gap-2">
-                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">{request.notes}</span>
+          )}
+          {actionState.error && (
+            <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {actionState.error}
+            </div>
+          )}
+          
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 space-y-3">
+              {/* Header */}
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2">
+                  <Users className="h-4 w-4 text-primary" />
                 </div>
-              )}
-              {request.contact?.name && (
-                <div className="text-xs text-muted-foreground">
-                  Contact: {request.contact.name}
-                  {request.contact.phone && ` • ${request.contact.phone}`}
+                <div>
+                  <h3 className="font-semibold">New Reservation Request</h3>
+                  <p className="text-xs text-muted-foreground">
+                    From: {senderPubkey.slice(0, 8)}...{senderPubkey.slice(-8)}
+                  </p>
                 </div>
-              )}
+              </div>
+
+              {/* Details */}
+              <div className="grid gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">{request.party_size} guests</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span>{new Date(request.iso_time).toLocaleDateString()}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span>{new Date(request.iso_time).toLocaleTimeString()}</span>
+                </div>
+                {request.notes && (
+                  <div className="flex items-start gap-2">
+                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{request.notes}</span>
+                  </div>
+                )}
+                {request.contact?.name && (
+                  <div className="text-xs text-muted-foreground">
+                    Contact: {request.contact.name}
+                    {request.contact.phone && ` • ${request.contact.phone}`}
+                  </div>
+                )}
+              </div>
+
+              {/* Timestamp */}
+              <div className="text-xs text-muted-foreground">
+                Received {timestamp.toLocaleString()}
+              </div>
             </div>
 
-            {/* Timestamp */}
-            <div className="text-xs text-muted-foreground">
-              Received {timestamp.toLocaleString()}
+            {/* Actions */}
+            <div className="flex flex-col gap-2">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => setAcceptDialogOpen(true)}
+                disabled={actionState.loading}
+              >
+                <Check className="mr-1 h-3 w-3" />
+                Accept
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setDeclineDialogOpen(true)}
+                disabled={actionState.loading}
+              >
+                <X className="mr-1 h-3 w-3" />
+                Decline
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSuggestDialogOpen(true)}
+                disabled={actionState.loading}
+              >
+                <CalendarDays className="mr-1 h-3 w-3" />
+                Suggest
+              </Button>
             </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-col gap-2">
-            <Button size="sm" variant="default">
-              Accept
-            </Button>
-            <Button size="sm" variant="outline">
-              Decline
-            </Button>
-            <Button size="sm" variant="ghost">
-              Suggest Time
-            </Button>
           </div>
         </div>
-      </div>
+
+        {/* Accept Dialog */}
+        <Dialog open={acceptDialogOpen} onOpenChange={setAcceptDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Accept Reservation</DialogTitle>
+              <DialogDescription>
+                Confirm the reservation for {request.party_size} guests on{" "}
+                {new Date(request.iso_time).toLocaleString()}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="table">Table Number (optional)</Label>
+                <Input
+                  id="table"
+                  placeholder="e.g., A4, 12, Patio 3"
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="accept-message">Message (optional)</Label>
+                <Textarea
+                  id="accept-message"
+                  placeholder="Any additional notes for the guest..."
+                  value={acceptMessage}
+                  onChange={(e) => setAcceptMessage(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setAcceptDialogOpen(false)}
+                disabled={actionState.loading}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleAccept} disabled={actionState.loading}>
+                {actionState.loading ? "Sending..." : "Confirm Acceptance"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Decline Dialog */}
+        <Dialog open={declineDialogOpen} onOpenChange={setDeclineDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Decline Reservation</DialogTitle>
+              <DialogDescription>
+                Decline the reservation request for {request.party_size} guests on{" "}
+                {new Date(request.iso_time).toLocaleString()}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="decline-reason">Reason (optional)</Label>
+                <Textarea
+                  id="decline-reason"
+                  placeholder="e.g., Fully booked, closed that day..."
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeclineDialogOpen(false)}
+                disabled={actionState.loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDecline}
+                disabled={actionState.loading}
+              >
+                {actionState.loading ? "Sending..." : "Decline Request"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Suggest Dialog */}
+        <Dialog open={suggestDialogOpen} onOpenChange={setSuggestDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Suggest Alternative Time</DialogTitle>
+              <DialogDescription>
+                Propose a different time for {request.party_size} guests
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="suggested-time">Alternative Date & Time</Label>
+                <Input
+                  id="suggested-time"
+                  type="datetime-local"
+                  value={suggestedTime}
+                  onChange={(e) => setSuggestedTime(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="suggest-message">Message (optional)</Label>
+                <Textarea
+                  id="suggest-message"
+                  placeholder="Why this time works better..."
+                  value={suggestMessage}
+                  onChange={(e) => setSuggestMessage(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setSuggestDialogOpen(false)}
+                disabled={actionState.loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSuggest}
+                disabled={actionState.loading || !suggestedTime}
+              >
+                {actionState.loading ? "Sending..." : "Send Suggestion"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
