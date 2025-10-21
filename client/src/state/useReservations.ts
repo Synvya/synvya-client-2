@@ -56,9 +56,16 @@ export const useReservations = create<ReservationState>((set, get) => ({
   error: null,
 
   addMessage: (message) => {
-    set((state) => ({
-      messages: [message, ...state.messages], // Newest first
-    }));
+    set((state) => {
+      // Deduplicate: check if message with same rumor ID already exists
+      const exists = state.messages.some(m => m.rumor.id === message.rumor.id);
+      if (exists) {
+        return state; // Don't add duplicate
+      }
+      return {
+        messages: [message, ...state.messages], // Newest first
+      };
+    });
   },
 
   startListening: (privateKey, publicKey, relays) => {
