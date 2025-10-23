@@ -4,6 +4,7 @@ import { useRelays } from "@/state/useRelays";
 import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { buildProfileEvent } from "@/lib/events";
 import { publishToRelays, getPool } from "@/lib/relayPool";
+import { buildHandlerInfo, buildHandlerRecommendation } from "@/lib/handlerEvents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -245,6 +246,36 @@ export function BusinessProfileForm(): JSX.Element {
       const signed = await signEvent(template);
       await publishToRelays(signed, relays);
 
+      // If this is a restaurant, publish NIP-89 handler events
+      let handlerEventsPublished = false;
+      if (finalPayload.businessType === "restaurant" && pubkey) {
+        try {
+          const firstRelay = relays[0] || "wss://relay.damus.io";
+          
+          // Build and sign all three handler events
+          const handlerInfoTemplate = buildHandlerInfo(pubkey);
+          const handlerInfo = await signEvent(handlerInfoTemplate);
+          
+          const recommendation32101Template = buildHandlerRecommendation(pubkey, "32101", firstRelay);
+          const recommendation32101 = await signEvent(recommendation32101Template);
+          
+          const recommendation32102Template = buildHandlerRecommendation(pubkey, "32102", firstRelay);
+          const recommendation32102 = await signEvent(recommendation32102Template);
+          
+          // Publish all three events in parallel
+          await Promise.all([
+            publishToRelays(handlerInfo, relays),
+            publishToRelays(recommendation32101, relays),
+            publishToRelays(recommendation32102, relays)
+          ]);
+          
+          handlerEventsPublished = true;
+        } catch (error) {
+          console.warn("Failed to publish handler events:", error);
+          // Don't fail the whole operation if handler events fail
+        }
+      }
+
       setProfile((prev) => ({
         ...prev,
         picture: pictureUrl,
@@ -266,7 +297,10 @@ export function BusinessProfileForm(): JSX.Element {
         return { picture: null, banner: null };
       });
 
-      setStatus({ type: "success", message: "Profile published to relays", eventId: signed.id });
+      const successMessage = handlerEventsPublished
+        ? "Profile published with reservation support enabled"
+        : "Profile published to relays";
+      setStatus({ type: "success", message: successMessage, eventId: signed.id });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish profile";
       setStatus({ type: "error", message });
