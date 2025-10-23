@@ -168,6 +168,7 @@ export function BusinessProfileForm(): JSX.Element {
   const authStatus = useAuth((state) => state.status);
   const relays = useRelays((state) => state.relays);
   const setProfileLocation = useBusinessProfile((state) => state.setLocation);
+  const setProfileBusinessType = useBusinessProfile((state) => state.setBusinessType);
   const [profile, setProfile] = useState<BusinessProfile>(createInitialProfile);
   const [categoriesInput, setCategoriesInput] = useState("");
   const [status, setStatus] = useState<FormStatus>({ type: "idle", message: null });
@@ -352,6 +353,7 @@ export function BusinessProfileForm(): JSX.Element {
 
       // Update original business type for future change detection
       originalBusinessTypeRef.current = finalPayload.businessType;
+      setProfileBusinessType(finalPayload.businessType);
 
       setPendingFiles({ picture: null, banner: null });
       setPreviewUrls((prev) => {
@@ -430,6 +432,7 @@ export function BusinessProfileForm(): JSX.Element {
         const { patch, categories } = parseKind0ProfileEvent(event);
 
         setProfileLocation(patch.location ?? null);
+        setProfileBusinessType(patch.businessType ?? null);
 
         if (cancelled) {
           return;
