@@ -6,6 +6,28 @@ Synvya’s merchant-facing web client for onboarding, profile management, and Sq
 - `client/` – Vite + React application (TypeScript, Tailwind) and local dev tooling.
 - `infra/` – AWS SAM template, Lambda sources, and zipped artifacts for console-based deployments.
 - `internal/` – Deployment references (GitHub secrets, IAM policy history, NIP-99 notes).
+- `docs/` – Documentation for reservation messaging protocol and AI integration.
+
+## Key Features
+
+### Nostr-Based Identity & Profiles
+- Merchant keypair generation and secure storage (IndexedDB + AES-GCM encryption)
+- NIP-07 window.nostr shim for signing events
+- Kind 0 business profile publishing with business type tags
+- NIP-96/NIP-98 media uploads via nostr.build
+
+### Restaurant Reservations (NIP-89 Discovery)
+- **Handler Discovery**: Restaurants with `businessType: "restaurant"` automatically publish NIP-89 handler events
+  - Kind 31990: Handler info declaring support for reservation events (32101, 32102)
+  - Kind 31989: Handler recommendations for AI agents to discover reservation-capable restaurants
+- **Message Exchange**: Encrypted NIP-59 gift-wrapped reservation requests and responses
+- **AI Integration**: AI agents can discover and communicate with restaurants using standard Nostr protocols
+- See `docs/restaurants/` for complete protocol documentation
+
+### Square Integration
+- OAuth flow for connecting Square merchant accounts
+- Catalog sync and classified ad generation from Square inventory
+- NIP-99 classified listings published to Nostr relays
 
 ## Local Development
 - Node.js 20+
