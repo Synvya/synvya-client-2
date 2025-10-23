@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildHandlerInfo,
   buildHandlerRecommendation,
+  buildDeletionEvent,
   SYNVYA_HANDLER_D_IDENTIFIER,
 } from "./handlerEvents";
 
@@ -148,6 +149,84 @@ describe("handlerEvents", () => {
 
     it("has the expected value", () => {
       expect(SYNVYA_HANDLER_D_IDENTIFIER).toBe("synvya-restaurants-v1.0");
+    });
+  });
+
+  describe("buildDeletionEvent", () => {
+    const testEventId1 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const testEventId2 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    it("builds a valid kind 5 event template", () => {
+      const event = buildDeletionEvent([testEventId1]);
+
+      expect(event.kind).toBe(5);
+      expect(event.content).toBe("");
+      expect(event.created_at).toBeGreaterThan(0);
+      expect(event.tags).toBeDefined();
+    });
+
+    it("includes e tags for each event ID to delete", () => {
+      const event = buildDeletionEvent([testEventId1, testEventId2]);
+
+      const eTags = event.tags.filter((tag) => tag[0] === "e");
+      expect(eTags).toHaveLength(2);
+      expect(eTags[0][1]).toBe(testEventId1);
+      expect(eTags[1][1]).toBe(testEventId2);
+    });
+
+    it("includes k tags when event kinds are provided", () => {
+      const event = buildDeletionEvent([testEventId1], [31989, 31990]);
+
+      const kTags = event.tags.filter((tag) => tag[0] === "k");
+      expect(kTags).toHaveLength(2);
+      
+      const kinds = kTags.map((tag) => tag[1]);
+      expect(kinds).toContain("31989");
+      expect(kinds).toContain("31990");
+    });
+
+    it("does not include k tags when kinds are not provided", () => {
+      const event = buildDeletionEvent([testEventId1]);
+
+      const kTags = event.tags.filter((tag) => tag[0] === "k");
+      expect(kTags).toHaveLength(0);
+    });
+
+    it("does not include k tags when empty kinds array is provided", () => {
+      const event = buildDeletionEvent([testEventId1], []);
+
+      const kTags = event.tags.filter((tag) => tag[0] === "k");
+      expect(kTags).toHaveLength(0);
+    });
+
+    it("handles single event ID", () => {
+      const event = buildDeletionEvent([testEventId1]);
+
+      const eTags = event.tags.filter((tag) => tag[0] === "e");
+      expect(eTags).toHaveLength(1);
+      expect(eTags[0][1]).toBe(testEventId1);
+    });
+
+    it("handles multiple event IDs", () => {
+      const eventIds = [testEventId1, testEventId2, "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"];
+      const event = buildDeletionEvent(eventIds);
+
+      const eTags = event.tags.filter((tag) => tag[0] === "e");
+      expect(eTags).toHaveLength(3);
+    });
+
+    it("has empty content", () => {
+      const event = buildDeletionEvent([testEventId1]);
+      expect(event.content).toBe("");
+    });
+
+    it("creates a timestamp close to current time", () => {
+      const before = Math.floor(Date.now() / 1000);
+      const event = buildDeletionEvent([testEventId1]);
+      const after = Math.floor(Date.now() / 1000);
+
+      expect(event.created_at).toBeGreaterThanOrEqual(before);
+      expect(event.created_at).toBeLessThanOrEqual(after);
     });
   });
 });

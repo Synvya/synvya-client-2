@@ -4,7 +4,7 @@ import { useRelays } from "@/state/useRelays";
 import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { buildProfileEvent } from "@/lib/events";
 import { publishToRelays, getPool } from "@/lib/relayPool";
-import { buildHandlerInfo, buildHandlerRecommendation } from "@/lib/handlerEvents";
+import { buildHandlerInfo, buildHandlerRecommendation, buildDeletionEvent, SYNVYA_HANDLER_D_IDENTIFIER } from "@/lib/handlerEvents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -184,6 +184,7 @@ export function BusinessProfileForm(): JSX.Element {
   const pictureInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const loadingProfileRef = useRef(false);
+  const originalBusinessTypeRef = useRef<BusinessType | null>(null);
 
   const derivedCategories = useMemo(() => {
     if (!categoriesInput) return [];
@@ -220,6 +221,65 @@ export function BusinessProfileForm(): JSX.Element {
 
     try {
       setPublishing(true);
+
+      // Check if changing FROM restaurant TO another type - delete handler events
+      const wasRestaurant = originalBusinessTypeRef.current === "restaurant";
+      const isStillRestaurant = payload.businessType === "restaurant";
+      
+      if (wasRestaurant && !isStillRestaurant && pubkey) {
+        try {
+          const pool = getPool();
+          
+          // Query for existing handler events
+          const [handlerInfo, recommendation32101, recommendation32102] = await Promise.all([
+            pool.get(relays, {
+              kinds: [31990],
+              authors: [pubkey],
+              "#d": [SYNVYA_HANDLER_D_IDENTIFIER]
+            }),
+            pool.get(relays, {
+              kinds: [31989],
+              authors: [pubkey],
+              "#d": ["32101"]
+            }),
+            pool.get(relays, {
+              kinds: [31989],
+              authors: [pubkey],
+              "#d": ["32102"]
+            })
+          ]);
+          
+          // Collect event IDs to delete
+          const eventIdsToDelete: string[] = [];
+          const kindsToDelete: number[] = [];
+          
+          if (handlerInfo) {
+            eventIdsToDelete.push(handlerInfo.id);
+            if (!kindsToDelete.includes(31990)) kindsToDelete.push(31990);
+          }
+          if (recommendation32101) {
+            eventIdsToDelete.push(recommendation32101.id);
+            if (!kindsToDelete.includes(31989)) kindsToDelete.push(31989);
+          }
+          if (recommendation32102) {
+            eventIdsToDelete.push(recommendation32102.id);
+            if (!kindsToDelete.includes(31989)) kindsToDelete.push(31989);
+          }
+          
+          // Publish deletion event if any handler events were found
+          if (eventIdsToDelete.length > 0) {
+            const deletionTemplate = buildDeletionEvent(eventIdsToDelete, kindsToDelete);
+            const deletionEvent = await signEvent(deletionTemplate);
+            await publishToRelays(deletionEvent, relays);
+            console.log(`Deleted ${eventIdsToDelete.length} handler event(s)`);
+          } else {
+            console.log("No handler events found to delete");
+          }
+        } catch (error) {
+          console.warn("Failed to delete handler events:", error);
+          // Don't fail the whole operation if deletion fails
+        }
+      }
 
       if (pendingFiles.picture) {
         pictureUrl = await uploadMedia(pendingFiles.picture, "picture");
@@ -289,6 +349,9 @@ export function BusinessProfileForm(): JSX.Element {
         categories: derivedCategories,
         nip05
       }));
+
+      // Update original business type for future change detection
+      originalBusinessTypeRef.current = finalPayload.businessType;
 
       setPendingFiles({ picture: null, banner: null });
       setPreviewUrls((prev) => {
@@ -383,6 +446,11 @@ export function BusinessProfileForm(): JSX.Element {
           zip: patch.zip ?? prev.zip,
           location: patch.location ?? prev.location
         }));
+
+        // Store the original business type to detect changes
+        if (patch.businessType) {
+          originalBusinessTypeRef.current = patch.businessType;
+        }
 
         if (categories.length) {
           setCategoriesInput(categories.join(", "));

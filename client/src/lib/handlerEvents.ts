@@ -66,3 +66,33 @@ export function buildHandlerRecommendation(
   };
 }
 
+/**
+ * Build a NIP-09 Event Deletion event (kind 5)
+ * 
+ * This event requests deletion of one or more previously published events.
+ * Used to clean up NIP-89 handler events when a restaurant changes business type.
+ * 
+ * @param eventIds - Array of event IDs to delete
+ * @param eventKinds - Optional array of event kinds being deleted (for additional context)
+ * @returns EventTemplate for kind 5
+ */
+export function buildDeletionEvent(
+  eventIds: string[],
+  eventKinds?: number[]
+): EventTemplate {
+  const tags: string[][] = eventIds.map((id) => ["e", id]);
+  
+  if (eventKinds && eventKinds.length > 0) {
+    eventKinds.forEach((kind) => {
+      tags.push(["k", kind.toString()]);
+    });
+  }
+  
+  return {
+    kind: 5,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: ""
+  };
+}
+
