@@ -16,7 +16,6 @@ import { loadAndDecryptSecret } from "@/lib/secureStore";
 import { skFromNsec } from "@/lib/nostrKeys";
 import type { ReservationResponse } from "@/types/reservation";
 import type { ReservationMessage } from "@/services/reservationService";
-import { getThreadContext, buildReplyTags } from "@/lib/nip10";
 
 export interface ReservationActionState {
     loading: boolean;
@@ -68,21 +67,19 @@ export function useReservationActions() {
                 }
                 const privateKey = skFromNsec(nsec);
 
-                // Build reply tags for threading using the GIFT WRAP ID (not rumor)
-                // Per NIP-10 and thread matching requirements, the e tag MUST reference
-                // the gift wrap ID so the AI Concierge can match responses to requests
-                const replyTags = buildReplyTags(
-                    request.giftWrap,
-                    [request.senderPubkey],
-                    relays[0]
-                );
+                // Build thread tag manually - MUST reference the gift wrap ID
+                // Do NOT use buildReplyTags() because gift wraps don't have e tags,
+                // causing incorrect thread matching
+                const threadTag: string[][] = [
+                    ["e", request.giftWrap.id, "", "root"]
+                ];
 
                 // Build response event template
                 const responseTemplate = buildReservationResponse(
                     response,
                     privateKey,
                     request.senderPubkey,
-                    replyTags
+                    threadTag
                 );
 
                 // Wrap in gift wrap
