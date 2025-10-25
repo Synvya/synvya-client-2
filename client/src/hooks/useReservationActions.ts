@@ -68,10 +68,11 @@ export function useReservationActions() {
                 }
                 const privateKey = skFromNsec(nsec);
 
-                // Build reply tags for threading using the rumor (unwrapped request)
-                // Cast rumor to Event type since it has id and tags which is all buildReplyTags needs
+                // Build reply tags for threading using the GIFT WRAP ID (not rumor)
+                // Per NIP-10 and thread matching requirements, the e tag MUST reference
+                // the gift wrap ID so the AI Concierge can match responses to requests
                 const replyTags = buildReplyTags(
-                    request.rumor as any,
+                    request.giftWrap,
                     [request.senderPubkey],
                     relays[0]
                 );

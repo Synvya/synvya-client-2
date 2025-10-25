@@ -154,15 +154,21 @@ export function buildReservationRequest(
 /**
  * Creates an encrypted rumor event for a reservation response (kind 32102).
  * 
+ * IMPORTANT: When responding to a reservation request, the `e` tag in additionalTags
+ * MUST reference the GIFT WRAP ID of the original request, NOT the rumor ID.
+ * This is required for proper thread matching by the AI Concierge.
+ * 
  * @param response - The reservation response payload
  * @param senderPrivateKey - Sender's private key for encryption
  * @param recipientPublicKey - Recipient's public key for encryption
  * @param additionalTags - Optional additional tags (e.g., thread markers)
+ *                        MUST include `["e", giftWrapId, "", "root"]` for threading
  * @returns Event template ready to be wrapped with NIP-59
  * @throws Error if validation fails
  * 
  * @example
  * ```typescript
+ * // CORRECT: Use the gift wrap ID from the original request
  * const rumor = buildReservationResponse(
  *   {
  *     status: "confirmed",
@@ -171,7 +177,7 @@ export function buildReservationRequest(
  *   },
  *   myPrivateKey,
  *   conciergePublicKey,
- *   [["e", requestEventId, "", "reply"]]
+ *   [["e", request.giftWrap.id, "", "root"]]  // Use gift wrap ID, not rumor ID
  * );
  * ```
  */
