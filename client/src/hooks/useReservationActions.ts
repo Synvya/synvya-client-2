@@ -74,30 +74,39 @@ export function useReservationActions() {
                     ["e", request.giftWrap.id, "", "root"]
                 ];
 
-                // Build response event template
-                const responseTemplate = buildReservationResponse(
+                // IMPORTANT: Implement "Self CC" per NIP-17 pattern
+                // Create TWO separate response templates with DIFFERENT encryption:
+                // 1. Response TO agent (encrypted for agent to read)
+                // 2. Response TO self (encrypted for merchant to read - Self CC)
+                
+                const responseToAgent = buildReservationResponse(
                     response,
                     privateKey,
-                    request.senderPubkey,
+                    request.senderPubkey,  // Encrypt TO agent
+                    threadTag
+                );
+                
+                const responseToSelf = buildReservationResponse(
+                    response,
+                    privateKey,
+                    pubkey!,  // Encrypt TO merchant (self)
                     threadTag
                 );
 
-                // Create rumor from the template (adds ID and proper structure)
-                const rumor = createRumor(responseTemplate, privateKey);
+                // Create rumor from the Self CC template (for local storage)
+                const rumor = createRumor(responseToSelf, privateKey);
 
-                // IMPORTANT: Implement "Self CC" per NIP-17 pattern
-                // Create TWO gift wraps: one to recipient, one to self
-                // This allows merchant to retrieve their own responses from relays
+                // Wrap both responses in gift wraps
                 const giftWrapToRecipient = wrapEvent(
-                    responseTemplate,
+                    responseToAgent,
                     privateKey,
-                    request.senderPubkey  // To agent
+                    request.senderPubkey  // Addressed to agent
                 );
                 
                 const giftWrapToSelf = wrapEvent(
-                    responseTemplate,
+                    responseToSelf,
                     privateKey,
-                    pubkey!  // To self (merchant)
+                    pubkey!  // Addressed to self (merchant)
                 );
 
                 // Publish BOTH gift wraps to relays
