@@ -82,32 +82,41 @@ export function useReservationActions() {
                     threadTag
                 );
 
-                // Wrap in gift wrap
-                const giftWrap = wrapEvent(
+                // Create rumor from the template (adds ID and proper structure)
+                const rumor = createRumor(responseTemplate, privateKey);
+
+                // IMPORTANT: Implement "Self CC" per NIP-17 pattern
+                // Create TWO gift wraps: one to recipient, one to self
+                // This allows merchant to retrieve their own responses from relays
+                const giftWrapToRecipient = wrapEvent(
                     responseTemplate,
                     privateKey,
-                    request.senderPubkey
+                    request.senderPubkey  // To agent
+                );
+                
+                const giftWrapToSelf = wrapEvent(
+                    responseTemplate,
+                    privateKey,
+                    pubkey!  // To self (merchant)
                 );
 
-                // Sign with merchant's key
-                // Note: wrapEvent already creates a signed event, but we need to ensure it's properly signed
-                // The wrapEvent function handles this internally
+                // Publish BOTH gift wraps to relays
+                // This ensures merchant can retrieve their own messages across devices
+                await Promise.all([
+                    publishToRelays(giftWrapToRecipient, relays),
+                    publishToRelays(giftWrapToSelf, relays),
+                ]);
 
-        // Create rumor from the template (adds ID and proper structure)
-        const rumor = createRumor(responseTemplate, privateKey);
-
-        // Publish to relays
-        await publishToRelays(giftWrap, relays);
-
-        // Add response to local state immediately so user sees it
-        // (responses addressed to the agent won't come back to our subscription)
+        // Add response to local state immediately for instant UI feedback
+        // Note: With Self CC implemented, this message will also come back
+        // from the relay subscription, but we add it now for responsiveness
         if (pubkey) {
           const responseMessage: ReservationMessage = {
             rumor: rumor,
             type: "response",
             payload: response,
             senderPubkey: pubkey, // We're the sender
-            giftWrap: giftWrap,
+            giftWrap: giftWrapToSelf, // Use self-addressed wrap for consistency
           };
           addMessage(responseMessage);
         }

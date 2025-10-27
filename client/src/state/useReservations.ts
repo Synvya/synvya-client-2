@@ -10,6 +10,11 @@ import {
 } from "@/services/reservationService";
 import { getThreadContext } from "@/lib/nip10";
 import type { ReservationRequest } from "@/types/reservation";
+import {
+  loadPersistedReservationMessages,
+  persistReservationMessages,
+  mergeReservationMessages,
+} from "@/lib/reservationPersistence";
 
 /**
  * A conversation thread containing related messages
@@ -36,6 +41,7 @@ export interface ReservationState {
   subscription: ReservationSubscription | null;
   isConnected: boolean;
   error: string | null;
+  isInitialized: boolean;
   
   // Actions
   addMessage: (message: ReservationMessage) => void;
@@ -44,6 +50,7 @@ export interface ReservationState {
   setError: (error: string | null) => void;
   clearMessages: () => void;
   markAsRead: (messageId: string) => void;
+  loadPersistedMessages: () => void;
   
   // Computed/derived
   getThreads: () => ConversationThread[];
@@ -54,6 +61,12 @@ export const useReservations = create<ReservationState>((set, get) => ({
   subscription: null,
   isConnected: false,
   error: null,
+  isInitialized: false,
+
+  loadPersistedMessages: () => {
+    const persisted = loadPersistedReservationMessages();
+    set({ messages: persisted, isInitialized: true });
+  },
 
   addMessage: (message) => {
     set((state) => {
@@ -62,13 +75,23 @@ export const useReservations = create<ReservationState>((set, get) => ({
       if (exists) {
         return state; // Don't add duplicate
       }
+      const newMessages = [message, ...state.messages]; // Newest first
+      
+      // Persist to localStorage
+      persistReservationMessages(newMessages);
+      
       return {
-        messages: [message, ...state.messages], // Newest first
+        messages: newMessages,
       };
     });
   },
 
   startListening: (privateKey, publicKey, relays) => {
+    // Load persisted messages if not already loaded
+    if (!get().isInitialized) {
+      get().loadPersistedMessages();
+    }
+
     // Stop existing subscription if any
     const existing = get().subscription;
     if (existing) {
@@ -118,6 +141,8 @@ export const useReservations = create<ReservationState>((set, get) => ({
 
   clearMessages: () => {
     set({ messages: [] });
+    // Clear from localStorage as well
+    persistReservationMessages([]);
   },
 
   markAsRead: (messageId) => {
