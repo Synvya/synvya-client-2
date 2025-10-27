@@ -84,25 +84,45 @@ function deserializeMessage(serialized: SerializedReservationMessage): Reservati
  * Saves reservation messages to localStorage
  */
 export function persistReservationMessages(messages: ReservationMessage[]): void {
+  console.log(`[Persistence] persistReservationMessages called with ${messages.length} messages`);
+  
   try {
     // Serialize messages to plain objects
-    const serializedMessages = messages.map(serializeMessage);
+    console.log("[Persistence] Serializing messages...");
+    const serializedMessages = messages.map((msg, index) => {
+      try {
+        return serializeMessage(msg);
+      } catch (err) {
+        console.error(`[Persistence] Failed to serialize message ${index}:`, err, msg);
+        throw err;
+      }
+    });
     
+    console.log("[Persistence] Creating data object...");
     const data: PersistedData = {
       version: STORAGE_VERSION,
       messages: serializedMessages,
       lastUpdated: Date.now(),
     };
     
+    console.log("[Persistence] Stringifying data...");
     const json = JSON.stringify(data);
+    console.log(`[Persistence] JSON string created (${json.length} bytes)`);
+    
+    console.log("[Persistence] Writing to localStorage...");
     localStorage.setItem(STORAGE_KEY, json);
-    console.debug(`[Persistence] Persisted ${messages.length} messages to localStorage (${json.length} bytes)`);
+    console.log(`[Persistence] ✅ SUCCESS! Persisted ${messages.length} messages to localStorage`);
+    
+    // Verify it was written
+    const verify = localStorage.getItem(STORAGE_KEY);
+    console.log(`[Persistence] Verification: ${verify ? `${verify.length} bytes written` : "FAILED - null"}`);
   } catch (error) {
-    console.error("[Persistence] Failed to persist reservation messages:", error);
+    console.error("[Persistence] ❌ FAILED to persist reservation messages:", error);
     // Log the problematic message structure for debugging
     if (messages.length > 0) {
       console.error("[Persistence] Sample message structure:", messages[0]);
     }
+    throw error; // Re-throw so caller knows it failed
   }
 }
 

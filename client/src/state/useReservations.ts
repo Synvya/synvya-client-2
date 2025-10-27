@@ -70,16 +70,26 @@ export const useReservations = create<ReservationState>((set, get) => ({
   },
 
   addMessage: (message) => {
+    console.log("[useReservations] addMessage called with:", message.type, message.rumor.id);
     set((state) => {
       // Deduplicate: check if message with same rumor ID already exists
       const exists = state.messages.some(m => m.rumor.id === message.rumor.id);
       if (exists) {
+        console.log("[useReservations] Message already exists, skipping");
         return state; // Don't add duplicate
       }
       const newMessages = [message, ...state.messages]; // Newest first
       
+      console.log(`[useReservations] Adding message, total count: ${newMessages.length}`);
+      console.log("[useReservations] About to persist messages...");
+      
       // Persist to localStorage
-      persistReservationMessages(newMessages);
+      try {
+        persistReservationMessages(newMessages);
+        console.log("[useReservations] Persistence completed successfully");
+      } catch (error) {
+        console.error("[useReservations] Persistence failed:", error);
+      }
       
       return {
         messages: newMessages,
