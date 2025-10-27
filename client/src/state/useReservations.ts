@@ -65,6 +65,7 @@ export const useReservations = create<ReservationState>((set, get) => ({
 
   loadPersistedMessages: () => {
     const persisted = loadPersistedReservationMessages();
+    console.log(`[useReservations] Loading ${persisted.length} persisted messages`);
     set({ messages: persisted, isInitialized: true });
   },
 

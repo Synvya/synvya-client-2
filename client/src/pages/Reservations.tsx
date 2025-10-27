@@ -40,6 +40,8 @@ export function ReservationsPage(): JSX.Element {
   } = useReservations();
 
   const threads = getThreads();
+  const loadPersistedMessages = useReservations((state) => state.loadPersistedMessages);
+  const isInitialized = useReservations((state) => state.isInitialized);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
@@ -55,6 +57,13 @@ export function ReservationsPage(): JSX.Element {
       return next;
     });
   };
+
+  // Load persisted messages immediately on mount
+  useEffect(() => {
+    if (!isInitialized) {
+      loadPersistedMessages();
+    }
+  }, [isInitialized, loadPersistedMessages]);
 
   useEffect(() => {
     if (!pubkey || !relays.length) {

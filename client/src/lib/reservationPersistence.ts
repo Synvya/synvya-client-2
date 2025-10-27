@@ -27,6 +27,7 @@ export function persistReservationMessages(messages: ReservationMessage[]): void
       lastUpdated: Date.now(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    console.debug(`[Persistence] Persisted ${messages.length} messages to localStorage`);
   } catch (error) {
     console.error("Failed to persist reservation messages:", error);
   }
@@ -39,6 +40,7 @@ export function loadPersistedReservationMessages(): ReservationMessage[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) {
+      console.debug("[Persistence] No persisted messages found");
       return [];
     }
 
@@ -51,6 +53,7 @@ export function loadPersistedReservationMessages(): ReservationMessage[] {
       return [];
     }
 
+    console.debug(`[Persistence] Loaded ${data.messages?.length || 0} persisted messages`);
     return data.messages || [];
   } catch (error) {
     console.error("Failed to load persisted reservation messages:", error);
