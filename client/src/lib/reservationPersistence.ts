@@ -3,17 +3,81 @@
  * 
  * Handles persisting reservation messages to localStorage so that
  * reservation status persists across app sessions.
+ * 
+ * Note: We serialize messages to plain objects because Nostr events
+ * may contain non-serializable data (Uint8Array, etc.)
  */
 
 import type { ReservationMessage } from "@/services/reservationService";
 
 const STORAGE_KEY = "synvya:reservation:messages";
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2; // Bumped version for new serialization format
 
 interface PersistedData {
   version: number;
-  messages: ReservationMessage[];
+  messages: SerializedReservationMessage[];
   lastUpdated: number;
+}
+
+/**
+ * Serialized version of ReservationMessage that's safe for localStorage
+ */
+interface SerializedReservationMessage {
+  rumor: {
+    id: string;
+    pubkey: string;
+    created_at: number;
+    kind: number;
+    tags: string[][];
+    content: string;
+  };
+  type: "request" | "response";
+  payload: unknown;
+  senderPubkey: string;
+  giftWrap: {
+    id: string;
+    pubkey: string;
+    created_at: number;
+    kind: number;
+    tags: string[][];
+    content: string;
+    sig: string;
+  };
+}
+
+/**
+ * Converts a ReservationMessage to a serializable format
+ */
+function serializeMessage(message: ReservationMessage): SerializedReservationMessage {
+  return {
+    rumor: {
+      id: message.rumor.id,
+      pubkey: message.rumor.pubkey,
+      created_at: message.rumor.created_at,
+      kind: message.rumor.kind,
+      tags: message.rumor.tags,
+      content: message.rumor.content,
+    },
+    type: message.type,
+    payload: message.payload,
+    senderPubkey: message.senderPubkey,
+    giftWrap: {
+      id: message.giftWrap.id,
+      pubkey: message.giftWrap.pubkey,
+      created_at: message.giftWrap.created_at,
+      kind: message.giftWrap.kind,
+      tags: message.giftWrap.tags,
+      content: message.giftWrap.content,
+      sig: message.giftWrap.sig,
+    },
+  };
+}
+
+/**
+ * Converts a serialized message back to a ReservationMessage
+ */
+function deserializeMessage(serialized: SerializedReservationMessage): ReservationMessage {
+  return serialized as unknown as ReservationMessage;
 }
 
 /**
@@ -21,15 +85,24 @@ interface PersistedData {
  */
 export function persistReservationMessages(messages: ReservationMessage[]): void {
   try {
+    // Serialize messages to plain objects
+    const serializedMessages = messages.map(serializeMessage);
+    
     const data: PersistedData = {
       version: STORAGE_VERSION,
-      messages,
+      messages: serializedMessages,
       lastUpdated: Date.now(),
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    console.debug(`[Persistence] Persisted ${messages.length} messages to localStorage`);
+    
+    const json = JSON.stringify(data);
+    localStorage.setItem(STORAGE_KEY, json);
+    console.debug(`[Persistence] Persisted ${messages.length} messages to localStorage (${json.length} bytes)`);
   } catch (error) {
-    console.error("Failed to persist reservation messages:", error);
+    console.error("[Persistence] Failed to persist reservation messages:", error);
+    // Log the problematic message structure for debugging
+    if (messages.length > 0) {
+      console.error("[Persistence] Sample message structure:", messages[0]);
+    }
   }
 }
 
@@ -40,7 +113,7 @@ export function loadPersistedReservationMessages(): ReservationMessage[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) {
-      console.debug("[Persistence] No persisted messages found");
+      console.debug("[Persistence] No persisted messages found in localStorage");
       return [];
     }
 
@@ -48,15 +121,18 @@ export function loadPersistedReservationMessages(): ReservationMessage[] {
     
     // Check version compatibility
     if (data.version !== STORAGE_VERSION) {
-      console.warn("Storage version mismatch, clearing persisted data");
+      console.warn(`[Persistence] Storage version mismatch (expected ${STORAGE_VERSION}, got ${data.version}), clearing persisted data`);
       clearPersistedReservationMessages();
       return [];
     }
 
-    console.debug(`[Persistence] Loaded ${data.messages?.length || 0} persisted messages`);
-    return data.messages || [];
+    // Deserialize messages back to ReservationMessage format
+    const messages = (data.messages || []).map(deserializeMessage);
+    
+    console.debug(`[Persistence] Loaded ${messages.length} persisted messages from localStorage`);
+    return messages;
   } catch (error) {
-    console.error("Failed to load persisted reservation messages:", error);
+    console.error("[Persistence] Failed to load persisted reservation messages:", error);
     return [];
   }
 }
