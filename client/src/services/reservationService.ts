@@ -173,7 +173,14 @@ export class ReservationSubscription {
         console.debug(`Received gift wrap with unexpected kind: ${rumor.kind}`);
       }
     } catch (error) {
-      // Handle decryption or parsing errors
+      // "invalid MAC" errors are expected when we receive gift wraps encrypted for others
+      // (e.g., the copy sent to the agent when we implement Self CC)
+      if (error instanceof Error && error.message.includes('invalid MAC')) {
+        console.debug('Skipping gift wrap not encrypted for us (expected with Self CC)');
+        return; // Silently ignore - this is normal
+      }
+      
+      // Handle other decryption or parsing errors
       const errorMessage = error instanceof Error ? error : new Error(String(error));
       onError?.(errorMessage, event);
     }
