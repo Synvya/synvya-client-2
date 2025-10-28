@@ -248,7 +248,7 @@ describe("reservationService", () => {
       expect(message.senderPubkey).toBe(restaurantPublicKey);
     });
 
-    it("handles decryption errors with onError callback", () => {
+    it("silently ignores invalid MAC errors (expected with Self CC)", () => {
       const merchantPrivateKey = generateSecretKey();
       const merchantPublicKey = getPublicKey(merchantPrivateKey);
       const wrongPrivateKey = generateSecretKey(); // Wrong key
@@ -258,7 +258,7 @@ describe("reservationService", () => {
 
       const subscription = new ReservationSubscription({
         relays: ["wss://relay.example.com"],
-        privateKey: wrongPrivateKey, // Using wrong key
+        privateKey: wrongPrivateKey, // Using wrong key will cause MAC error
         publicKey: merchantPublicKey,
         onMessage,
         onError,
@@ -266,7 +266,7 @@ describe("reservationService", () => {
 
       subscription.start();
 
-      // Create a valid gift wrap
+      // Create a valid gift wrap encrypted for someone else
       const request: ReservationRequest = {
         party_size: 2,
         iso_time: "2025-10-20T19:00:00-07:00",
@@ -284,11 +284,9 @@ describe("reservationService", () => {
       const options = mockPool.subscribeMany.mock.calls[0][2];
       options.onevent(giftWrap);
 
-      // Should call onError, not onMessage
+      // Should silently ignore invalid MAC errors (not call onError or onMessage)
       expect(onMessage).not.toHaveBeenCalled();
-      expect(onError).toHaveBeenCalled();
-      expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
-      expect(onError.mock.calls[0][1]).toBe(giftWrap);
+      expect(onError).not.toHaveBeenCalled(); // Changed: no longer calls onError for MAC errors
     });
 
     it("ignores gift wraps with unexpected kinds", () => {
