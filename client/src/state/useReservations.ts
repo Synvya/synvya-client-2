@@ -42,6 +42,7 @@ export interface ReservationState {
   isConnected: boolean;
   error: string | null;
   isInitialized: boolean;
+  merchantPubkey: string | null;
   
   // Actions
   addMessage: (message: ReservationMessage) => void;
@@ -62,6 +63,7 @@ export const useReservations = create<ReservationState>((set, get) => ({
   isConnected: false,
   error: null,
   isInitialized: false,
+  merchantPubkey: null,
 
   loadPersistedMessages: () => {
     const persisted = loadPersistedReservationMessages();
@@ -132,6 +134,7 @@ export const useReservations = create<ReservationState>((set, get) => ({
       subscription,
       isConnected: subscription.active,
       error: null,
+      merchantPubkey: publicKey,
     });
   },
 
@@ -199,7 +202,11 @@ export const useReservations = create<ReservationState>((set, get) => ({
       const latestMessage = sortedMessages[sortedMessages.length - 1];
 
       // Determine conversation partner (the other party's pubkey)
-      const partnerPubkey = latestMessage.senderPubkey;
+      // The partner is the person who is NOT the merchant
+      const merchantPubkey = get().merchantPubkey;
+      const partnerPubkey = sortedMessages.find(
+        m => m.senderPubkey !== merchantPubkey
+      )?.senderPubkey || latestMessage.senderPubkey;
 
       threads.push({
         rootEventId,
