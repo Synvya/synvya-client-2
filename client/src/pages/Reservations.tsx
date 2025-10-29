@@ -27,6 +27,7 @@ import { Inbox, Users, Calendar, Clock, MessageSquare, AlertCircle, Check, X, Ca
 import type { ReservationRequest, ReservationResponse } from "@/types/reservation";
 import type { ReservationMessage } from "@/services/reservationService";
 import type { ConversationThread } from "@/state/useReservations";
+import { UserLink } from "@/components/UserLink";
 
 export function ReservationsPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
@@ -236,7 +237,7 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
                     {request.party_size} guests • {new Date(request.iso_time).toLocaleDateString()}
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    {partnerPubkey.slice(0, 8)}...{partnerPubkey.slice(-8)}
+                    <UserLink pubkey={partnerPubkey} />
                   </p>
                 </div>
               </div>
@@ -478,7 +479,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 <div>
                   <h3 className="font-semibold">New Reservation Request</h3>
                   <p className="text-xs text-muted-foreground">
-                    From: {senderPubkey.slice(0, 8)}...{senderPubkey.slice(-8)}
+                    From: <UserLink pubkey={senderPubkey} />
                   </p>
                 </div>
               </div>
@@ -702,7 +703,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               Response: {response.status.charAt(0).toUpperCase() + response.status.slice(1)}
             </h3>
             <p className="text-xs text-muted-foreground">
-              To: {senderPubkey.slice(0, 8)}...{senderPubkey.slice(-8)}
+              To: <UserLink pubkey={senderPubkey} />
             </p>
           </div>
           
