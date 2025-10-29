@@ -172,8 +172,12 @@ export const useReservations = create<ReservationState>((set, get) => ({
     for (const message of messages) {
       // Extract thread context from rumor tags
       const context = getThreadContext(message.rumor as any); // Rumor has tags, which is all getThreadContext needs
-      // Use root event ID as thread identifier, or the message ID itself if it's the root
-      const threadId = context.rootId || message.rumor.id;
+      
+      // CRITICAL FIX: Use gift wrap ID for thread matching
+      // - If this message has a root e tag, use that (it references another gift wrap ID)
+      // - Otherwise, use THIS message's gift wrap ID (it's the thread root)
+      // This ensures responses that tag the request's gift wrap ID match correctly
+      const threadId = context.rootId || message.giftWrap.id;
       
       if (!threadMap.has(threadId)) {
         threadMap.set(threadId, []);
