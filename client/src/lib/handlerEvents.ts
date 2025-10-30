@@ -9,15 +9,15 @@ export const SYNVYA_HANDLER_D_IDENTIFIER = "synvya-restaurants-v1.0";
 /**
  * Event kinds that the Synvya restaurant handler supports
  */
-export const SUPPORTED_RESERVATION_KINDS = ["32101", "32102"] as const;
+export const SUPPORTED_RESERVATION_KINDS = ["9901", "9902"] as const;
 
 /**
  * Build a NIP-89 Handler Information event (kind 31990)
  * 
  * This event describes what kinds of events the handler can process.
  * For Synvya restaurants, this includes:
- * - kind 32101: reservation.request
- * - kind 32102: reservation.response
+ * - kind 9901: reservation.request
+ * - kind 9902: reservation.response
  * 
  * @param restaurantPubkey - The public key of the restaurant
  * @returns EventTemplate for kind 31990
@@ -28,8 +28,8 @@ export function buildHandlerInfo(restaurantPubkey: string): EventTemplate {
     created_at: Math.floor(Date.now() / 1000),
     tags: [
       ["d", SYNVYA_HANDLER_D_IDENTIFIER],
-      ["k", "32101"],
-      ["k", "32102"]
+      ["k", "9901"],
+      ["k", "9902"]
     ],
     content: ""
   };
@@ -40,17 +40,17 @@ export function buildHandlerInfo(restaurantPubkey: string): EventTemplate {
  * 
  * This event recommends a specific handler (31990) for processing
  * a particular event kind. The restaurant publishes two of these:
- * - One recommending itself for kind 32101 (reservation.request)
- * - One recommending itself for kind 32102 (reservation.response)
+ * - One recommending itself for kind 9901 (reservation.request)
+ * - One recommending itself for kind 9902 (reservation.response)
  * 
  * @param restaurantPubkey - The public key of the restaurant
- * @param eventKind - The event kind this recommendation is for ("32101" or "32102")
+ * @param eventKind - The event kind this recommendation is for ("9901" or "9902")
  * @param relayUrl - The relay URL to include as a hint for finding the handler
  * @returns EventTemplate for kind 31989
  */
 export function buildHandlerRecommendation(
   restaurantPubkey: string,
-  eventKind: "32101" | "32102",
+  eventKind: "9901" | "9902",
   relayUrl: string
 ): EventTemplate {
   const aTagValue = `31990:${restaurantPubkey}:${SYNVYA_HANDLER_D_IDENTIFIER}`;

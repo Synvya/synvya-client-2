@@ -232,7 +232,7 @@ export function BusinessProfileForm(): JSX.Element {
           const pool = getPool();
           
           // Query for existing handler events
-          const [handlerInfo, recommendation32101, recommendation32102] = await Promise.all([
+          const [handlerInfo, recommendation9901, recommendation9902] = await Promise.all([
             pool.get(relays, {
               kinds: [31990],
               authors: [pubkey],
@@ -241,12 +241,12 @@ export function BusinessProfileForm(): JSX.Element {
             pool.get(relays, {
               kinds: [31989],
               authors: [pubkey],
-              "#d": ["32101"]
+              "#d": ["9901"]
             }),
             pool.get(relays, {
               kinds: [31989],
               authors: [pubkey],
-              "#d": ["32102"]
+              "#d": ["9902"]
             })
           ]);
           
@@ -258,12 +258,12 @@ export function BusinessProfileForm(): JSX.Element {
             eventIdsToDelete.push(handlerInfo.id);
             if (!kindsToDelete.includes(31990)) kindsToDelete.push(31990);
           }
-          if (recommendation32101) {
-            eventIdsToDelete.push(recommendation32101.id);
+          if (recommendation9901) {
+            eventIdsToDelete.push(recommendation9901.id);
             if (!kindsToDelete.includes(31989)) kindsToDelete.push(31989);
           }
-          if (recommendation32102) {
-            eventIdsToDelete.push(recommendation32102.id);
+          if (recommendation9902) {
+            eventIdsToDelete.push(recommendation9902.id);
             if (!kindsToDelete.includes(31989)) kindsToDelete.push(31989);
           }
           
@@ -317,11 +317,11 @@ export function BusinessProfileForm(): JSX.Element {
           const handlerInfoTemplate = buildHandlerInfo(pubkey);
           const handlerInfo = await signEvent(handlerInfoTemplate);
           
-          const recommendation32101Template = buildHandlerRecommendation(pubkey, "32101", firstRelay);
-          const recommendation32101 = await signEvent(recommendation32101Template);
+          const recommendation9901Template = buildHandlerRecommendation(pubkey, "9901", firstRelay);
+          const recommendation9901 = await signEvent(recommendation9901Template);
           
-          const recommendation32102Template = buildHandlerRecommendation(pubkey, "32102", firstRelay);
-          const recommendation32102 = await signEvent(recommendation32102Template);
+          const recommendation9902Template = buildHandlerRecommendation(pubkey, "9902", firstRelay);
+          const recommendation9902 = await signEvent(recommendation9902Template);
           
           // Build and sign DM relay event (kind 10050) as per NIP-17
           const dmRelayTemplate = buildDmRelayEvent(relays);
@@ -330,8 +330,8 @@ export function BusinessProfileForm(): JSX.Element {
           // Publish all four events in parallel
           await Promise.all([
             publishToRelays(handlerInfo, relays),
-            publishToRelays(recommendation32101, relays),
-            publishToRelays(recommendation32102, relays),
+            publishToRelays(recommendation9901, relays),
+            publishToRelays(recommendation9902, relays),
             publishToRelays(dmRelayEvent, relays)
           ]);
           

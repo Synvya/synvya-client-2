@@ -5,11 +5,11 @@ When responding to a reservation request, the restaurant MUST include proper thr
 
 ## Required Response Format
 
-### 1. Response Structure (kind 32102)
+### 1. Response Structure (kind 9902)
 
 ```typescript
 {
-  kind: 32102,  // Reservation response
+  kind: 9902,  // Reservation response
   content: "{encrypted_payload}",  // NIP-44 encrypted JSON
   tags: [
     ["p", "<customer_pubkey_hex>"],           // Required: Customer's public key
@@ -27,7 +27,7 @@ When the customer sends a reservation:
 ```
 Customer Request (Gift Wrap):
   - ID: "abc123..." ← USE THIS ID
-  - Contains: Encrypted Rumor (kind 32101)
+  - Contains: Encrypted Rumor (kind 9901)
 ```
 
 Your response MUST tag this gift wrap ID:
@@ -76,7 +76,7 @@ const responsePayload = {
 
 // Step 3: Create response rumor
 const responseRumor = {
-  kind: 32102,
+  kind: 9902,
   content: encryptNip44(
     JSON.stringify(responsePayload),
     restaurantPrivateKey,

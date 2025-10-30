@@ -131,7 +131,7 @@ describe("nip13", () => {
     it("mines event with low difficulty", async () => {
       const privateKey = generateSecretKey();
       const template: EventTemplate = {
-        kind: 32102,
+        kind: 9902,
         content: "test-content",
         tags: [["p", "recipient-pubkey"]],
         created_at: Math.floor(Date.now() / 1000),
@@ -241,7 +241,7 @@ describe("nip13", () => {
       const pubkey = getPublicKey(privateKey);
 
       const template: EventTemplate = {
-        kind: 32101,
+        kind: 9901,
         content: "encrypted-content",
         tags: [["p", "recipient"]],
         created_at: Math.floor(Date.now() / 1000),
@@ -266,7 +266,7 @@ describe("nip13", () => {
       const pubkey = getPublicKey(privateKey);
 
       const template: EventTemplate = {
-        kind: 32101,
+        kind: 9901,
         content: "test",
         tags: [["p", pubkey]],
         created_at: 1000,
@@ -278,7 +278,7 @@ describe("nip13", () => {
       });
 
       // Template should be valid EventTemplate
-      expect(result.template.kind).toBe(32101);
+      expect(result.template.kind).toBe(9901);
       expect(result.template.content).toBe("test");
       expect(result.template.created_at).toBe(1000);
       expect(result.template.tags.length).toBeGreaterThan(1); // Original + nonce
@@ -367,7 +367,7 @@ describe("nip13", () => {
       const conciergePublicKey = getPublicKey(generateSecretKey());
 
       const responseTemplate: EventTemplate = {
-        kind: 32102,
+        kind: 9902,
         content: "encrypted-response-content",
         tags: [
           ["p", conciergePublicKey],
@@ -382,7 +382,7 @@ describe("nip13", () => {
       });
 
       // Verify the event
-      expect(mined.event.kind).toBe(32102);
+      expect(mined.event.kind).toBe(9902);
       expect(mined.event.tags).toContainEqual([
         "e",
         "request-event-id",

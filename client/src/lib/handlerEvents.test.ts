@@ -40,8 +40,8 @@ describe("handlerEvents", () => {
       expect(kTags).toHaveLength(2);
       
       const kinds = kTags.map((tag) => tag[1]);
-      expect(kinds).toContain("32101");
-      expect(kinds).toContain("32102");
+      expect(kinds).toContain("9901");
+      expect(kinds).toContain("9902");
     });
 
     it("has empty content", () => {
@@ -60,8 +60,8 @@ describe("handlerEvents", () => {
   });
 
   describe("buildHandlerRecommendation", () => {
-    it("builds a valid kind 31989 event template for kind 32101", () => {
-      const event = buildHandlerRecommendation(testPubkey, "32101", testRelay);
+    it("builds a valid kind 31989 event template for kind 9901", () => {
+      const event = buildHandlerRecommendation(testPubkey, "9901", testRelay);
 
       expect(event.kind).toBe(31989);
       expect(event.content).toBe("");
@@ -69,8 +69,8 @@ describe("handlerEvents", () => {
       expect(event.tags).toBeDefined();
     });
 
-    it("builds a valid kind 31989 event template for kind 32102", () => {
-      const event = buildHandlerRecommendation(testPubkey, "32102", testRelay);
+    it("builds a valid kind 31989 event template for kind 9902", () => {
+      const event = buildHandlerRecommendation(testPubkey, "9902", testRelay);
 
       expect(event.kind).toBe(31989);
       expect(event.content).toBe("");
@@ -78,24 +78,24 @@ describe("handlerEvents", () => {
       expect(event.tags).toBeDefined();
     });
 
-    it("includes the correct d tag for event kind 32101", () => {
-      const event = buildHandlerRecommendation(testPubkey, "32101", testRelay);
+    it("includes the correct d tag for event kind 9901", () => {
+      const event = buildHandlerRecommendation(testPubkey, "9901", testRelay);
 
       const dTag = event.tags.find((tag) => tag[0] === "d");
       expect(dTag).toBeDefined();
-      expect(dTag?.[1]).toBe("32101");
+      expect(dTag?.[1]).toBe("9901");
     });
 
-    it("includes the correct d tag for event kind 32102", () => {
-      const event = buildHandlerRecommendation(testPubkey, "32102", testRelay);
+    it("includes the correct d tag for event kind 9902", () => {
+      const event = buildHandlerRecommendation(testPubkey, "9902", testRelay);
 
       const dTag = event.tags.find((tag) => tag[0] === "d");
       expect(dTag).toBeDefined();
-      expect(dTag?.[1]).toBe("32102");
+      expect(dTag?.[1]).toBe("9902");
     });
 
     it("includes a correctly formatted a tag", () => {
-      const event = buildHandlerRecommendation(testPubkey, "32101", testRelay);
+      const event = buildHandlerRecommendation(testPubkey, "9901", testRelay);
 
       const aTag = event.tags.find((tag) => tag[0] === "a");
       expect(aTag).toBeDefined();
@@ -106,20 +106,20 @@ describe("handlerEvents", () => {
 
     it("uses the provided relay URL in the a tag", () => {
       const customRelay = "wss://custom-relay.example.com";
-      const event = buildHandlerRecommendation(testPubkey, "32101", customRelay);
+      const event = buildHandlerRecommendation(testPubkey, "9901", customRelay);
 
       const aTag = event.tags.find((tag) => tag[0] === "a");
       expect(aTag?.[2]).toBe(customRelay);
     });
 
     it("has empty content", () => {
-      const event = buildHandlerRecommendation(testPubkey, "32101", testRelay);
+      const event = buildHandlerRecommendation(testPubkey, "9901", testRelay);
       expect(event.content).toBe("");
     });
 
     it("creates a timestamp close to current time", () => {
       const before = Math.floor(Date.now() / 1000);
-      const event = buildHandlerRecommendation(testPubkey, "32101", testRelay);
+      const event = buildHandlerRecommendation(testPubkey, "9901", testRelay);
       const after = Math.floor(Date.now() / 1000);
 
       expect(event.created_at).toBeGreaterThanOrEqual(before);
@@ -130,8 +130,8 @@ describe("handlerEvents", () => {
       const pubkey1 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
       const pubkey2 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-      const event1 = buildHandlerRecommendation(pubkey1, "32101", testRelay);
-      const event2 = buildHandlerRecommendation(pubkey2, "32101", testRelay);
+      const event1 = buildHandlerRecommendation(pubkey1, "9901", testRelay);
+      const event2 = buildHandlerRecommendation(pubkey2, "9901", testRelay);
 
       const aTag1 = event1.tags.find((tag) => tag[0] === "a");
       const aTag2 = event2.tags.find((tag) => tag[0] === "a");

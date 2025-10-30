@@ -43,7 +43,7 @@ export interface Rumor extends UnsignedEvent {
  * @example
  * ```typescript
  * const rumor = createRumor({
- *   kind: 32101, // reservation.request
+ *   kind: 9901, // reservation.request
  *   content: encryptedPayload,
  *   tags: [["p", recipientPubkey]],
  *   created_at: Math.floor(Date.now() / 1000)
@@ -108,7 +108,7 @@ export function createWrap(seal: Event, recipientPublicKey: string): Event {
  * @example
  * ```typescript
  * const giftWrap = wrapEvent({
- *   kind: 32101,
+ *   kind: 9901,
  *   content: encryptedContent,
  *   tags: [["p", recipientPubkey]],
  *   created_at: Math.floor(Date.now() / 1000)
@@ -190,7 +190,7 @@ export function unwrapManyEvents(wraps: Event[], recipientPrivateKey: Uint8Array
  * Helper to create a gift-wrapped message with encrypted content.
  * Handles both NIP-44 encryption and NIP-59 wrapping.
  * 
- * @param kind - Event kind (e.g., 32101 for reservation.request)
+ * @param kind - Event kind (e.g., 9901 for reservation.request)
  * @param payload - Plain object to encrypt and send
  * @param senderPrivateKey - Sender's private key
  * @param recipientPublicKey - Recipient's public key
@@ -214,7 +214,7 @@ export function unwrapManyEvents(wraps: Event[], recipientPrivateKey: Uint8Array
  * );
  * 
  * const giftWrap = wrapEvent({
- *   kind: 32101,
+ *   kind: 9901,
  *   content: encrypted,
  *   tags: [["p", restaurantPubkey]],
  *   created_at: Math.floor(Date.now() / 1000)

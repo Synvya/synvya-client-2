@@ -306,7 +306,7 @@ describe("reservationService", () => {
 
       subscription.start();
 
-      // Create a gift wrap with a different kind (not 32101 or 32102)
+      // Create a gift wrap with a different kind (not 9901 or 9902)
       const otherEvent = wrapEvent(
         {
           kind: 1, // Regular note, not a reservation
