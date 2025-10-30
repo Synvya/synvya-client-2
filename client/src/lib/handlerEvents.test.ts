@@ -7,6 +7,7 @@ import {
   buildHandlerInfo,
   buildHandlerRecommendation,
   buildDeletionEvent,
+  buildDmRelayEvent,
   SYNVYA_HANDLER_D_IDENTIFIER,
 } from "./handlerEvents";
 
@@ -149,6 +150,80 @@ describe("handlerEvents", () => {
 
     it("has the expected value", () => {
       expect(SYNVYA_HANDLER_D_IDENTIFIER).toBe("synvya-restaurants-v1.0");
+    });
+  });
+
+  describe("buildDmRelayEvent", () => {
+    const testRelays = [
+      "wss://relay.damus.io",
+      "wss://relay.snort.social",
+      "wss://nos.lol"
+    ];
+
+    it("builds a valid kind 10050 event template", () => {
+      const event = buildDmRelayEvent(testRelays);
+
+      expect(event.kind).toBe(10050);
+      expect(event.content).toBe("");
+      expect(event.created_at).toBeGreaterThan(0);
+      expect(event.tags).toBeDefined();
+    });
+
+    it("includes relay tags for each relay URL", () => {
+      const event = buildDmRelayEvent(testRelays);
+
+      const relayTags = event.tags.filter((tag) => tag[0] === "relay");
+      expect(relayTags).toHaveLength(3);
+      expect(relayTags[0][1]).toBe(testRelays[0]);
+      expect(relayTags[1][1]).toBe(testRelays[1]);
+      expect(relayTags[2][1]).toBe(testRelays[2]);
+    });
+
+    it("handles single relay URL", () => {
+      const singleRelay = ["wss://relay.damus.io"];
+      const event = buildDmRelayEvent(singleRelay);
+
+      const relayTags = event.tags.filter((tag) => tag[0] === "relay");
+      expect(relayTags).toHaveLength(1);
+      expect(relayTags[0][1]).toBe(singleRelay[0]);
+    });
+
+    it("handles empty relay array", () => {
+      const event = buildDmRelayEvent([]);
+
+      const relayTags = event.tags.filter((tag) => tag[0] === "relay");
+      expect(relayTags).toHaveLength(0);
+    });
+
+    it("handles multiple relay URLs", () => {
+      const manyRelays = [
+        "wss://relay.damus.io",
+        "wss://relay.snort.social",
+        "wss://nos.lol",
+        "wss://relay.nostr.band",
+        "wss://purplepag.es"
+      ];
+      const event = buildDmRelayEvent(manyRelays);
+
+      const relayTags = event.tags.filter((tag) => tag[0] === "relay");
+      expect(relayTags).toHaveLength(5);
+      manyRelays.forEach((relay, index) => {
+        expect(relayTags[index][1]).toBe(relay);
+      });
+    });
+
+    it("has empty content", () => {
+      const event = buildDmRelayEvent(testRelays);
+      expect(event.content).toBe("");
+    });
+
+    it("creates a timestamp close to current time", () => {
+      const before = Math.floor(Date.now() / 1000);
+      const event = buildDmRelayEvent(testRelays);
+      const after = Math.floor(Date.now() / 1000);
+
+      expect(event.created_at).toBeGreaterThanOrEqual(before);
+      expect(event.created_at).toBeLessThanOrEqual(after);
     });
   });
 

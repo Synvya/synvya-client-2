@@ -4,7 +4,7 @@ import { useRelays } from "@/state/useRelays";
 import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { buildProfileEvent } from "@/lib/events";
 import { publishToRelays, getPool } from "@/lib/relayPool";
-import { buildHandlerInfo, buildHandlerRecommendation, buildDeletionEvent, SYNVYA_HANDLER_D_IDENTIFIER } from "@/lib/handlerEvents";
+import { buildHandlerInfo, buildHandlerRecommendation, buildDeletionEvent, buildDmRelayEvent, SYNVYA_HANDLER_D_IDENTIFIER } from "@/lib/handlerEvents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -307,7 +307,7 @@ export function BusinessProfileForm(): JSX.Element {
       const signed = await signEvent(template);
       await publishToRelays(signed, relays);
 
-      // If this is a restaurant, publish NIP-89 handler events
+      // If this is a restaurant, publish NIP-89 handler events and NIP-17 DM relay event
       let handlerEventsPublished = false;
       if (finalPayload.businessType === "restaurant" && pubkey) {
         try {
@@ -323,11 +323,16 @@ export function BusinessProfileForm(): JSX.Element {
           const recommendation32102Template = buildHandlerRecommendation(pubkey, "32102", firstRelay);
           const recommendation32102 = await signEvent(recommendation32102Template);
           
-          // Publish all three events in parallel
+          // Build and sign DM relay event (kind 10050) as per NIP-17
+          const dmRelayTemplate = buildDmRelayEvent(relays);
+          const dmRelayEvent = await signEvent(dmRelayTemplate);
+          
+          // Publish all four events in parallel
           await Promise.all([
             publishToRelays(handlerInfo, relays),
             publishToRelays(recommendation32101, relays),
-            publishToRelays(recommendation32102, relays)
+            publishToRelays(recommendation32102, relays),
+            publishToRelays(dmRelayEvent, relays)
           ]);
           
           handlerEventsPublished = true;
