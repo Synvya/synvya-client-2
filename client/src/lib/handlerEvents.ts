@@ -67,6 +67,26 @@ export function buildHandlerRecommendation(
 }
 
 /**
+ * Build a NIP-17 DM Relay event (kind 10050)
+ * 
+ * This event indicates the user's preferred relays to receive DMs.
+ * According to NIP-17, this event MUST include a list of relay tags with relay URIs.
+ * 
+ * @param relayUrls - Array of relay URLs to include as preferred DM relays
+ * @returns EventTemplate for kind 10050
+ */
+export function buildDmRelayEvent(relayUrls: string[]): EventTemplate {
+  const tags: string[][] = relayUrls.map((url) => ["relay", url]);
+  
+  return {
+    kind: 10050,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: ""
+  };
+}
+
+/**
  * Build a NIP-09 Event Deletion event (kind 5)
  * 
  * This event requests deletion of one or more previously published events.
