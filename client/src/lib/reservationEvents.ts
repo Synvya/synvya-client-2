@@ -1,7 +1,7 @@
 /**
  * Reservation Event Builders and Parsers
  * 
- * Handles creation and parsing of reservation messages (kinds 32101/32102)
+ * Handles creation and parsing of reservation messages (kinds 9901/9902)
  * with JSON schema validation.
  */
 
@@ -93,7 +93,7 @@ export function validateReservationResponse(payload: unknown): ValidationResult 
 }
 
 /**
- * Creates an encrypted rumor event for a reservation request (kind 32101).
+ * Creates an encrypted rumor event for a reservation request (kind 9901).
  * 
  * @param request - The reservation request payload
  * @param senderPrivateKey - Sender's private key for encryption
@@ -141,7 +141,7 @@ export function buildReservationRequest(
 
   // Build event template
   return {
-    kind: 32101,
+    kind: 9901,
     content: encrypted,
     tags: [
       ["p", recipientPublicKey],
@@ -152,7 +152,7 @@ export function buildReservationRequest(
 }
 
 /**
- * Creates an encrypted rumor event for a reservation response (kind 32102).
+ * Creates an encrypted rumor event for a reservation response (kind 9902).
  * 
  * IMPORTANT: When responding to a reservation request, the `e` tag in additionalTags
  * MUST reference the GIFT WRAP ID of the original request, NOT the rumor ID.
@@ -203,7 +203,7 @@ export function buildReservationResponse(
 
   // Build event template
   return {
-    kind: 32102,
+    kind: 9902,
     content: encrypted,
     tags: [
       ["p", recipientPublicKey],
@@ -216,7 +216,7 @@ export function buildReservationResponse(
 /**
  * Parses and decrypts a reservation request from a rumor event.
  * 
- * @param rumor - The unwrapped rumor event (kind 32101)
+ * @param rumor - The unwrapped rumor event (kind 9901)
  * @param recipientPrivateKey - Recipient's private key for decryption
  * @returns Parsed and validated reservation request
  * @throws Error if decryption or validation fails
@@ -235,8 +235,8 @@ export function parseReservationRequest(
   rumor: Event | { kind: number; content: string; pubkey: string },
   recipientPrivateKey: Uint8Array
 ): ReservationRequest {
-  if (rumor.kind !== 32101) {
-    throw new Error(`Expected kind 32101, got ${rumor.kind}`);
+  if (rumor.kind !== 9901) {
+    throw new Error(`Expected kind 9901, got ${rumor.kind}`);
   }
 
   // Decrypt content
@@ -256,7 +256,7 @@ export function parseReservationRequest(
 /**
  * Parses and decrypts a reservation response from a rumor event.
  * 
- * @param rumor - The unwrapped rumor event (kind 32102)
+ * @param rumor - The unwrapped rumor event (kind 9902)
  * @param recipientPrivateKey - Recipient's private key for decryption
  * @returns Parsed and validated reservation response
  * @throws Error if decryption or validation fails
@@ -273,8 +273,8 @@ export function parseReservationResponse(
   rumor: Event | { kind: number; content: string; pubkey: string },
   recipientPrivateKey: Uint8Array
 ): ReservationResponse {
-  if (rumor.kind !== 32102) {
-    throw new Error(`Expected kind 32102, got ${rumor.kind}`);
+  if (rumor.kind !== 9902) {
+    throw new Error(`Expected kind 9902, got ${rumor.kind}`);
   }
 
   // Decrypt content

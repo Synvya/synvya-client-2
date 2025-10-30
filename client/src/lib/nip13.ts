@@ -150,7 +150,7 @@ export function getPowTag(event: { tags: string[][] }): { nonce: number; targetD
  * ```typescript
  * const minedEvent = await mineEvent(
  *   {
- *     kind: 32102,
+ *     kind: 9902,
  *     content: "encrypted-response",
  *     tags: [["p", recipientPubkey]],
  *     created_at: Math.floor(Date.now() / 1000)
@@ -251,7 +251,7 @@ export async function mineEvent(
  * ```typescript
  * const minedTemplate = await mineEventUnsigned(
  *   {
- *     kind: 32101,
+ *     kind: 9901,
  *     content: encrypted,
  *     tags: [["p", recipientPubkey]],
  *     created_at: Math.floor(Date.now() / 1000)

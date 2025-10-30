@@ -2,7 +2,7 @@
  * Reservation Service
  * 
  * Handles relay subscriptions for incoming gift-wrapped reservation messages.
- * Listens for kind 1059 events, unwraps them, and parses reservation requests/responses.
+ * Listens for kind 1059 events, unwraps them, and parses reservation requests/responses (kinds 9901/9902).
  */
 
 import type { Event } from "nostr-tools";
@@ -148,7 +148,7 @@ export class ReservationSubscription {
       const rumor = unwrapEvent(event, privateKey);
 
       // Determine type and parse
-      if (rumor.kind === 32101) {
+      if (rumor.kind === 9901) {
         // Reservation request
         const payload = parseReservationRequest(rumor, privateKey);
         onMessage({
@@ -158,7 +158,7 @@ export class ReservationSubscription {
           senderPubkey: rumor.pubkey,
           giftWrap: event,
         });
-      } else if (rumor.kind === 32102) {
+      } else if (rumor.kind === 9902) {
         // Reservation response
         const payload = parseReservationResponse(rumor, privateKey);
         onMessage({

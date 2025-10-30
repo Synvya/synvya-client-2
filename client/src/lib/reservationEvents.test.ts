@@ -211,7 +211,7 @@ describe("reservationEvents", () => {
         recipientPublicKey
       );
 
-      expect(template.kind).toBe(32101);
+      expect(template.kind).toBe(9901);
       expect(template.content).toBeTruthy();
       expect(template.tags).toContainEqual(["p", recipientPublicKey]);
       expect(template.created_at).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
@@ -272,7 +272,7 @@ describe("reservationEvents", () => {
         recipientPublicKey
       );
 
-      expect(template.kind).toBe(32102);
+      expect(template.kind).toBe(9902);
       expect(template.content).toBeTruthy();
       expect(template.tags).toContainEqual(["p", recipientPublicKey]);
     });
@@ -312,7 +312,7 @@ describe("reservationEvents", () => {
 
       // Create a pseudo-rumor
       const rumor = {
-        kind: 32101,
+        kind: 9901,
         content: template.content,
         pubkey: senderPublicKey,
       };
@@ -333,7 +333,7 @@ describe("reservationEvents", () => {
 
       expect(() =>
         parseReservationRequest(wrongKindRumor, recipientPrivateKey)
-      ).toThrow(/Expected kind 32101/);
+      ).toThrow(/Expected kind 9901/);
     });
   });
 
@@ -358,7 +358,7 @@ describe("reservationEvents", () => {
       );
 
       const rumor = {
-        kind: 32102,
+        kind: 9902,
         content: template.content,
         pubkey: senderPublicKey,
       };
@@ -372,14 +372,14 @@ describe("reservationEvents", () => {
       const recipientPrivateKey = generateSecretKey();
 
       const wrongKindRumor = {
-        kind: 32101, // Wrong kind (should be 32102)
+        kind: 9901, // Wrong kind (should be 9902)
         content: "test",
         pubkey: getPublicKey(generateSecretKey()),
       };
 
       expect(() =>
         parseReservationResponse(wrongKindRumor, recipientPrivateKey)
-      ).toThrow(/Expected kind 32102/);
+      ).toThrow(/Expected kind 9902/);
     });
   });
 
