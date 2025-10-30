@@ -22,6 +22,7 @@ export interface BusinessProfile {
   state?: string;
   zip?: string;
   location?: string;
+  chamber?: string;
 }
 
 export interface PublishResult {

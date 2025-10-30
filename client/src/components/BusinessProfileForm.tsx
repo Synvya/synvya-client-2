@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
+import { useChamber } from "@/state/useChamber";
 import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { buildProfileEvent } from "@/lib/events";
 import { publishToRelays, getPool } from "@/lib/relayPool";
@@ -167,6 +168,7 @@ export function BusinessProfileForm(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
   const authStatus = useAuth((state) => state.status);
   const relays = useRelays((state) => state.relays);
+  const chamberId = useChamber((state) => state.chamberId);
   const setProfileLocation = useBusinessProfile((state) => state.setLocation);
   const setProfileBusinessType = useBusinessProfile((state) => state.setBusinessType);
   const [profile, setProfile] = useState<BusinessProfile>(createInitialProfile);
@@ -209,7 +211,8 @@ export function BusinessProfileForm(): JSX.Element {
       street: profile.street?.trim() || undefined,
       city: profile.city?.trim() || undefined,
       state: profile.state?.trim() || undefined,
-      zip: profile.zip?.trim() || undefined
+      zip: profile.zip?.trim() || undefined,
+      chamber: chamberId || undefined
     };
 
     if (!relays.length) {
