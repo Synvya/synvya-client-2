@@ -10,19 +10,21 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 interface UserLinkProps {
   pubkey: string;
   className?: string;
+  /** Optional contact name from reservation request that takes precedence over profile name */
+  contactName?: string;
 }
 
-export function UserLink({ pubkey, className = "" }: UserLinkProps): JSX.Element {
+export function UserLink({ pubkey, className = "", contactName }: UserLinkProps): JSX.Element {
   const { profile, loading } = useUserProfile(pubkey);
 
   // Primal profile URL
   const primalUrl = `https://www.primal.net/p/${pubkey}`;
 
-  // Display name: prefer display_name, then name, then abbreviated hex
-  const displayName = profile?.display_name || profile?.name;
+  // Display name priority: contactName > profile.display_name > profile.name > abbreviated hex
+  const displayName = contactName || profile?.display_name || profile?.name;
   const fallbackName = `${pubkey.slice(0, 8)}...${pubkey.slice(-8)}`;
 
-  if (loading) {
+  if (loading && !contactName) {
     return (
       <span className={`text-muted-foreground ${className}`}>
         Loading...
