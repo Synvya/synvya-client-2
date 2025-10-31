@@ -237,7 +237,7 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
                     {request.party_size} guests • {new Date(request.iso_time).toLocaleDateString()}
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    <UserLink pubkey={partnerPubkey} />
+                    <UserLink pubkey={partnerPubkey} contactName={request.contact?.name} />
                   </p>
                 </div>
               </div>
@@ -340,12 +340,23 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
           <Users className="h-4 w-4 mt-1 text-primary" />
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Request</span>
+              <span className="text-sm font-medium">Request from <UserLink pubkey={senderPubkey} contactName={request.contact?.name} /></span>
               <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
             </div>
             <div className="text-sm">
               <p>{request.party_size} guests on {new Date(request.iso_time).toLocaleString()}</p>
               {request.notes && <p className="mt-1 text-muted-foreground">{request.notes}</p>}
+              {request.contact?.phone && (
+                <p className="mt-1">
+                  <span className="text-muted-foreground">Phone: </span>
+                  <a 
+                    href={`tel:${request.contact.phone}`}
+                    className="text-primary hover:underline"
+                  >
+                    {request.contact.phone}
+                  </a>
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -479,7 +490,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 <div>
                   <h3 className="font-semibold">New Reservation Request</h3>
                   <p className="text-xs text-muted-foreground">
-                    From: <UserLink pubkey={senderPubkey} />
+                    From: <UserLink pubkey={senderPubkey} contactName={request.contact?.name} />
                   </p>
                 </div>
               </div>
@@ -504,10 +515,15 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                     <span className="text-muted-foreground">{request.notes}</span>
                   </div>
                 )}
-                {request.contact?.name && (
-                  <div className="text-xs text-muted-foreground">
-                    Contact: {request.contact.name}
-                    {request.contact.phone && ` • ${request.contact.phone}`}
+                {request.contact?.phone && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Phone:</span>
+                    <a 
+                      href={`tel:${request.contact.phone}`}
+                      className="text-primary hover:underline"
+                    >
+                      {request.contact.phone}
+                    </a>
                   </div>
                 )}
               </div>
