@@ -9,7 +9,7 @@ export const SYNVYA_HANDLER_D_IDENTIFIER = "synvya-restaurants-v1.0";
 /**
  * Event kinds that the Synvya restaurant handler supports
  */
-export const SUPPORTED_RESERVATION_KINDS = ["9901", "9902"] as const;
+export const SUPPORTED_RESERVATION_KINDS = ["9901", "9902", "9903", "9904"] as const;
 
 /**
  * Build a NIP-89 Handler Information event (kind 31990)
@@ -18,6 +18,8 @@ export const SUPPORTED_RESERVATION_KINDS = ["9901", "9902"] as const;
  * For Synvya restaurants, this includes:
  * - kind 9901: reservation.request
  * - kind 9902: reservation.response
+ * - kind 9903: reservation.modification.request
+ * - kind 9904: reservation.modification.response
  * 
  * @param restaurantPubkey - The public key of the restaurant
  * @returns EventTemplate for kind 31990
@@ -29,7 +31,9 @@ export function buildHandlerInfo(restaurantPubkey: string): EventTemplate {
     tags: [
       ["d", SYNVYA_HANDLER_D_IDENTIFIER],
       ["k", "9901"],
-      ["k", "9902"]
+      ["k", "9902"],
+      ["k", "9903"],
+      ["k", "9904"]
     ],
     content: ""
   };
@@ -39,18 +43,20 @@ export function buildHandlerInfo(restaurantPubkey: string): EventTemplate {
  * Build a NIP-89 Handler Recommendation event (kind 31989)
  * 
  * This event recommends a specific handler (31990) for processing
- * a particular event kind. The restaurant publishes two of these:
+ * a particular event kind. The restaurant publishes four of these:
  * - One recommending itself for kind 9901 (reservation.request)
  * - One recommending itself for kind 9902 (reservation.response)
+ * - One recommending itself for kind 9903 (reservation.modification.request)
+ * - One recommending itself for kind 9904 (reservation.modification.response)
  * 
  * @param restaurantPubkey - The public key of the restaurant
- * @param eventKind - The event kind this recommendation is for ("9901" or "9902")
+ * @param eventKind - The event kind this recommendation is for ("9901", "9902", "9903", or "9904")
  * @param relayUrl - The relay URL to include as a hint for finding the handler
  * @returns EventTemplate for kind 31989
  */
 export function buildHandlerRecommendation(
   restaurantPubkey: string,
-  eventKind: "9901" | "9902",
+  eventKind: "9901" | "9902" | "9903" | "9904",
   relayUrl: string
 ): EventTemplate {
   const aTagValue = `31990:${restaurantPubkey}:${SYNVYA_HANDLER_D_IDENTIFIER}`;
