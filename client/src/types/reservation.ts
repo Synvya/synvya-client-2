@@ -1,5 +1,5 @@
 /**
- * Types for Synvya Reservation Messages (NIP-9901/9902)
+ * Types for Synvya Reservation Messages (NIP-9901/9902/9903/9904)
  * 
  * These types match the JSON schemas defined in docs/schemas/
  */
@@ -54,6 +54,43 @@ export type ReservationStatus =
  */
 export interface ReservationResponse {
   /** Status of the reservation */
+  status: ReservationStatus;
+  /** Proposed or confirmed time (null for declined/expired) */
+  iso_time?: string | null;
+  /** Optional message to the requester */
+  message?: string;
+  /** Optional table identifier */
+  table?: string | null;
+  /** When a soft hold expires (if applicable) */
+  hold_expires_at?: string | null;
+}
+
+/**
+ * Reservation modification request payload (kind 9903)
+ * 
+ * Sent by user/agent in response to a restaurant's "suggested" response (9902).
+ * Allows user to accept or counter-propose the suggested time.
+ */
+export interface ReservationModificationRequest {
+  /** Number of guests (1-20) */
+  party_size: number;
+  /** Requested time in ISO8601 format with timezone */
+  iso_time: string;
+  /** Optional notes or special requests */
+  notes?: string;
+  /** Optional contact information */
+  contact?: ReservationContact;
+  /** Optional constraints for negotiation */
+  constraints?: ReservationConstraints;
+}
+
+/**
+ * Reservation modification response payload (kind 9904)
+ * 
+ * Sent by restaurant in response to a user's modification request (9903).
+ */
+export interface ReservationModificationResponse {
+  /** Status of the modification */
   status: ReservationStatus;
   /** Proposed or confirmed time (null for declined/expired) */
   iso_time?: string | null;

@@ -31,7 +31,7 @@ interface SerializedReservationMessage {
     tags: string[][];
     content: string;
   };
-  type: "request" | "response";
+  type: "request" | "response" | "modification-request" | "modification-response";
   payload: unknown;
   senderPubkey: string;
   giftWrap: {

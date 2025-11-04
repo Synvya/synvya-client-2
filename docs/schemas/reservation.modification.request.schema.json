@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Reservation Modification Request",
+  "description": "A reservation modification request (kind 9903) sent by a user/agent in response to a restaurant's suggested time",
+  "required": ["party_size", "iso_time"],
+  "properties": {
+    "party_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Number of guests"
+    },
+    "iso_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Requested time in ISO8601 format with timezone"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional notes or special requests"
+    },
+    "contact": {
+      "type": "object",
+      "description": "Contact information for the reservation guest",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "description": "Constraints and preferences for reservation negotiation",
+      "properties": {
+        "earliest_iso_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "latest_iso_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "outdoor_ok": {
+          "type": "boolean"
+        },
+        "accessibility_required": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
+
