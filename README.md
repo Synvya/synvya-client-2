@@ -18,9 +18,14 @@ Synvya’s merchant-facing web client for onboarding, profile management, and Sq
 
 ### Restaurant Reservations (NIP-89 Discovery)
 - **Handler Discovery**: Restaurants with `businessType: "restaurant"` automatically publish NIP-89 handler events
-  - Kind 31990: Handler info declaring support for reservation events (9901, 9902)
+  - Kind 31990: Handler info declaring support for reservation events (9901, 9902, 9903, 9904)
   - Kind 31989: Handler recommendations for AI agents to discover reservation-capable restaurants
-- **Message Exchange**: Encrypted NIP-59 gift-wrapped reservation requests and responses
+- **4-Message Protocol**: Complete reservation negotiation flow
+  - Kind 9901: Initial reservation request
+  - Kind 9902: Restaurant response (confirmed/declined/suggested)
+  - Kind 9903: Modification request (user accepts/modifies suggestion)
+  - Kind 9904: Modification response (restaurant confirms/declines modification)
+- **Message Exchange**: Encrypted NIP-59 gift-wrapped messages with NIP-17 Self CC pattern
 - **AI Integration**: AI agents can discover and communicate with restaurants using standard Nostr protocols
 - See `docs/restaurants/` for complete protocol documentation
 

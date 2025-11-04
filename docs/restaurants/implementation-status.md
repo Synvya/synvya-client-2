@@ -40,6 +40,19 @@ This document tracks the implementation status of the Synvya reservation messagi
   - Support for: confirmed, declined, suggested, expired, cancelled
   - Optional fields: iso_time, message, table, hold_expires_at
 
+- **Kind 9903 (reservation.modification.request)**
+  - JSON schema validation
+  - Encryption and wrapping
+  - Parsing and unwrapping
+  - Support for: party_size, iso_time, notes, contact, constraints
+  - Used when user accepts/modifies a suggested time
+
+- **Kind 9904 (reservation.modification.response)**
+  - JSON schema validation
+  - Support for: confirmed, declined, suggested
+  - Optional fields: iso_time, message, table, hold_expires_at
+  - Restaurant's response to modification request
+
 ### Business Client Features
 - **Relay Subscription**
   - Subscribe to multiple relays
@@ -57,9 +70,11 @@ This document tracks the implementation status of the Synvya reservation messagi
 - **User Interface**
   - Reservations inbox page
   - Threaded conversation view
-  - Accept/Decline/Suggest actions
+  - Accept/Decline/Suggest actions for initial requests
+  - Accept/Decline actions for modification requests
   - Action dialogs with validation
-  - Status indicators
+  - Status indicators (pending, confirmed, declined, suggested)
+  - Visual distinction for modification messages
   - Located: `client/src/pages/Reservations.tsx`
 
 - **Test Harness** (dev only)
@@ -86,10 +101,12 @@ This document tracks the implementation status of the Synvya reservation messagi
 - ✅ Handler event builders (kind 31990, kind 31989)
 - ✅ Auto-publish on restaurant profile creation
 - ✅ Auto-delete on business type change
-- ✅ Three-event pattern:
-  - One kind 31990 (handler info declaring support for 9901 & 9902)
+- ✅ Five-event pattern:
+  - One kind 31990 (handler info declaring support for 9901, 9902, 9903, 9904)
   - One kind 31989 with `d:"9901"` (recommendation for reservation.request)
   - One kind 31989 with `d:"9902"` (recommendation for reservation.response)
+  - One kind 31989 with `d:"9903"` (recommendation for reservation.modification.request)
+  - One kind 31989 with `d:"9904"` (recommendation for reservation.modification.response)
 - ✅ NIP-09 deletion events for cleanup
 - ✅ Full test coverage
 - 📍 Located: `client/src/lib/handlerEvents.ts`
@@ -134,10 +151,12 @@ This document tracks the implementation status of the Synvya reservation messagi
 
 ### Complete Reservation Flow
 1. AI Concierge → Restaurant: Request (9901)
-2. Restaurant ↔ Concierge: Negotiation (9902)
-3. Restaurant → Concierge: Calendar event (31923)
-4. Concierge → Restaurant: RSVP (31925)
-5. Both parties: Store in calendar (31924)
+2. Restaurant → Concierge: Response (9902) - Suggested alternative time
+3. AI Concierge → Restaurant: Modification Request (9903) - Accepts modification
+4. Restaurant → Concierge: Modification Response (9904) - Confirms
+5. Restaurant → Concierge: Calendar event (31923) - [Phase 2]
+6. Concierge → Restaurant: RSVP (31925) - [Phase 2]
+7. Both parties: Store in calendar (31924) - [Phase 2]
 
 ---
 
