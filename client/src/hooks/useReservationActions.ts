@@ -9,7 +9,7 @@ import { useState, useCallback } from "react";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { useReservations } from "@/state/useReservations";
-import { buildReservationResponse, buildReservationModificationResponse } from "@/lib/reservationEvents";
+import { buildReservationResponse, buildReservationModificationResponse, buildReservationModificationRequest } from "@/lib/reservationEvents";
 import { publishToRelays } from "@/lib/relayPool";
 import { wrapEvent, createRumor } from "@/lib/nip59";
 import { loadAndDecryptSecret } from "@/lib/secureStore";
@@ -42,6 +42,23 @@ export interface SuggestOptions {
     message?: string;
 }
 
+export interface SendModificationRequestOptions {
+    party_size: number;
+    iso_time: string;
+    notes?: string;
+    contact?: {
+        name?: string;
+        phone?: string;
+        email?: string;
+    };
+    constraints?: {
+        earliest_iso_time?: string;
+        latest_iso_time?: string;
+        outdoor_ok?: boolean;
+        accessibility_required?: boolean;
+    };
+}
+
 export function useReservationActions() {
     const { signEvent, pubkey } = useAuth();
     const relays = useRelays((state) => state.relays);
@@ -71,10 +88,25 @@ export function useReservationActions() {
                 }
                 const privateKey = skFromNsec(nsec);
 
+                // Find the original request's rumor ID for threading
+                // - If this is a request message, use its own rumor ID
+                // - If this is a response/modification message, extract root from e tags
+                let rootRumorId: string;
+                if (request.type === "request") {
+                    rootRumorId = request.rumor.id;
+                } else {
+                    // Extract root rumor ID from e tags (per NIP-17)
+                    const rootTag = request.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
+                    if (!rootTag) {
+                        throw new Error("Cannot find root rumor ID in message tags");
+                    }
+                    rootRumorId = rootTag[1];
+                }
+
                 // Build thread tag - MUST reference the unsigned 9901 rumor ID per NIP-17
                 // The unsigned 9901 event ID threads all subsequent messages together
                 const threadTag: string[][] = [
-                    ["e", request.rumor.id, "", "root"]
+                    ["e", rootRumorId, "", "root"]
                 ];
 
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
@@ -194,6 +226,113 @@ export function useReservationActions() {
         [sendResponse]
     );
 
+    const sendModificationRequest = useCallback(
+        async (
+            response: ReservationMessage,
+            options: SendModificationRequestOptions
+        ): Promise<void> => {
+            setState({ loading: true, error: null, success: false });
+
+            try {
+                // Load private key
+                const nsec = await loadAndDecryptSecret();
+                if (!nsec) {
+                    throw new Error("Unable to load private key");
+                }
+                const privateKey = skFromNsec(nsec);
+
+                // Find the original request's rumor ID for threading
+                // - If this is a request message, use its own rumor ID
+                // - If this is a response/modification message, extract root from e tags
+                let rootRumorId: string;
+                if (response.type === "request") {
+                    rootRumorId = response.rumor.id;
+                } else {
+                    // Extract root rumor ID from e tags (per NIP-17)
+                    const rootTag = response.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
+                    if (!rootTag) {
+                        throw new Error("Cannot find root rumor ID in message tags");
+                    }
+                    rootRumorId = rootTag[1];
+                }
+
+                // Build modification request payload
+                const modificationRequest: ReservationModificationRequest = {
+                    party_size: options.party_size,
+                    iso_time: options.iso_time,
+                    notes: options.notes,
+                    contact: options.contact,
+                    constraints: options.constraints,
+                };
+
+                // Build thread tags per NIP-17:
+                // - Root: unsigned 9901 rumor ID (the original request)
+                // - Reply: unsigned 9902 rumor ID (the response being modified)
+                const threadTag: string[][] = [
+                    ["e", rootRumorId, "", "root"],
+                    ["e", response.rumor.id, "", "reply"],
+                ];
+
+                // IMPORTANT: Implement "Self CC" per NIP-17 pattern
+                const requestToAgent = buildReservationModificationRequest(
+                    modificationRequest,
+                    privateKey,
+                    response.senderPubkey,
+                    threadTag
+                );
+                
+                const requestToSelf = buildReservationModificationRequest(
+                    modificationRequest,
+                    privateKey,
+                    pubkey!,
+                    threadTag
+                );
+
+                // Create rumor from the Self CC template (for local storage)
+                const rumor = createRumor(requestToSelf, privateKey);
+
+                // Wrap both requests in gift wraps
+                const giftWrapToRecipient = wrapEvent(
+                    requestToAgent,
+                    privateKey,
+                    response.senderPubkey
+                );
+                
+                const giftWrapToSelf = wrapEvent(
+                    requestToSelf,
+                    privateKey,
+                    pubkey!
+                );
+
+                // Publish BOTH gift wraps to relays
+                await Promise.all([
+                    publishToRelays(giftWrapToRecipient, relays),
+                    publishToRelays(giftWrapToSelf, relays),
+                ]);
+
+                // Add modification request to local state immediately
+                if (pubkey) {
+                    const requestMessage: ReservationMessage = {
+                        rumor: rumor,
+                        type: "modification-request",
+                        payload: modificationRequest,
+                        senderPubkey: pubkey,
+                        giftWrap: giftWrapToSelf,
+                    };
+                    addMessage(requestMessage);
+                }
+
+                setState({ loading: false, error: null, success: true });
+            } catch (error) {
+                const message =
+                    error instanceof Error ? error.message : "Failed to send modification request";
+                setState({ loading: false, error: message, success: false });
+                throw error;
+            }
+        },
+        [relays, addMessage, pubkey]
+    );
+
     const sendModificationResponse = useCallback(
         async (
             modificationRequest: ReservationMessage,
@@ -210,11 +349,18 @@ export function useReservationActions() {
                 const privateKey = skFromNsec(nsec);
 
                 // Build thread tags per NIP-17:
-                // - Root: unsigned 9901 rumor ID (extracted from modification request's tags)
+                // - Root: unsigned 9901 rumor ID (extracted from modification request's tags, or use modification request's own ID if it's the root)
                 // - Reply: unsigned 9903 rumor ID (the modification request itself)
                 const rootTags = modificationRequest.rumor.tags
                     .filter(tag => tag[0] === "e" && tag[3] === "root")
                     .map(tag => ["e", tag[1], tag[2] || "", "root"]);
+                
+                // If no root tag found, this modification request might be the root (shouldn't happen, but handle gracefully)
+                if (rootTags.length === 0) {
+                    // This shouldn't happen for a modification request, but if it does, use the original request's rumor ID
+                    // We need to find it from the thread
+                    throw new Error("Cannot find root rumor ID in modification request tags");
+                }
                 
                 const threadTag: string[][] = [
                     ["e", modificationRequest.rumor.id, "", "reply"],
@@ -322,6 +468,7 @@ export function useReservationActions() {
         acceptReservation,
         declineReservation,
         suggestAlternativeTime,
+        sendModificationRequest,
         acceptModification,
         declineModification,
     };

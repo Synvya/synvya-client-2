@@ -481,6 +481,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
     acceptReservation,
     declineReservation,
     suggestAlternativeTime,
+    sendModificationRequest,
     acceptModification,
     declineModification,
   } = useReservationActions();
@@ -488,12 +489,16 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
   const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
   const [suggestDialogOpen, setSuggestDialogOpen] = useState(false);
+  const [modifyDialogOpen, setModifyDialogOpen] = useState(false);
 
   const [tableNumber, setTableNumber] = useState("");
   const [acceptMessage, setAcceptMessage] = useState("");
   const [declineReason, setDeclineReason] = useState("");
   const [suggestedTime, setSuggestedTime] = useState("");
   const [suggestMessage, setSuggestMessage] = useState("");
+  const [modifyTime, setModifyTime] = useState("");
+  const [modifyPartySize, setModifyPartySize] = useState("");
+  const [modifyNotes, setModifyNotes] = useState("");
 
   const handleAccept = async () => {
     try {
@@ -534,6 +539,25 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
       setSuggestDialogOpen(false);
       setSuggestedTime("");
       setSuggestMessage("");
+    } catch (error) {
+      // Error is handled in the hook state
+    }
+  };
+
+  const handleSendModificationRequest = async () => {
+    if (!modifyTime || !modifyPartySize) return;
+    try {
+      const isoTime = new Date(modifyTime).toISOString();
+      
+      await sendModificationRequest(message, {
+        party_size: parseInt(modifyPartySize),
+        iso_time: isoTime,
+        notes: modifyNotes || undefined,
+      });
+      setModifyDialogOpen(false);
+      setModifyTime("");
+      setModifyPartySize("");
+      setModifyNotes("");
     } catch (error) {
       // Error is handled in the hook state
     }
@@ -1083,6 +1107,20 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               <p>Suggested alternative time:</p>
               <p className="text-muted-foreground">{new Date(response.iso_time).toLocaleString()}</p>
               {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
+              {/* Only show modify button if this is not the latest message in the thread */}
+              {!compact && (
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setModifyDialogOpen(true)}
+                    disabled={actionState.loading}
+                  >
+                    <RefreshCw className="mr-1 h-3 w-3" />
+                    Send Modification Request
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1105,6 +1143,68 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
           </div>
         </div>
       </div>
+
+      {/* Modification Request Dialog (for suggested responses) */}
+      {response.status === "suggested" && (
+        <Dialog open={modifyDialogOpen} onOpenChange={setModifyDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Send Modification Request</DialogTitle>
+              <DialogDescription>
+                Send a modification request to follow up on the suggested time
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="modify-party-size">Party Size *</Label>
+                <Input
+                  id="modify-party-size"
+                  type="number"
+                  min="1"
+                  max="20"
+                  placeholder="Number of guests"
+                  value={modifyPartySize}
+                  onChange={(e) => setModifyPartySize(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="modify-time">Date & Time *</Label>
+                <Input
+                  id="modify-time"
+                  type="datetime-local"
+                  value={modifyTime}
+                  onChange={(e) => setModifyTime(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="modify-notes">Notes (optional)</Label>
+                <Textarea
+                  id="modify-notes"
+                  placeholder="Any additional notes or requests..."
+                  value={modifyNotes}
+                  onChange={(e) => setModifyNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setModifyDialogOpen(false)}
+                disabled={actionState.loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSendModificationRequest}
+                disabled={actionState.loading || !modifyTime || !modifyPartySize}
+              >
+                {actionState.loading ? "Sending..." : "Send Modification Request"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
