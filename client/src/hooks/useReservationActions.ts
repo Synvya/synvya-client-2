@@ -9,12 +9,16 @@ import { useState, useCallback } from "react";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { useReservations } from "@/state/useReservations";
-import { buildReservationResponse } from "@/lib/reservationEvents";
+import { buildReservationResponse, buildReservationModificationResponse } from "@/lib/reservationEvents";
 import { publishToRelays } from "@/lib/relayPool";
 import { wrapEvent, createRumor } from "@/lib/nip59";
 import { loadAndDecryptSecret } from "@/lib/secureStore";
 import { skFromNsec } from "@/lib/nostrKeys";
-import type { ReservationResponse } from "@/types/reservation";
+import type { 
+    ReservationResponse, 
+    ReservationModificationResponse,
+    ReservationModificationRequest
+} from "@/types/reservation";
 import type { ReservationMessage } from "@/services/reservationService";
 
 export interface ReservationActionState {
@@ -191,12 +195,134 @@ export function useReservationActions() {
         [sendResponse]
     );
 
+    const sendModificationResponse = useCallback(
+        async (
+            modificationRequest: ReservationMessage,
+            response: ReservationModificationResponse
+        ): Promise<void> => {
+            setState({ loading: true, error: null, success: false });
+
+            try {
+                // Load private key
+                const nsec = await loadAndDecryptSecret();
+                if (!nsec) {
+                    throw new Error("Unable to load private key");
+                }
+                const privateKey = skFromNsec(nsec);
+
+                // Build thread tags - reference modification request's gift wrap ID as reply
+                // and original request's gift wrap ID as root
+                const threadTag: string[][] = [
+                    ["e", modificationRequest.giftWrap.id, "", "reply"],
+                    // Find root event ID from the modification request's rumor tags
+                    ...(modificationRequest.rumor.tags
+                        .filter(tag => tag[0] === "e" && tag[3] === "root")
+                        .map(tag => ["e", tag[1], tag[2] || "", "root"]))
+                ];
+
+                // IMPORTANT: Implement "Self CC" per NIP-17 pattern
+                const responseToAgent = buildReservationModificationResponse(
+                    response,
+                    privateKey,
+                    modificationRequest.senderPubkey,
+                    threadTag
+                );
+                
+                const responseToSelf = buildReservationModificationResponse(
+                    response,
+                    privateKey,
+                    pubkey!,
+                    threadTag
+                );
+
+                // Create rumor from the Self CC template (for local storage)
+                const rumor = createRumor(responseToSelf, privateKey);
+
+                // Wrap both responses in gift wraps
+                const giftWrapToRecipient = wrapEvent(
+                    responseToAgent,
+                    privateKey,
+                    modificationRequest.senderPubkey
+                );
+                
+                const giftWrapToSelf = wrapEvent(
+                    responseToSelf,
+                    privateKey,
+                    pubkey!
+                );
+
+                // Publish BOTH gift wraps to relays
+                await Promise.all([
+                    publishToRelays(giftWrapToRecipient, relays),
+                    publishToRelays(giftWrapToSelf, relays),
+                ]);
+
+                // Add response to local state immediately
+                if (pubkey) {
+                    const responseMessage: ReservationMessage = {
+                        rumor: rumor,
+                        type: "modification-response",
+                        payload: response,
+                        senderPubkey: pubkey,
+                        giftWrap: giftWrapToSelf,
+                    };
+                    addMessage(responseMessage);
+                }
+
+                setState({ loading: false, error: null, success: true });
+            } catch (error) {
+                const message =
+                    error instanceof Error ? error.message : "Failed to send modification response";
+                setState({ loading: false, error: message, success: false });
+                throw error;
+            }
+        },
+        [relays, addMessage, pubkey]
+    );
+
+    const acceptModification = useCallback(
+        async (
+            modificationRequest: ReservationMessage,
+            options: AcceptOptions = {}
+        ): Promise<void> => {
+            const modificationPayload = modificationRequest.payload as ReservationModificationRequest;
+            const response: ReservationModificationResponse = {
+                status: "confirmed",
+                iso_time: modificationPayload.iso_time,
+                table: options.table || null,
+                message: options.message,
+                hold_expires_at: options.holdExpiresAt || null,
+            };
+
+            await sendModificationResponse(modificationRequest, response);
+        },
+        [sendModificationResponse]
+    );
+
+    const declineModification = useCallback(
+        async (
+            modificationRequest: ReservationMessage,
+            options: DeclineOptions = {}
+        ): Promise<void> => {
+            const response: ReservationModificationResponse = {
+                status: "declined",
+                iso_time: null,
+                message: options.message,
+            };
+
+            await sendModificationResponse(modificationRequest, response);
+        },
+        [sendModificationResponse]
+    );
+
     return {
         state,
         resetState,
         acceptReservation,
         declineReservation,
         suggestAlternativeTime,
+        acceptModification,
+        declineModification,
     };
 }
 
