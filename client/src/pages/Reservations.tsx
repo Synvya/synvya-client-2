@@ -23,8 +23,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Inbox, Users, Calendar, Clock, MessageSquare, AlertCircle, Check, X, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
-import type { ReservationRequest, ReservationResponse } from "@/types/reservation";
+import { Inbox, Users, Calendar, Clock, MessageSquare, AlertCircle, Check, X, CalendarDays, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import type { ReservationRequest, ReservationResponse, ReservationModificationRequest, ReservationModificationResponse } from "@/types/reservation";
 import type { ReservationMessage } from "@/services/reservationService";
 import type { ConversationThread } from "@/state/useReservations";
 import { UserLink } from "@/components/UserLink";
@@ -364,6 +364,69 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
     );
   }
 
+  if (type === "modification-request") {
+    const request = payload as ReservationModificationRequest;
+    return (
+      <div className={`rounded-lg border bg-card p-4 border-blue-200 ${isLatest ? "ring-2 ring-blue-300" : ""}`}>
+        <div className="flex items-start gap-3">
+          <RefreshCw className="h-4 w-4 mt-1 text-blue-600" />
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Modification Request from <UserLink pubkey={senderPubkey} contactName={request.contact?.name} /></span>
+              <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
+            </div>
+            <div className="text-sm">
+              <p>{request.party_size} guests on {new Date(request.iso_time).toLocaleString()}</p>
+              {request.notes && <p className="mt-1 text-muted-foreground">{request.notes}</p>}
+              {request.contact?.phone && (
+                <p className="mt-1">
+                  <span className="text-muted-foreground">Phone: </span>
+                  <a 
+                    href={`tel:${request.contact.phone}`}
+                    className="text-primary hover:underline"
+                  >
+                    {request.contact.phone}
+                  </a>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "modification-response") {
+    const response = payload as ReservationModificationResponse;
+    return (
+      <div className={`rounded-lg border bg-card p-4 border-blue-200 ${isLatest ? "ring-2 ring-blue-300" : ""}`}>
+        <div className="flex items-start gap-3">
+          <RefreshCw className="h-4 w-4 mt-1 text-blue-600" />
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">
+                Modification Response: {response.status.charAt(0).toUpperCase() + response.status.slice(1)}
+              </span>
+              <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
+            </div>
+            <div className="text-sm">
+              {response.status === "confirmed" && response.iso_time && (
+                <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
+              )}
+              {response.status === "suggested" && response.iso_time && (
+                <p>Suggested: {new Date(response.iso_time).toLocaleString()}</p>
+              )}
+              {response.status === "declined" && <p className="text-destructive">Declined</p>}
+              {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
+              {response.table && <p className="text-xs text-muted-foreground">Table: {response.table}</p>}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular response (type === "response")
   const response = payload as ReservationResponse;
   return (
     <div className={`rounded-lg border bg-card p-4 ${isLatest ? "ring-2 ring-primary/20" : ""}`}>
@@ -408,6 +471,8 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
     acceptReservation,
     declineReservation,
     suggestAlternativeTime,
+    acceptModification,
+    declineModification,
   } = useReservationActions();
 
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
@@ -459,6 +524,32 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
       setSuggestDialogOpen(false);
       setSuggestedTime("");
       setSuggestMessage("");
+    } catch (error) {
+      // Error is handled in the hook state
+    }
+  };
+
+  const handleAcceptModification = async () => {
+    try {
+      await acceptModification(message, {
+        table: tableNumber || undefined,
+        message: acceptMessage || undefined,
+      });
+      setAcceptDialogOpen(false);
+      setTableNumber("");
+      setAcceptMessage("");
+    } catch (error) {
+      // Error is handled in the hook state
+    }
+  };
+
+  const handleDeclineModification = async () => {
+    try {
+      await declineModification(message, {
+        message: declineReason || undefined,
+      });
+      setDeclineDialogOpen(false);
+      setDeclineReason("");
     } catch (error) {
       // Error is handled in the hook state
     }
@@ -705,7 +796,242 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
     );
   }
 
+  if (type === "modification-request") {
+    const request = payload as ReservationModificationRequest;
+    return (
+      <>
+        <div className="rounded-lg border bg-card p-6 border-blue-200 transition-shadow hover:shadow-md">
+          {actionState.success && (
+            <div className="mb-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
+              Modification response sent successfully!
+            </div>
+          )}
+          {actionState.error && (
+            <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {actionState.error}
+            </div>
+          )}
+          
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 space-y-3">
+              {/* Header */}
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-blue-100 p-2">
+                  <RefreshCw className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Modification Request</h3>
+                  <p className="text-xs text-muted-foreground">
+                    From: <UserLink pubkey={senderPubkey} contactName={request.contact?.name} />
+                  </p>
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="grid gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">{request.party_size} guests</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span>{new Date(request.iso_time).toLocaleDateString()}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span>{new Date(request.iso_time).toLocaleTimeString()}</span>
+                </div>
+                {request.notes && (
+                  <div className="flex items-start gap-2">
+                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{request.notes}</span>
+                  </div>
+                )}
+                {request.contact?.phone && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Phone:</span>
+                    <a 
+                      href={`tel:${request.contact.phone}`}
+                      className="text-primary hover:underline"
+                    >
+                      {request.contact.phone}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Timestamp */}
+              <div className="text-xs text-muted-foreground">
+                Received {timestamp.toLocaleString()}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => setAcceptDialogOpen(true)}
+                disabled={actionState.loading}
+              >
+                <Check className="mr-1 h-3 w-3" />
+                Accept
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setDeclineDialogOpen(true)}
+                disabled={actionState.loading}
+              >
+                <X className="mr-1 h-3 w-3" />
+                Decline
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Accept Dialog */}
+        <Dialog open={acceptDialogOpen} onOpenChange={setAcceptDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Accept Modification</DialogTitle>
+              <DialogDescription>
+                Confirm the modification for {request.party_size} guests on{" "}
+                {new Date(request.iso_time).toLocaleString()}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="table-mod">Table Number (optional)</Label>
+                <Input
+                  id="table-mod"
+                  placeholder="e.g., A4, 12, Patio 3"
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="accept-message-mod">Message (optional)</Label>
+                <Textarea
+                  id="accept-message-mod"
+                  placeholder="Any additional notes for the guest..."
+                  value={acceptMessage}
+                  onChange={(e) => setAcceptMessage(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setAcceptDialogOpen(false)}
+                disabled={actionState.loading}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleAcceptModification} disabled={actionState.loading}>
+                {actionState.loading ? "Sending..." : "Confirm Acceptance"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Decline Dialog */}
+        <Dialog open={declineDialogOpen} onOpenChange={setDeclineDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Decline Modification</DialogTitle>
+              <DialogDescription>
+                Decline the modification request for {request.party_size} guests on{" "}
+                {new Date(request.iso_time).toLocaleString()}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="decline-reason-mod">Reason (optional)</Label>
+                <Textarea
+                  id="decline-reason-mod"
+                  placeholder="e.g., Time not available..."
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeclineDialogOpen(false)}
+                disabled={actionState.loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeclineModification}
+                disabled={actionState.loading}
+              >
+                {actionState.loading ? "Sending..." : "Decline Modification"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
   // Response message
+  if (type === "modification-response") {
+    const response = payload as ReservationModificationResponse;
+    return (
+      <div className="rounded-lg border bg-card p-6 border-blue-200">
+        <div className="flex items-start gap-3">
+          <div className="rounded-full bg-blue-100 p-2">
+            <RefreshCw className="h-4 w-4 text-blue-600" />
+          </div>
+          <div className="flex-1 space-y-2">
+            <div>
+              <h3 className="font-semibold">
+                Modification Response: {response.status.charAt(0).toUpperCase() + response.status.slice(1)}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                To: <UserLink pubkey={senderPubkey} />
+              </p>
+            </div>
+            
+            {response.status === "confirmed" && response.iso_time && (
+              <div className="text-sm">
+                <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
+                {response.table && <p className="text-muted-foreground">Table: {response.table}</p>}
+                {response.hold_expires_at && (
+                  <p className="text-xs text-muted-foreground">
+                    Hold expires: {new Date(response.hold_expires_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {response.status === "declined" && (
+              <div className="text-sm">
+                <p className="text-destructive">Declined</p>
+                {response.message && <p className="text-muted-foreground">{response.message}</p>}
+              </div>
+            )}
+            
+            {response.message && response.status !== "declined" && (
+              <p className="text-sm text-muted-foreground">{response.message}</p>
+            )}
+            
+            <div className="text-xs text-muted-foreground">
+              Sent {timestamp.toLocaleString()}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular response (type === "response")
   const response = payload as ReservationResponse;
   return (
     <div className="rounded-lg border bg-card p-6">
