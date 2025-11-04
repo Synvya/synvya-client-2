@@ -423,7 +423,6 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
               )}
               {response.status === "declined" && <p className="text-destructive">Declined</p>}
               {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
-              {response.table && <p className="text-xs text-muted-foreground">Table: {response.table}</p>}
             </div>
           </div>
         </div>
@@ -951,7 +950,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
             {response.status === "confirmed" && response.iso_time && (
             <div className="text-sm">
               <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
-              {response.table && <p className="text-muted-foreground">Table: {response.table}</p>}
             </div>
             )}
             
@@ -1019,6 +1017,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
