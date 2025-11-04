@@ -7,12 +7,23 @@ import { generateSecretKey, getPublicKey } from "nostr-tools";
 import {
   validateReservationRequest,
   validateReservationResponse,
+  validateReservationModificationRequest,
+  validateReservationModificationResponse,
   buildReservationRequest,
   buildReservationResponse,
+  buildReservationModificationRequest,
+  buildReservationModificationResponse,
   parseReservationRequest,
   parseReservationResponse,
+  parseReservationModificationRequest,
+  parseReservationModificationResponse,
 } from "./reservationEvents";
-import type { ReservationRequest, ReservationResponse } from "@/types/reservation";
+import type { 
+  ReservationRequest, 
+  ReservationResponse,
+  ReservationModificationRequest,
+  ReservationModificationResponse
+} from "@/types/reservation";
 import { unwrapAndDecrypt, wrapEvent } from "./nip59";
 
 describe("reservationEvents", () => {
@@ -548,6 +559,314 @@ describe("reservationEvents", () => {
 
       const { rumor: confirmRumor } = unwrapAndDecrypt(confirmWrap, conciergePrivateKey);
       const parsedConfirm = parseReservationResponse(confirmRumor, conciergePrivateKey);
+
+      expect(parsedConfirm.status).toBe("confirmed");
+      expect(parsedConfirm.table).toBe("A5");
+    });
+  });
+
+  describe("validateReservationModificationRequest", () => {
+    it("validates a valid modification request", () => {
+      const request: ReservationModificationRequest = {
+        party_size: 2,
+        iso_time: "2025-10-20T19:30:00-07:00",
+      };
+
+      const result = validateReservationModificationRequest(request);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toBeUndefined();
+    });
+
+    it("rejects modification request missing required fields", () => {
+      const request = {
+        party_size: 2,
+        // missing iso_time
+      };
+
+      const result = validateReservationModificationRequest(request);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toBeDefined();
+    });
+
+    it("rejects modification request with invalid party_size", () => {
+      const request = {
+        party_size: 0,
+        iso_time: "2025-10-20T19:30:00-07:00",
+      };
+
+      const result = validateReservationModificationRequest(request);
+
+      expect(result.valid).toBe(false);
+    });
+  });
+
+  describe("validateReservationModificationResponse", () => {
+    it("validates a valid modification response", () => {
+      const response: ReservationModificationResponse = {
+        status: "confirmed",
+        iso_time: "2025-10-20T19:30:00-07:00",
+      };
+
+      const result = validateReservationModificationResponse(response);
+
+      expect(result.valid).toBe(true);
+    });
+
+    it("rejects modification response missing status", () => {
+      const response = {
+        iso_time: "2025-10-20T19:30:00-07:00",
+      };
+
+      const result = validateReservationModificationResponse(response);
+
+      expect(result.valid).toBe(false);
+    });
+  });
+
+  describe("buildReservationModificationRequest", () => {
+    it("builds a valid modification request event", () => {
+      const conciergePrivateKey = generateSecretKey();
+      const restaurantPublicKey = getPublicKey(generateSecretKey());
+
+      const request: ReservationModificationRequest = {
+        party_size: 2,
+        iso_time: "2025-10-20T19:30:00-07:00",
+        notes: "The suggested time works",
+      };
+
+      const template = buildReservationModificationRequest(
+        request,
+        conciergePrivateKey,
+        restaurantPublicKey
+      );
+
+      expect(template.kind).toBe(9903);
+      expect(template.content).toBeTruthy();
+      expect(template.tags).toContainEqual(["p", restaurantPublicKey]);
+    });
+
+    it("throws error for invalid modification request", () => {
+      const conciergePrivateKey = generateSecretKey();
+      const restaurantPublicKey = getPublicKey(generateSecretKey());
+
+      const request = {
+        party_size: 0, // Invalid
+        iso_time: "2025-10-20T19:30:00-07:00",
+      };
+
+      expect(() => {
+        buildReservationModificationRequest(
+          request as ReservationModificationRequest,
+          conciergePrivateKey,
+          restaurantPublicKey
+        );
+      }).toThrow();
+    });
+  });
+
+  describe("buildReservationModificationResponse", () => {
+    it("builds a valid modification response event", () => {
+      const restaurantPrivateKey = generateSecretKey();
+      const conciergePublicKey = getPublicKey(generateSecretKey());
+
+      const response: ReservationModificationResponse = {
+        status: "confirmed",
+        iso_time: "2025-10-20T19:30:00-07:00",
+        message: "Perfect!",
+      };
+
+      const template = buildReservationModificationResponse(
+        response,
+        restaurantPrivateKey,
+        conciergePublicKey
+      );
+
+      expect(template.kind).toBe(9904);
+      expect(template.content).toBeTruthy();
+      expect(template.tags).toContainEqual(["p", conciergePublicKey]);
+    });
+
+    it("throws error for invalid modification response", () => {
+      const restaurantPrivateKey = generateSecretKey();
+      const conciergePublicKey = getPublicKey(generateSecretKey());
+
+      const response = {
+        // missing status
+        iso_time: "2025-10-20T19:30:00-07:00",
+      };
+
+      expect(() => {
+        buildReservationModificationResponse(
+          response as ReservationModificationResponse,
+          restaurantPrivateKey,
+          conciergePublicKey
+        );
+      }).toThrow();
+    });
+  });
+
+  describe("parseReservationModificationRequest", () => {
+    it("parses a valid modification request", () => {
+      const conciergePrivateKey = generateSecretKey();
+      const restaurantPrivateKey = generateSecretKey();
+      const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
+
+      const request: ReservationModificationRequest = {
+        party_size: 2,
+        iso_time: "2025-10-20T19:30:00-07:00",
+        notes: "Works for us",
+      };
+
+      const template = buildReservationModificationRequest(
+        request,
+        conciergePrivateKey,
+        restaurantPublicKey
+      );
+
+      const giftWrap = wrapEvent(template, conciergePrivateKey, restaurantPublicKey);
+      const { rumor } = unwrapAndDecrypt(giftWrap, restaurantPrivateKey);
+      const parsed = parseReservationModificationRequest(rumor, restaurantPrivateKey);
+
+      expect(parsed).toEqual(request);
+    });
+
+    it("throws error for wrong kind", () => {
+      const restaurantPrivateKey = generateSecretKey();
+      const wrongKindEvent = {
+        kind: 9901,
+        content: "encrypted",
+        pubkey: "test",
+      };
+
+      expect(() => {
+        parseReservationModificationRequest(wrongKindEvent as any, restaurantPrivateKey);
+      }).toThrow("Expected kind 9903");
+    });
+  });
+
+  describe("parseReservationModificationResponse", () => {
+    it("parses a valid modification response", () => {
+      const restaurantPrivateKey = generateSecretKey();
+      const conciergePrivateKey = generateSecretKey();
+      const conciergePublicKey = getPublicKey(conciergePrivateKey);
+
+      const response: ReservationModificationResponse = {
+        status: "confirmed",
+        iso_time: "2025-10-20T19:30:00-07:00",
+        message: "See you then!",
+      };
+
+      const template = buildReservationModificationResponse(
+        response,
+        restaurantPrivateKey,
+        conciergePublicKey
+      );
+
+      const giftWrap = wrapEvent(template, restaurantPrivateKey, conciergePublicKey);
+      const { rumor } = unwrapAndDecrypt(giftWrap, conciergePrivateKey);
+      const parsed = parseReservationModificationResponse(rumor, conciergePrivateKey);
+
+      expect(parsed).toEqual(response);
+    });
+
+    it("throws error for wrong kind", () => {
+      const conciergePrivateKey = generateSecretKey();
+      const wrongKindEvent = {
+        kind: 9902,
+        content: "encrypted",
+        pubkey: "test",
+      };
+
+      expect(() => {
+        parseReservationModificationResponse(wrongKindEvent as any, conciergePrivateKey);
+      }).toThrow("Expected kind 9904");
+    });
+  });
+
+  describe("full modification workflow", () => {
+    it("complete flow: request → response → modification-request → modification-response", () => {
+      const conciergePrivateKey = generateSecretKey();
+      const restaurantPrivateKey = generateSecretKey();
+      const conciergePublicKey = getPublicKey(conciergePrivateKey);
+      const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
+
+      // Step 1: Initial request
+      const request: ReservationRequest = {
+        party_size: 2,
+        iso_time: "2025-10-20T19:00:00-07:00",
+      };
+
+      const requestTemplate = buildReservationRequest(
+        request,
+        conciergePrivateKey,
+        restaurantPublicKey
+      );
+      const requestWrap = wrapEvent(requestTemplate, conciergePrivateKey, restaurantPublicKey);
+      const { rumor: requestRumor } = unwrapAndDecrypt(requestWrap, restaurantPrivateKey);
+
+      // Step 2: Restaurant suggests alternative time
+      const suggestion: ReservationResponse = {
+        status: "suggested",
+        iso_time: "2025-10-20T19:30:00-07:00",
+        message: "7pm is full, how about 7:30?",
+      };
+
+      const suggestionTemplate = buildReservationResponse(
+        suggestion,
+        restaurantPrivateKey,
+        conciergePublicKey
+      );
+      const suggestionWrap = wrapEvent(
+        suggestionTemplate,
+        restaurantPrivateKey,
+        conciergePublicKey
+      );
+      const { rumor: suggestionRumor } = unwrapAndDecrypt(suggestionWrap, conciergePrivateKey);
+
+      // Step 3: User accepts with modification request
+      const modificationRequest: ReservationModificationRequest = {
+        party_size: 2,
+        iso_time: "2025-10-20T19:30:00-07:00",
+        notes: "7:30pm works for us",
+      };
+
+      const modRequestTemplate = buildReservationModificationRequest(
+        modificationRequest,
+        conciergePrivateKey,
+        restaurantPublicKey
+      );
+      const modRequestWrap = wrapEvent(
+        modRequestTemplate,
+        conciergePrivateKey,
+        restaurantPublicKey
+      );
+      const { rumor: modRequestRumor } = unwrapAndDecrypt(modRequestWrap, restaurantPrivateKey);
+      const parsedModRequest = parseReservationModificationRequest(
+        modRequestRumor,
+        restaurantPrivateKey
+      );
+
+      expect(parsedModRequest.party_size).toBe(2);
+      expect(parsedModRequest.iso_time).toBe("2025-10-20T19:30:00-07:00");
+
+      // Step 4: Restaurant confirms modification
+      const confirmation: ReservationModificationResponse = {
+        status: "confirmed",
+        iso_time: "2025-10-20T19:30:00-07:00",
+        table: "A5",
+        message: "Confirmed!",
+      };
+
+      const confirmTemplate = buildReservationModificationResponse(
+        confirmation,
+        restaurantPrivateKey,
+        conciergePublicKey
+      );
+      const confirmWrap = wrapEvent(confirmTemplate, restaurantPrivateKey, conciergePublicKey);
+      const { rumor: confirmRumor } = unwrapAndDecrypt(confirmWrap, conciergePrivateKey);
+      const parsedConfirm = parseReservationModificationResponse(confirmRumor, conciergePrivateKey);
 
       expect(parsedConfirm.status).toBe("confirmed");
       expect(parsedConfirm.table).toBe("A5");
