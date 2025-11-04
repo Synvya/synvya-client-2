@@ -12,6 +12,8 @@ import { unwrapEvent, type Rumor } from "@/lib/nip59";
 import {
   parseReservationRequest,
   parseReservationResponse,
+  parseReservationModificationRequest,
+  parseReservationModificationResponse,
 } from "@/lib/reservationEvents";
 import type { 
   ReservationRequest, 
@@ -169,6 +171,26 @@ export class ReservationSubscription {
         onMessage({
           rumor,
           type: "response",
+          payload,
+          senderPubkey: rumor.pubkey,
+          giftWrap: event,
+        });
+      } else if (rumor.kind === 9903) {
+        // Reservation modification request
+        const payload = parseReservationModificationRequest(rumor, privateKey);
+        onMessage({
+          rumor,
+          type: "modification-request",
+          payload,
+          senderPubkey: rumor.pubkey,
+          giftWrap: event,
+        });
+      } else if (rumor.kind === 9904) {
+        // Reservation modification response
+        const payload = parseReservationModificationResponse(rumor, privateKey);
+        onMessage({
+          rumor,
+          type: "modification-response",
           payload,
           senderPubkey: rumor.pubkey,
           giftWrap: event,
