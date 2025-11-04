@@ -22,12 +22,12 @@ Synvya’s merchant-facing web client for onboarding, profile management, and Sq
   - Kind 31989: Handler recommendations for AI agents to discover reservation-capable restaurants
 - **4-Message Protocol**: Complete reservation negotiation flow
   - Kind 9901: Initial reservation request
-  - Kind 9902: Restaurant response (confirmed/declined/suggested)
-  - Kind 9903: Modification request (user accepts/modifies suggestion)
-  - Kind 9904: Modification response (restaurant confirms/declines modification)
+  - Kind 9902: Reservation response (confirmed/declined/cancelled)
+  - Kind 9903: Reservation modification request 
+  - Kind 9904: Reservation modification response 
 - **Message Exchange**: Encrypted NIP-59 gift-wrapped messages with NIP-17 Self CC pattern
 - **AI Integration**: AI agents can discover and communicate with restaurants using standard Nostr protocols
-- See `docs/restaurants/` for complete protocol documentation
+- See `docs/restaurants/NIP-RR.md` for the complete protocol specification
 
 ### Square Integration
 - OAuth flow for connecting Square merchant accounts
