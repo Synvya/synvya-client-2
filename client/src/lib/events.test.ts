@@ -19,8 +19,8 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(baseProfile);
 
     expect(event.kind).toBe(0);
-    expect(event.tags).toContainEqual(["L", "business.type"]);
-    expect(event.tags).toContainEqual(["l", "retail", "business.type"]);
+    expect(event.tags).toContainEqual(["L", "com.synvya.merchant"]);
+    expect(event.tags).toContainEqual(["l", "retail", "com.synvya.merchant"]);
     expect(event.tags).toContainEqual(["t", "production"]);
     expect(event.tags).toContainEqual(["t", "test"]);
     expect(event.tags).toContainEqual(["t", "shop"]);
@@ -67,8 +67,8 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithChamber);
 
     // Should include all standard tags
-    expect(event.tags).toContainEqual(["L", "business.type"]);
-    expect(event.tags).toContainEqual(["l", "retail", "business.type"]);
+    expect(event.tags).toContainEqual(["L", "com.synvya.merchant"]);
+    expect(event.tags).toContainEqual(["l", "retail", "com.synvya.merchant"]);
     expect(event.tags).toContainEqual(["t", "production"]);
     expect(event.tags).toContainEqual(["i", "phone:(555) 123-4567", ""]);
     expect(event.tags).toContainEqual(["i", "location:123 Main St, Seattle, WA, 98101, USA", ""]);

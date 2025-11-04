@@ -75,7 +75,7 @@ When a restaurant with `businessType === "restaurant"` publishes their profile, 
 const restaurants = await pool.querySync(relays, {
   kinds: [0],
   "#l": ["restaurant"],
-  "#L": ["business.type"]
+  "#L": ["com.synvya.merchant"]
 });
 
 // Step 2: Check which restaurants handle reservations

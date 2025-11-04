@@ -20,8 +20,8 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   if (profile.nip05) content.nip05 = profile.nip05;
 
   const tags: string[][] = [
-    ["L", "business.type"],
-    ["l", profile.businessType, "business.type"],
+    ["L", "com.synvya.merchant"],
+    ["l", profile.businessType, "com.synvya.merchant"],
     ["t", "production"]
   ];
 

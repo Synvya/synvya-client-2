@@ -47,7 +47,7 @@ const relays = [
 const restaurants = await pool.querySync(relays, {
   kinds: [0],
   "#l": ["restaurant"],
-  "#L": ["business.type"]
+  "#L": ["com.synvya.merchant"]
 });
 
 // Extract pubkeys and parse restaurant metadata

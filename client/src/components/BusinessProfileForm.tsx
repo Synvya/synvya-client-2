@@ -126,7 +126,7 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
   for (const tag of event.tags) {
     if (!Array.isArray(tag) || !tag.length) continue;
 
-    if (tag[0] === "l" && tag[2] === "business.type" && typeof tag[1] === "string") {
+    if (tag[0] === "l" && tag[2] === "com.synvya.merchant" && typeof tag[1] === "string") {
       if (allowedBusinessTypes.has(tag[1] as BusinessType)) {
         patch.businessType = tag[1] as BusinessType;
       }
