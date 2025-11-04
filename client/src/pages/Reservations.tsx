@@ -207,6 +207,16 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
       const response = latestMessage.payload as ReservationResponse;
       return response.status;
     }
+    if (latestMessage.type === "modification-response") {
+      const response = latestMessage.payload as ReservationModificationResponse;
+      return response.status;
+    }
+    if (latestMessage.type === "modification-request") {
+      return "pending"; // Awaiting restaurant's response to modification
+    }
+    if (latestMessage.type === "request") {
+      return "pending"; // Awaiting restaurant's response
+    }
     return "pending";
   };
 

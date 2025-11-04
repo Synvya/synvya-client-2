@@ -197,8 +197,11 @@ export const useReservations = create<ReservationState>((set, get) => ({
         (a, b) => a.rumor.created_at - b.rumor.created_at
       );
 
-      // Find the initial request (first message with type "request")
-      const initialRequest = sortedMessages.find(m => m.type === "request") || sortedMessages[0];
+      // Find the initial request (first message with type "request" or "modification-request")
+      // Prioritize "request" over "modification-request" as initial request
+      const initialRequest = sortedMessages.find(m => m.type === "request") 
+        || sortedMessages.find(m => m.type === "modification-request")
+        || sortedMessages[0];
       const latestMessage = sortedMessages[sortedMessages.length - 1];
 
       // Determine conversation partner (the other party's pubkey)
