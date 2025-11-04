@@ -1,0 +1,17 @@
+{
+  "party_size": 2,
+  "iso_time": "2025-10-17T19:30:00-07:00",
+  "notes": "The suggested 7:30pm time works for us",
+  "contact": {
+    "name": "Alejandro",
+    "phone": "+1-555-0100",
+    "email": "alejandro@example.com"
+  },
+  "constraints": {
+    "earliest_iso_time": "2025-10-17T19:00:00-07:00",
+    "latest_iso_time": "2025-10-17T20:00:00-07:00",
+    "outdoor_ok": true,
+    "accessibility_required": false
+  }
+}
+

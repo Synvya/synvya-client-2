@@ -2,7 +2,7 @@
  * Reservation Service
  * 
  * Handles relay subscriptions for incoming gift-wrapped reservation messages.
- * Listens for kind 1059 events, unwraps them, and parses reservation requests/responses (kinds 9901/9902).
+ * Listens for kind 1059 events, unwraps them, and parses reservation messages (kinds 9901/9902/9903/9904).
  */
 
 import type { Event } from "nostr-tools";
@@ -13,7 +13,12 @@ import {
   parseReservationRequest,
   parseReservationResponse,
 } from "@/lib/reservationEvents";
-import type { ReservationRequest, ReservationResponse } from "@/types/reservation";
+import type { 
+  ReservationRequest, 
+  ReservationResponse,
+  ReservationModificationRequest,
+  ReservationModificationResponse
+} from "@/types/reservation";
 
 /**
  * Parsed reservation message with metadata
@@ -21,10 +26,10 @@ import type { ReservationRequest, ReservationResponse } from "@/types/reservatio
 export interface ReservationMessage {
   /** The unwrapped rumor event */
   rumor: Rumor;
-  /** Message type (request or response) */
-  type: "request" | "response";
+  /** Message type */
+  type: "request" | "response" | "modification-request" | "modification-response";
   /** Parsed payload */
-  payload: ReservationRequest | ReservationResponse;
+  payload: ReservationRequest | ReservationResponse | ReservationModificationRequest | ReservationModificationResponse;
   /** Sender's public key */
   senderPubkey: string;
   /** Original gift wrap event */
