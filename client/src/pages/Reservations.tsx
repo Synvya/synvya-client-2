@@ -226,8 +226,6 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
     pending: "bg-amber-500/10 text-amber-600 border-amber-500/40",
     confirmed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/40",
     declined: "bg-red-500/10 text-red-600 border-red-500/40",
-    suggested: "bg-blue-500/10 text-blue-600 border-blue-500/40",
-    expired: "bg-gray-500/10 text-gray-600 border-gray-500/40",
     cancelled: "bg-gray-500/10 text-gray-600 border-gray-500/40",
   };
 
@@ -423,12 +421,8 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
               {response.status === "confirmed" && response.iso_time && (
                 <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
               )}
-              {response.status === "suggested" && response.iso_time && (
-                <p>Suggested: {new Date(response.iso_time).toLocaleString()}</p>
-              )}
               {response.status === "declined" && <p className="text-destructive">Declined</p>}
               {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
-              {response.table && <p className="text-xs text-muted-foreground">Table: {response.table}</p>}
             </div>
           </div>
         </div>
@@ -452,9 +446,6 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
           <div className="text-sm">
             {response.status === "confirmed" && response.iso_time && (
               <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
-            )}
-            {response.status === "suggested" && response.iso_time && (
-              <p>Suggested: {new Date(response.iso_time).toLocaleString()}</p>
             )}
             {response.status === "declined" && <p className="text-destructive">Declined</p>}
             {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
@@ -480,7 +471,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
     resetState,
     acceptReservation,
     declineReservation,
-    suggestAlternativeTime,
     sendModificationRequest,
     acceptModification,
     declineModification,
@@ -488,14 +478,11 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
 
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
   const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
-  const [suggestDialogOpen, setSuggestDialogOpen] = useState(false);
   const [modifyDialogOpen, setModifyDialogOpen] = useState(false);
 
   const [tableNumber, setTableNumber] = useState("");
   const [acceptMessage, setAcceptMessage] = useState("");
   const [declineReason, setDeclineReason] = useState("");
-  const [suggestedTime, setSuggestedTime] = useState("");
-  const [suggestMessage, setSuggestMessage] = useState("");
   const [modifyTime, setModifyTime] = useState("");
   const [modifyPartySize, setModifyPartySize] = useState("");
   const [modifyNotes, setModifyNotes] = useState("");
@@ -526,23 +513,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
     }
   };
 
-  const handleSuggest = async () => {
-    if (!suggestedTime) return;
-    try {
-      // Convert datetime-local to ISO8601 format
-      const isoTime = new Date(suggestedTime).toISOString();
-      
-      await suggestAlternativeTime(message, {
-        alternativeTime: isoTime,
-        message: suggestMessage || undefined,
-      });
-      setSuggestDialogOpen(false);
-      setSuggestedTime("");
-      setSuggestMessage("");
-    } catch (error) {
-      // Error is handled in the hook state
-    }
-  };
 
   const handleSendModificationRequest = async () => {
     if (!modifyTime || !modifyPartySize) return;
@@ -679,15 +649,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 <X className="mr-1 h-3 w-3" />
                 Decline
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSuggestDialogOpen(true)}
-                disabled={actionState.loading}
-              >
-                <CalendarDays className="mr-1 h-3 w-3" />
-                Suggest
-              </Button>
             </div>
           </div>
         </div>
@@ -779,53 +740,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
           </DialogContent>
         </Dialog>
 
-        {/* Suggest Dialog */}
-        <Dialog open={suggestDialogOpen} onOpenChange={setSuggestDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Suggest Alternative Time</DialogTitle>
-              <DialogDescription>
-                Propose a different time for {request.party_size} guests
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="suggested-time">Alternative Date & Time</Label>
-                <Input
-                  id="suggested-time"
-                  type="datetime-local"
-                  value={suggestedTime}
-                  onChange={(e) => setSuggestedTime(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="suggest-message">Message (optional)</Label>
-                <Textarea
-                  id="suggest-message"
-                  placeholder="Why this time works better..."
-                  value={suggestMessage}
-                  onChange={(e) => setSuggestMessage(e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setSuggestDialogOpen(false)}
-                disabled={actionState.loading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSuggest}
-                disabled={actionState.loading || !suggestedTime}
-              >
-                {actionState.loading ? "Sending..." : "Send Suggestion"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </>
     );
   }
@@ -1034,15 +948,9 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
             </div>
             
             {response.status === "confirmed" && response.iso_time && (
-              <div className="text-sm">
-                <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
-                {response.table && <p className="text-muted-foreground">Table: {response.table}</p>}
-                {response.hold_expires_at && (
-                  <p className="text-xs text-muted-foreground">
-                    Hold expires: {new Date(response.hold_expires_at).toLocaleString()}
-                  </p>
-                )}
-              </div>
+            <div className="text-sm">
+              <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
+            </div>
             )}
             
             {response.status === "declined" && (
@@ -1087,11 +995,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
             <div className="text-sm">
               <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
               {response.table && <p className="text-muted-foreground">Table: {response.table}</p>}
-              {response.hold_expires_at && (
-                <p className="text-xs text-muted-foreground">
-                  Hold expires: {new Date(response.hold_expires_at).toLocaleString()}
-                </p>
-              )}
             </div>
           )}
           
@@ -1102,35 +1005,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
             </div>
           )}
           
-          {response.status === "suggested" && response.iso_time && (
-            <div className="text-sm">
-              <p>Suggested alternative time:</p>
-              <p className="text-muted-foreground">{new Date(response.iso_time).toLocaleString()}</p>
-              {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
-              {/* Only show modify button if this is not the latest message in the thread */}
-              {!compact && (
-                <div className="mt-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setModifyDialogOpen(true)}
-                    disabled={actionState.loading}
-                  >
-                    <RefreshCw className="mr-1 h-3 w-3" />
-                    Send Modification Request
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {response.status === "expired" && (
-            <div className="text-sm text-muted-foreground">
-              <p>Reservation expired</p>
-              {response.message && <p>{response.message}</p>}
-            </div>
-          )}
-
           {response.status === "cancelled" && (
             <div className="text-sm text-muted-foreground">
               <p>Reservation cancelled</p>
@@ -1143,68 +1017,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
           </div>
         </div>
       </div>
-
-      {/* Modification Request Dialog (for suggested responses) */}
-      {response.status === "suggested" && (
-        <Dialog open={modifyDialogOpen} onOpenChange={setModifyDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Send Modification Request</DialogTitle>
-              <DialogDescription>
-                Send a modification request to follow up on the suggested time
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="modify-party-size">Party Size *</Label>
-                <Input
-                  id="modify-party-size"
-                  type="number"
-                  min="1"
-                  max="20"
-                  placeholder="Number of guests"
-                  value={modifyPartySize}
-                  onChange={(e) => setModifyPartySize(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="modify-time">Date & Time *</Label>
-                <Input
-                  id="modify-time"
-                  type="datetime-local"
-                  value={modifyTime}
-                  onChange={(e) => setModifyTime(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="modify-notes">Notes (optional)</Label>
-                <Textarea
-                  id="modify-notes"
-                  placeholder="Any additional notes or requests..."
-                  value={modifyNotes}
-                  onChange={(e) => setModifyNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setModifyDialogOpen(false)}
-                disabled={actionState.loading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSendModificationRequest}
-                disabled={actionState.loading || !modifyTime || !modifyPartySize}
-              >
-                {actionState.loading ? "Sending..." : "Send Modification Request"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }

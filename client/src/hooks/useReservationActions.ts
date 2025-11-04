@@ -1,7 +1,7 @@
 /**
  * Hook for handling reservation response actions
  * 
- * Provides functions to accept, decline, or suggest alternative times
+ * Provides functions to accept, decline, or respond to modification requests
  * for reservation requests.
  */
 
@@ -30,15 +30,9 @@ export interface ReservationActionState {
 export interface AcceptOptions {
     table?: string;
     message?: string;
-    holdExpiresAt?: string;
 }
 
 export interface DeclineOptions {
-    message?: string;
-}
-
-export interface SuggestOptions {
-    alternativeTime: string;
     message?: string;
 }
 
@@ -54,8 +48,6 @@ export interface SendModificationRequestOptions {
     constraints?: {
         earliest_iso_time?: string;
         latest_iso_time?: string;
-        outdoor_ok?: boolean;
-        accessibility_required?: boolean;
     };
 }
 
@@ -186,7 +178,6 @@ export function useReservationActions() {
                 iso_time: (request.payload as any).iso_time,
                 table: options.table || null,
                 message: options.message,
-                hold_expires_at: options.holdExpiresAt || null,
             };
 
             await sendResponse(request, response);
@@ -210,21 +201,6 @@ export function useReservationActions() {
         [sendResponse]
     );
 
-    const suggestAlternativeTime = useCallback(
-        async (
-            request: ReservationMessage,
-            options: SuggestOptions
-        ): Promise<void> => {
-            const response: ReservationResponse = {
-                status: "suggested",
-                iso_time: options.alternativeTime,
-                message: options.message,
-            };
-
-            await sendResponse(request, response);
-        },
-        [sendResponse]
-    );
 
     const sendModificationRequest = useCallback(
         async (
@@ -349,21 +325,16 @@ export function useReservationActions() {
                 const privateKey = skFromNsec(nsec);
 
                 // Build thread tags per NIP-17:
-                // - Root: unsigned 9901 rumor ID (extracted from modification request's tags, or use modification request's own ID if it's the root)
-                // - Reply: unsigned 9903 rumor ID (the modification request itself)
+                // - Root: unsigned 9901 rumor ID (the original request)
                 const rootTags = modificationRequest.rumor.tags
                     .filter(tag => tag[0] === "e" && tag[3] === "root")
                     .map(tag => ["e", tag[1], tag[2] || "", "root"]);
                 
-                // If no root tag found, this modification request might be the root (shouldn't happen, but handle gracefully)
                 if (rootTags.length === 0) {
-                    // This shouldn't happen for a modification request, but if it does, use the original request's rumor ID
-                    // We need to find it from the thread
                     throw new Error("Cannot find root rumor ID in modification request tags");
                 }
                 
                 const threadTag: string[][] = [
-                    ["e", modificationRequest.rumor.id, "", "reply"],
                     ...rootTags
                 ];
 
@@ -436,9 +407,7 @@ export function useReservationActions() {
             const response: ReservationModificationResponse = {
                 status: "confirmed",
                 iso_time: modificationPayload.iso_time,
-                table: options.table || null,
                 message: options.message,
-                hold_expires_at: options.holdExpiresAt || null,
             };
 
             await sendModificationResponse(modificationRequest, response);
@@ -467,7 +436,6 @@ export function useReservationActions() {
         resetState,
         acceptReservation,
         declineReservation,
-        suggestAlternativeTime,
         sendModificationRequest,
         acceptModification,
         declineModification,

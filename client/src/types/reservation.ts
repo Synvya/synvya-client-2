@@ -19,8 +19,6 @@ export interface ReservationContact {
 export interface ReservationConstraints {
   earliest_iso_time?: string;
   latest_iso_time?: string;
-  outdoor_ok?: boolean;
-  accessibility_required?: boolean;
 }
 
 /**
@@ -45,8 +43,6 @@ export interface ReservationRequest {
 export type ReservationStatus = 
   | "confirmed"
   | "declined" 
-  | "suggested"
-  | "expired"
   | "cancelled";
 
 /**
@@ -55,14 +51,12 @@ export type ReservationStatus =
 export interface ReservationResponse {
   /** Status of the reservation */
   status: ReservationStatus;
-  /** Proposed or confirmed time (null for declined/expired) */
-  iso_time?: string | null;
+  /** Proposed or confirmed time (null for declined/cancelled) */
+  iso_time: string | null;
   /** Optional message to the requester */
   message?: string;
   /** Optional table identifier */
   table?: string | null;
-  /** When a soft hold expires (if applicable) */
-  hold_expires_at?: string | null;
 }
 
 /**
@@ -85,21 +79,24 @@ export interface ReservationModificationRequest {
 }
 
 /**
+ * Status of a reservation modification response
+ */
+export type ReservationModificationStatus = 
+  | "confirmed"
+  | "declined";
+
+/**
  * Reservation modification response payload (kind 9904)
  * 
  * Sent by restaurant in response to a user's modification request (9903).
  */
 export interface ReservationModificationResponse {
   /** Status of the modification */
-  status: ReservationStatus;
-  /** Proposed or confirmed time (null for declined/expired) */
-  iso_time?: string | null;
+  status: ReservationModificationStatus;
+  /** Proposed or confirmed time (null for declined) */
+  iso_time: string | null;
   /** Optional message to the requester */
   message?: string;
-  /** Optional table identifier */
-  table?: string | null;
-  /** When a soft hold expires (if applicable) */
-  hold_expires_at?: string | null;
 }
 
 /**
