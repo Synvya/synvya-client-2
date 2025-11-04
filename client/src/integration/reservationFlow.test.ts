@@ -189,6 +189,7 @@ describe("Reservation Flow Integration Tests", () => {
         conciergePublicKey,
         [["e", rootEventId, "", "root"]]
       );
+      const responseWrap = wrapEvent(responseTemplate, restaurantPrivateKey, conciergePublicKey);
 
       // Verify response references root
       const responseRootTags = responseTemplate.tags.filter(
@@ -209,9 +210,10 @@ describe("Reservation Flow Integration Tests", () => {
         restaurantPublicKey,
         [
           ["e", rootEventId, "", "root"],
-          ["e", responseTemplate.id || "", "", "reply"],
+          ["e", responseWrap.id, "", "reply"],
         ]
       );
+      const modRequestWrap = wrapEvent(modRequestTemplate, conciergePrivateKey, restaurantPublicKey);
 
       // Verify modification request references root and response
       const modRequestRootTags = modRequestTemplate.tags.filter(
@@ -236,9 +238,10 @@ describe("Reservation Flow Integration Tests", () => {
         conciergePublicKey,
         [
           ["e", rootEventId, "", "root"],
-          ["e", modRequestTemplate.id || "", "", "reply"],
+          ["e", modRequestWrap.id, "", "reply"],
         ]
       );
+      const modResponseWrap = wrapEvent(modResponseTemplate, restaurantPrivateKey, conciergePublicKey);
 
       // Verify modification response references root and modification request
       const modResponseRootTags = modResponseTemplate.tags.filter(
