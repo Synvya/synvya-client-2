@@ -13,7 +13,7 @@ When responding to a reservation request, the restaurant MUST include proper thr
   content: "{encrypted_payload}",  // NIP-44 encrypted JSON
   tags: [
     ["p", "<customer_pubkey_hex>"],           // Required: Customer's public key
-    ["e", "<original_giftwrap_id>", "", "root"],  // Required: Original request ID
+    ["e", "<unsigned_9901_rumor_id>", "", "root"],  // Required: Original request rumor ID
   ],
   // ... other standard Nostr event fields
 }
@@ -21,22 +21,28 @@ When responding to a reservation request, the restaurant MUST include proper thr
 
 ### 2. Thread Matching
 
-**CRITICAL**: The `e` tag MUST reference the **gift wrap ID** of the original reservation request, NOT the rumor ID.
+**CRITICAL**: The `e` tag MUST reference the **unsigned 9901 rumor ID** of the original reservation request, per NIP-17. This is the ID of the unsigned kind 9901 event before it was sealed and gift-wrapped.
 
 When the customer sends a reservation:
 ```
-Customer Request (Gift Wrap):
-  - ID: "abc123..." ← USE THIS ID
-  - Contains: Encrypted Rumor (kind 9901)
+Customer Request Flow:
+  1. Create unsigned rumor (kind 9901) → ID: "rumor_abc123..." ← USE THIS ID
+  2. Seal the rumor (kind 13)
+  3. Gift wrap the seal (kind 1059)
 ```
 
-Your response MUST tag this gift wrap ID:
+Your response MUST tag the unsigned rumor ID:
 ```typescript
 tags: [
   ["p", customerPubkeyHex],
-  ["e", "abc123...", "", "root"],  // Reference the gift wrap ID
+  ["e", "rumor_abc123...", "", "root"],  // Reference the unsigned 9901 rumor ID
 ]
 ```
+
+**Why unsigned rumor IDs?**
+- Per NIP-17, all subsequent messages in a thread reference the unsigned rumor ID of the first message
+- This ensures proper thread matching across all 4 message types (9901 → 9902 → 9903 → 9904)
+- The gift wrap ID changes for each recipient (Self CC pattern), but the rumor ID remains constant
 
 ### 3. Encrypted Payload
 
@@ -74,7 +80,7 @@ const responsePayload = {
   message: "Looking forward to seeing you!"
 };
 
-// Step 3: Create response rumor
+// Step 3: Create response rumor with thread tag
 const responseRumor = {
   kind: 9902,
   content: encryptNip44(
@@ -84,7 +90,7 @@ const responseRumor = {
   ),
   tags: [
     ["p", customerPubkey],
-    ["e", receivedGiftWrap.id, "", "root"],  // ← KEY: Reference original gift wrap ID
+    ["e", unsigned9901RumorId, "", "root"],  // ← KEY: Reference unsigned 9901 rumor ID
   ],
   created_at: Math.floor(Date.now() / 1000),
   pubkey: restaurantPubkey,
@@ -170,10 +176,10 @@ Restaurant needs to cancel a confirmed reservation.
 
 The customer's console will show:
 ```
-📤 Sent reservation request - Thread ID: <gift_wrap_id>
+📤 Sent reservation request - Thread ID: <unsigned_rumor_id>
 ```
 
-Your response should tag this exact ID. If thread matching fails, you'll see:
+Your response should tag the unsigned 9901 rumor ID. If thread matching fails, you'll see:
 ```
 Received response for unknown thread: <your_thread_id>
 Available threads: [<expected_thread_id>, ...]
@@ -186,15 +192,15 @@ Compare these IDs to ensure they match.
 Use the Nostr dev tools or your test app to:
 
 1. Subscribe to the customer's requests
-2. Extract the gift wrap ID from received events
-3. Include it in the `e` tag of your response
+2. Unwrap the gift wrap to extract the unsigned rumor ID (`rumor.id`)
+3. Include the unsigned rumor ID in the `e` tag of your response
 4. Verify the response appears in the customer's UI
 
 ## Questions?
 
 If responses still aren't matching:
-- Check that the `e` tag format is exactly: `["e", "gift_wrap_id", "", "root"]`
-- Verify the gift wrap ID matches what the customer sent
+- Check that the `e` tag format is exactly: `["e", "<unsigned_9901_rumor_id>", "", "root"]`
+- Verify you're extracting the rumor ID from `rumor.id` after unwrapping, not the gift wrap ID
 - Ensure the response is properly encrypted with NIP-44
 - Confirm you're publishing to at least one common relay
 

@@ -90,7 +90,9 @@ When a user sends a modification request (`kind:9903`) after you've suggested an
 3. **Respond with Modification Response (`kind:9904`)**
    - Accept or decline the modification.
    - Use same NIP-59 wrapping process.
-   - Thread tags should reference the modification request's gift wrap ID.
+   - Thread tags should reference:
+     - Root: unsigned 9901 rumor ID (the original request)
+     - Reply: unsigned 9903 rumor ID (the modification request)
 
 ---
 

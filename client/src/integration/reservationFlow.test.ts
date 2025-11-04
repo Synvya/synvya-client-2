@@ -56,11 +56,13 @@ describe("Reservation Flow Integration Tests", () => {
         conciergePrivateKey,
         restaurantPublicKey
       );
-      expect(requestTemplate.kind).toBe(9901);
+      // Create unsigned rumor to get its ID (per NIP-17)
+      const requestRumor = createRumor(requestTemplate, conciergePrivateKey);
+      const rootRumorId = requestRumor.id;
 
       const requestWrap = wrapEvent(requestTemplate, conciergePrivateKey, restaurantPublicKey);
-      const { rumor: requestRumor } = unwrapAndDecrypt(requestWrap, restaurantPrivateKey);
-      const parsedRequest = parseReservationRequest(requestRumor, restaurantPrivateKey);
+      const { rumor: unwrappedRequestRumor } = unwrapAndDecrypt(requestWrap, restaurantPrivateKey);
+      const parsedRequest = parseReservationRequest(unwrappedRequestRumor, restaurantPrivateKey);
 
       expect(parsedRequest.party_size).toBe(2);
       expect(parsedRequest.iso_time).toBe("2025-10-20T19:00:00-07:00");
@@ -75,8 +77,13 @@ describe("Reservation Flow Integration Tests", () => {
       const suggestionTemplate = buildReservationResponse(
         suggestion,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        [["e", rootRumorId, "", "root"]]  // Use unsigned 9901 rumor ID per NIP-17
       );
+      // Create unsigned rumor to get its ID
+      const suggestionRumor = createRumor(suggestionTemplate, restaurantPrivateKey);
+      const suggestionRumorId = suggestionRumor.id;
+
       expect(suggestionTemplate.kind).toBe(9902);
 
       const suggestionWrap = wrapEvent(
@@ -84,8 +91,8 @@ describe("Reservation Flow Integration Tests", () => {
         restaurantPrivateKey,
         conciergePublicKey
       );
-      const { rumor: suggestionRumor } = unwrapAndDecrypt(suggestionWrap, conciergePrivateKey);
-      const parsedSuggestion = parseReservationResponse(suggestionRumor, conciergePrivateKey);
+      const { rumor: unwrappedSuggestionRumor } = unwrapAndDecrypt(suggestionWrap, conciergePrivateKey);
+      const parsedSuggestion = parseReservationResponse(unwrappedSuggestionRumor, conciergePrivateKey);
 
       expect(parsedSuggestion.status).toBe("suggested");
       expect(parsedSuggestion.iso_time).toBe("2025-10-20T19:30:00-07:00");
@@ -97,16 +104,18 @@ describe("Reservation Flow Integration Tests", () => {
         notes: "7:30pm works for us",
       };
 
-      // Add threading tags referencing original request and response
+      // Add threading tags referencing unsigned rumor IDs per NIP-17
       const modRequestTemplate = buildReservationModificationRequest(
         modificationRequest,
         conciergePrivateKey,
         restaurantPublicKey,
         [
-          ["e", requestWrap.id, "", "root"],
-          ["e", suggestionWrap.id, "", "reply"],
+          ["e", rootRumorId, "", "root"],           // Unsigned 9901 rumor ID
+          ["e", suggestionRumorId, "", "reply"],   // Unsigned 9902 rumor ID
         ]
       );
+      const modRequestRumor = createRumor(modRequestTemplate, conciergePrivateKey);
+      const modRequestRumorId = modRequestRumor.id;
       expect(modRequestTemplate.kind).toBe(9903);
 
       // Verify threading tags reference original request
@@ -118,9 +127,9 @@ describe("Reservation Flow Integration Tests", () => {
         conciergePrivateKey,
         restaurantPublicKey
       );
-      const { rumor: modRequestRumor } = unwrapAndDecrypt(modRequestWrap, restaurantPrivateKey);
+      const { rumor: unwrappedModRequestRumor } = unwrapAndDecrypt(modRequestWrap, restaurantPrivateKey);
       const parsedModRequest = parseReservationModificationRequest(
-        modRequestRumor,
+        unwrappedModRequestRumor,
         restaurantPrivateKey
       );
 
@@ -135,14 +144,14 @@ describe("Reservation Flow Integration Tests", () => {
         message: "Confirmed! See you at 7:30pm",
       };
 
-      // Add threading tags referencing root and modification request
+      // Add threading tags referencing root and modification request (using unsigned rumor IDs)
       const confirmTemplate = buildReservationModificationResponse(
         confirmation,
         restaurantPrivateKey,
         conciergePublicKey,
         [
-          ["e", requestWrap.id, "", "root"],
-          ["e", modRequestWrap.id, "", "reply"],
+          ["e", rootRumorId, "", "root"],           // Unsigned 9901 rumor ID
+          ["e", modRequestRumorId, "", "reply"],   // Unsigned 9903 rumor ID
         ]
       );
       expect(confirmTemplate.kind).toBe(9904);
@@ -174,10 +183,14 @@ describe("Reservation Flow Integration Tests", () => {
         conciergePrivateKey,
         restaurantPublicKey
       );
-      const requestWrap = wrapEvent(requestTemplate, conciergePrivateKey, restaurantPublicKey);
-      const rootEventId = requestWrap.id;
+      // Create unsigned rumor to get its ID (per NIP-17)
+      const requestRumor = createRumor(requestTemplate, conciergePrivateKey);
+      const rootRumorId = requestRumor.id;
 
-      // Response with threading to root
+      const requestWrap = wrapEvent(requestTemplate, conciergePrivateKey, restaurantPublicKey);
+      const rootEventId = rootRumorId;
+
+      // Response with threading to root (using unsigned 9901 rumor ID)
       const response: ReservationResponse = {
         status: "suggested",
         iso_time: "2025-10-20T19:30:00-07:00",
@@ -187,8 +200,10 @@ describe("Reservation Flow Integration Tests", () => {
         response,
         restaurantPrivateKey,
         conciergePublicKey,
-        [["e", rootEventId, "", "root"]]
+        [["e", rootRumorId, "", "root"]]  // Use unsigned 9901 rumor ID per NIP-17
       );
+      const responseRumor = createRumor(responseTemplate, restaurantPrivateKey);
+      const responseRumorId = responseRumor.id;
       const responseWrap = wrapEvent(responseTemplate, restaurantPrivateKey, conciergePublicKey);
 
       // Verify response references root
@@ -196,9 +211,9 @@ describe("Reservation Flow Integration Tests", () => {
         (tag) => tag[0] === "e" && tag[3] === "root"
       );
       expect(responseRootTags.length).toBe(1);
-      expect(responseRootTags[0][1]).toBe(rootEventId);
+      expect(responseRootTags[0][1]).toBe(rootRumorId);
 
-      // Modification request with threading
+      // Modification request with threading (using unsigned rumor IDs)
       const modRequest: ReservationModificationRequest = {
         party_size: 2,
         iso_time: "2025-10-20T19:30:00-07:00",
@@ -209,10 +224,12 @@ describe("Reservation Flow Integration Tests", () => {
         conciergePrivateKey,
         restaurantPublicKey,
         [
-          ["e", rootEventId, "", "root"],
-          ["e", responseWrap.id, "", "reply"],
+          ["e", rootRumorId, "", "root"],           // Unsigned 9901 rumor ID
+          ["e", responseRumorId, "", "reply"],     // Unsigned 9902 rumor ID
         ]
       );
+      const modRequestRumor = createRumor(modRequestTemplate, conciergePrivateKey);
+      const modRequestRumorId = modRequestRumor.id;
       const modRequestWrap = wrapEvent(modRequestTemplate, conciergePrivateKey, restaurantPublicKey);
 
       // Verify modification request references root and response
@@ -223,10 +240,10 @@ describe("Reservation Flow Integration Tests", () => {
         (tag) => tag[0] === "e" && tag[3] === "reply"
       );
       expect(modRequestRootTags.length).toBe(1);
-      expect(modRequestRootTags[0][1]).toBe(rootEventId);
+      expect(modRequestRootTags[0][1]).toBe(rootRumorId);
       expect(modRequestReplyTags.length).toBeGreaterThan(0);
 
-      // Modification response with threading
+      // Modification response with threading (using unsigned rumor IDs)
       const modResponse: ReservationModificationResponse = {
         status: "confirmed",
         iso_time: "2025-10-20T19:30:00-07:00",
@@ -237,8 +254,8 @@ describe("Reservation Flow Integration Tests", () => {
         restaurantPrivateKey,
         conciergePublicKey,
         [
-          ["e", rootEventId, "", "root"],
-          ["e", modRequestWrap.id, "", "reply"],
+          ["e", rootRumorId, "", "root"],           // Unsigned 9901 rumor ID
+          ["e", modRequestRumorId, "", "reply"],    // Unsigned 9903 rumor ID
         ]
       );
       const modResponseWrap = wrapEvent(modResponseTemplate, restaurantPrivateKey, conciergePublicKey);
@@ -251,7 +268,7 @@ describe("Reservation Flow Integration Tests", () => {
         (tag) => tag[0] === "e" && tag[3] === "reply"
       );
       expect(modResponseRootTags.length).toBe(1);
-      expect(modResponseRootTags[0][1]).toBe(rootEventId);
+      expect(modResponseRootTags[0][1]).toBe(rootRumorId);
       expect(modResponseReplyTags.length).toBeGreaterThan(0);
     });
   });

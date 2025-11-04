@@ -71,11 +71,10 @@ export function useReservationActions() {
                 }
                 const privateKey = skFromNsec(nsec);
 
-                // Build thread tag manually - MUST reference the gift wrap ID
-                // Do NOT use buildReplyTags() because gift wraps don't have e tags,
-                // causing incorrect thread matching
+                // Build thread tag - MUST reference the unsigned 9901 rumor ID per NIP-17
+                // The unsigned 9901 event ID threads all subsequent messages together
                 const threadTag: string[][] = [
-                    ["e", request.giftWrap.id, "", "root"]
+                    ["e", request.rumor.id, "", "root"]
                 ];
 
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
@@ -210,14 +209,16 @@ export function useReservationActions() {
                 }
                 const privateKey = skFromNsec(nsec);
 
-                // Build thread tags - reference modification request's gift wrap ID as reply
-                // and original request's gift wrap ID as root
+                // Build thread tags per NIP-17:
+                // - Root: unsigned 9901 rumor ID (extracted from modification request's tags)
+                // - Reply: unsigned 9903 rumor ID (the modification request itself)
+                const rootTags = modificationRequest.rumor.tags
+                    .filter(tag => tag[0] === "e" && tag[3] === "root")
+                    .map(tag => ["e", tag[1], tag[2] || "", "root"]);
+                
                 const threadTag: string[][] = [
-                    ["e", modificationRequest.giftWrap.id, "", "reply"],
-                    // Find root event ID from the modification request's rumor tags
-                    ...(modificationRequest.rumor.tags
-                        .filter(tag => tag[0] === "e" && tag[3] === "root")
-                        .map(tag => ["e", tag[1], tag[2] || "", "root"]))
+                    ["e", modificationRequest.rumor.id, "", "reply"],
+                    ...rootTags
                 ];
 
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern

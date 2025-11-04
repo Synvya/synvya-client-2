@@ -161,20 +161,20 @@ export function buildReservationRequest(
  * Creates an encrypted rumor event for a reservation response (kind 9902).
  * 
  * IMPORTANT: When responding to a reservation request, the `e` tag in additionalTags
- * MUST reference the GIFT WRAP ID of the original request, NOT the rumor ID.
- * This is required for proper thread matching by the AI Concierge.
+ * MUST reference the UNSIGNED 9901 RUMOR ID of the original request, per NIP-17.
+ * This is the ID of the unsigned kind 9901 event before it was sealed and gift-wrapped.
  * 
  * @param response - The reservation response payload
  * @param senderPrivateKey - Sender's private key for encryption
  * @param recipientPublicKey - Recipient's public key for encryption
  * @param additionalTags - Optional additional tags (e.g., thread markers)
- *                        MUST include `["e", giftWrapId, "", "root"]` for threading
+ *                        MUST include `["e", unsigned9901RumorId, "", "root"]` for threading
  * @returns Event template ready to be wrapped with NIP-59
  * @throws Error if validation fails
  * 
  * @example
  * ```typescript
- * // CORRECT: Use the gift wrap ID from the original request
+ * // CORRECT: Use the unsigned 9901 rumor ID from the original request
  * const rumor = buildReservationResponse(
  *   {
  *     status: "confirmed",
@@ -183,7 +183,7 @@ export function buildReservationRequest(
  *   },
  *   myPrivateKey,
  *   conciergePublicKey,
- *   [["e", request.giftWrap.id, "", "root"]]  // Use gift wrap ID, not rumor ID
+ *   [["e", request.rumor.id, "", "root"]]  // Use unsigned rumor ID, not gift wrap ID
  * );
  * ```
  */
@@ -365,14 +365,16 @@ export function validateReservationModificationResponse(payload: unknown): Valid
  * Creates an encrypted rumor event for a reservation modification request (kind 9903).
  * 
  * IMPORTANT: When sending a modification request, the `e` tag in additionalTags
- * MUST reference the GIFT WRAP ID of the original response being modified, NOT the rumor ID.
- * This is required for proper thread matching.
+ * MUST reference the UNSIGNED RUMOR IDs per NIP-17:
+ * - Root: unsigned 9901 rumor ID (the original request)
+ * - Reply: unsigned 9902 rumor ID (the response being modified)
  * 
  * @param request - The reservation modification request payload
  * @param senderPrivateKey - Sender's private key for encryption
  * @param recipientPublicKey - Recipient's public key for encryption
  * @param additionalTags - Optional additional tags (e.g., thread markers)
- *                        MUST include `["e", giftWrapId, "", "reply"]` for threading
+ *                        MUST include `["e", unsigned9901RumorId, "", "root"]` and
+ *                        `["e", unsigned9902RumorId, "", "reply"]` for threading
  * @returns Event template ready to be wrapped with NIP-59
  * @throws Error if validation fails
  * 
@@ -386,7 +388,7 @@ export function validateReservationModificationResponse(payload: unknown): Valid
  *   },
  *   myPrivateKey,
  *   restaurantPublicKey,
- *   [["e", response.giftWrap.id, "", "reply"], ["e", originalRequest.giftWrap.id, "", "root"]]
+ *   [["e", originalRequest.rumor.id, "", "root"], ["e", response.rumor.id, "", "reply"]]
  * );
  * ```
  */
@@ -426,14 +428,16 @@ export function buildReservationModificationRequest(
  * Creates an encrypted rumor event for a reservation modification response (kind 9904).
  * 
  * IMPORTANT: When responding to a modification request, the `e` tag in additionalTags
- * MUST reference the GIFT WRAP ID of the modification request, NOT the rumor ID.
- * This is required for proper thread matching.
+ * MUST reference the UNSIGNED RUMOR IDs per NIP-17:
+ * - Root: unsigned 9901 rumor ID (the original request)
+ * - Reply: unsigned 9903 rumor ID (the modification request being responded to)
  * 
  * @param response - The reservation modification response payload
  * @param senderPrivateKey - Sender's private key for encryption
  * @param recipientPublicKey - Recipient's public key for encryption
  * @param additionalTags - Optional additional tags (e.g., thread markers)
- *                        MUST include `["e", giftWrapId, "", "reply"]` for threading
+ *                        MUST include `["e", unsigned9901RumorId, "", "root"]` and
+ *                        `["e", unsigned9903RumorId, "", "reply"]` for threading
  * @returns Event template ready to be wrapped with NIP-59
  * @throws Error if validation fails
  * 
@@ -447,7 +451,7 @@ export function buildReservationModificationRequest(
  *   },
  *   myPrivateKey,
  *   userPublicKey,
- *   [["e", modificationRequest.giftWrap.id, "", "reply"], ["e", originalRequest.giftWrap.id, "", "root"]]
+ *   [["e", originalRequest.rumor.id, "", "root"], ["e", modificationRequest.rumor.id, "", "reply"]]
  * );
  * ```
  */
