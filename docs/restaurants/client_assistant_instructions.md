@@ -15,6 +15,8 @@ You are helping build the **Synvya Client** — the application used by restaura
 |--------|-------------|--------------|
 | Receive reservation request | `9901` | Reservation inquiry from AI Concierge |
 | Send reservation response | `9902` | Confirmation or counter-offer |
+| Receive modification request | `9903` | User accepts/modifies suggested time |
+| Send modification response | `9904` | Confirmation or decline of modification |
 | Send calendar event | `31923` | Time-based event (NIP-52) |
 | Store confirmed reservation | `31924` | Business calendar (NIP-52) |
 | Receive RSVP | `31925` | Confirmation from user (NIP-52) |
@@ -68,6 +70,56 @@ All communications use the **NIP-59 Gift Wrap** model (Rumor → Seal → Gift W
 
 ---
 
+## How to Handle a Modification Request
+
+When a user sends a modification request (`kind:9903`) after you've suggested an alternative time:
+
+1. **Receive Gift Wrap (`kind:1059`)**
+   - Addressed to the business pubkey.
+   - Decrypt per NIP-59 → extract the `kind:13` seal → extract the rumor (`kind:9903`).
+
+2. **Decrypt Rumor Payload (NIP-44)**
+   ```json
+   {
+     "party_size": 2,
+     "iso_time": "2025-10-17T19:30:00-07:00",
+     "notes": "The suggested time works for us"
+   }
+   ```
+
+3. **Respond with Modification Response (`kind:9904`)**
+   - Accept or decline the modification.
+   - Use same NIP-59 wrapping process.
+   - Thread tags should reference the modification request's gift wrap ID.
+
+---
+
+## How to Send a Modification Response
+
+1. **Create Rumor**
+   - Unsigned event `kind:9904` with encrypted payload:
+     ```json
+     {
+       "status": "confirmed",
+       "iso_time": "2025-10-17T19:30:00-07:00",
+       "table": "A5",
+       "message": "Confirmed! See you at 7:30pm"
+     }
+     ```
+
+2. **Create Seal (`kind:13`)**
+   - Include the rumor as content.
+
+3. **Create Gift Wrap (`kind:1059`)**
+   - Addressed to the AI Concierge (pubkey in `p` tag).
+   - Include threading tags referencing the modification request.
+
+4. **Implement Self CC Pattern (NIP-17)**
+   - Publish TWO gift wraps: one to recipient, one to self.
+   - Ensures merchant can retrieve their own messages across devices.
+
+---
+
 ## Final Confirmation via Calendar Event
 
 1. When agreement is reached:
@@ -94,13 +146,21 @@ All communications use the **NIP-59 Gift Wrap** model (Rumor → Seal → Gift W
 ## Example Flow
 
 ```
-Gift Wrap (1059) → Seal (13) → Rumor (9901)
+Gift Wrap (1059) → Seal (13) → Rumor (9901) [Request]
                                   ↓
                               Decrypt (NIP-44)
                                   ↓
                       Display message + reply
                                   ↓
-Gift Wrap (1059) → Seal (13) → Rumor (9902)
+Gift Wrap (1059) → Seal (13) → Rumor (9902) [Response - Suggested]
+                                  ↓
+                      User accepts/modifies
+                                  ↓
+Gift Wrap (1059) → Seal (13) → Rumor (9903) [Modification Request]
+                                  ↓
+                      Restaurant confirms
+                                  ↓
+Gift Wrap (1059) → Seal (13) → Rumor (9904) [Modification Response]
 ```
 
 ---
@@ -164,7 +224,7 @@ npm run build         # Build for production
 
 ### Calendar Events (NIP-52)
 - Calendar events (kinds 31923, 31924, 31925) **not yet implemented**
-- Phase 1 focuses on message-based negotiation only (9901/9902)
+- Phase 1 focuses on message-based negotiation (9901/9902/9903/9904)
 - Confirmed reservations stored in local React state only
 - **Phase 2 will add calendar integration for finalized bookings**
 
@@ -202,10 +262,14 @@ client/src/
 ### Key Functions
 - `buildReservationRequest()`: Create encrypted 9901 rumor
 - `buildReservationResponse()`: Create encrypted 9902 rumor
+- `buildReservationModificationRequest()`: Create encrypted 9903 rumor
+- `buildReservationModificationResponse()`: Create encrypted 9904 rumor
 - `wrapEvent()`: Wrap rumor in NIP-59 gift wrap
 - `unwrapEvent()`: Unwrap and decrypt gift wrap
 - `parseReservationRequest()`: Parse and validate 9901
 - `parseReservationResponse()`: Parse and validate 9902
+- `parseReservationModificationRequest()`: Parse and validate 9903
+- `parseReservationModificationResponse()`: Parse and validate 9904
 
 ---
 
