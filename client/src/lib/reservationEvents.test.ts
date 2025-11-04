@@ -53,8 +53,6 @@ describe("reservationEvents", () => {
         constraints: {
           earliest_iso_time: "2025-10-20T18:30:00-07:00",
           latest_iso_time: "2025-10-20T20:00:00-07:00",
-          outdoor_ok: true,
-          accessibility_required: false,
         },
       };
 
@@ -139,11 +137,11 @@ describe("reservationEvents", () => {
       expect(result.valid).toBe(true);
     });
 
-    it("validates suggested response", () => {
+    it("validates cancelled response", () => {
       const response: ReservationResponse = {
-        status: "suggested",
-        iso_time: "2025-10-20T19:30:00-07:00",
-        message: "7pm is full, how about 7:30?",
+        status: "cancelled",
+        iso_time: null,
+        message: "Cancelled by customer",
       };
 
       const result = validateReservationResponse(response);
@@ -154,6 +152,7 @@ describe("reservationEvents", () => {
     it("validates declined response", () => {
       const response: ReservationResponse = {
         status: "declined",
+        iso_time: null,
         message: "Sorry, we're fully booked",
       };
 
@@ -186,17 +185,6 @@ describe("reservationEvents", () => {
       const response = {
         status: "confirmed",
         // missing required iso_time for confirmed status
-      };
-
-      const result = validateReservationResponse(response);
-
-      expect(result.valid).toBe(false);
-    });
-
-    it("rejects suggested response without iso_time", () => {
-      const response = {
-        status: "suggested",
-        // missing required iso_time for suggested status
       };
 
       const result = validateReservationResponse(response);
@@ -432,7 +420,7 @@ describe("reservationEvents", () => {
       const conciergePublicKey = getPublicKey(conciergePrivateKey);
 
       const response: ReservationResponse = {
-        status: "suggested",
+        status: "confirmed",
         iso_time: "2025-10-20T19:30:00-07:00",
         message: "7pm is full, but 7:30 works!",
       };
@@ -460,6 +448,7 @@ describe("reservationEvents", () => {
 
       const response: ReservationResponse = {
         status: "declined",
+        iso_time: null,
         message: "Sorry, fully booked that evening",
       };
 
@@ -506,43 +495,12 @@ describe("reservationEvents", () => {
 
       expect(parsedRequest.party_size).toBe(2);
 
-      // Step 2: Restaurant suggests different time
-      const suggestion: ReservationResponse = {
-        status: "suggested",
-        iso_time: "2025-10-20T19:30:00-07:00",
-        message: "7pm is full, how about 7:30?",
-      };
-
-      const suggestionTemplate = buildReservationResponse(
-        suggestion,
-        restaurantPrivateKey,
-        conciergePublicKey
-      );
-
-      const suggestionWrap = wrapEvent(
-        suggestionTemplate,
-        restaurantPrivateKey,
-        conciergePublicKey
-      );
-
-      const { rumor: suggestionRumor } = unwrapAndDecrypt(
-        suggestionWrap,
-        conciergePrivateKey
-      );
-      const parsedSuggestion = parseReservationResponse(
-        suggestionRumor,
-        conciergePrivateKey
-      );
-
-      expect(parsedSuggestion.status).toBe("suggested");
-      expect(parsedSuggestion.iso_time).toBe("2025-10-20T19:30:00-07:00");
-
-      // Step 3: Restaurant confirms
+      // Step 2: Restaurant confirms original time
       const confirmation: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        iso_time: "2025-10-20T19:00:00-07:00",
         table: "A5",
-        message: "Confirmed for 7:30pm!",
+        message: "Confirmed!",
       };
 
       const confirmTemplate = buildReservationResponse(
@@ -633,7 +591,7 @@ describe("reservationEvents", () => {
       const request: ReservationModificationRequest = {
         party_size: 2,
         iso_time: "2025-10-20T19:30:00-07:00",
-        notes: "The suggested time works",
+        notes: "This time works for us",
       };
 
       const template = buildReservationModificationRequest(
@@ -806,9 +764,9 @@ describe("reservationEvents", () => {
       const requestWrap = wrapEvent(requestTemplate, conciergePrivateKey, restaurantPublicKey);
       const { rumor: requestRumor } = unwrapAndDecrypt(requestWrap, restaurantPrivateKey);
 
-      // Step 2: Restaurant suggests alternative time
+      // Step 2: Restaurant responds with a suggested time (using 9902)
       const suggestion: ReservationResponse = {
-        status: "suggested",
+        status: "confirmed",
         iso_time: "2025-10-20T19:30:00-07:00",
         message: "7pm is full, how about 7:30?",
       };
@@ -825,7 +783,7 @@ describe("reservationEvents", () => {
       );
       const { rumor: suggestionRumor } = unwrapAndDecrypt(suggestionWrap, conciergePrivateKey);
 
-      // Step 3: User accepts with modification request
+      // Step 3: User sends modification request (9903) accepting the suggested time
       const modificationRequest: ReservationModificationRequest = {
         party_size: 2,
         iso_time: "2025-10-20T19:30:00-07:00",
@@ -855,7 +813,6 @@ describe("reservationEvents", () => {
       const confirmation: ReservationModificationResponse = {
         status: "confirmed",
         iso_time: "2025-10-20T19:30:00-07:00",
-        table: "A5",
         message: "Confirmed!",
       };
 
@@ -869,7 +826,7 @@ describe("reservationEvents", () => {
       const parsedConfirm = parseReservationModificationResponse(confirmRumor, conciergePrivateKey);
 
       expect(parsedConfirm.status).toBe("confirmed");
-      expect(parsedConfirm.table).toBe("A5");
+      expect(parsedConfirm.iso_time).toBe("2025-10-20T19:30:00-07:00");
     });
   });
 });

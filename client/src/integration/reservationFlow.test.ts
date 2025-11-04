@@ -67,9 +67,9 @@ describe("Reservation Flow Integration Tests", () => {
       expect(parsedRequest.party_size).toBe(2);
       expect(parsedRequest.iso_time).toBe("2025-10-20T19:00:00-07:00");
 
-      // Step 2: Restaurant suggests alternative time (9902)
+      // Step 2: Restaurant responds with alternative time (9902 with confirmed status)
       const suggestion: ReservationResponse = {
-        status: "suggested",
+        status: "confirmed",
         iso_time: "2025-10-20T19:30:00-07:00",
         message: "7pm is full, how about 7:30?",
       };
@@ -94,7 +94,7 @@ describe("Reservation Flow Integration Tests", () => {
       const { rumor: unwrappedSuggestionRumor } = unwrapAndDecrypt(suggestionWrap, conciergePrivateKey);
       const parsedSuggestion = parseReservationResponse(unwrappedSuggestionRumor, conciergePrivateKey);
 
-      expect(parsedSuggestion.status).toBe("suggested");
+      expect(parsedSuggestion.status).toBe("confirmed");
       expect(parsedSuggestion.iso_time).toBe("2025-10-20T19:30:00-07:00");
 
       // Step 3: Concierge accepts with modification request (9903)
@@ -140,7 +140,6 @@ describe("Reservation Flow Integration Tests", () => {
       const confirmation: ReservationModificationResponse = {
         status: "confirmed",
         iso_time: "2025-10-20T19:30:00-07:00",
-        table: "A5",
         message: "Confirmed! See you at 7:30pm",
       };
 
@@ -165,7 +164,6 @@ describe("Reservation Flow Integration Tests", () => {
       const parsedConfirm = parseReservationModificationResponse(confirmRumor, conciergePrivateKey);
 
       expect(parsedConfirm.status).toBe("confirmed");
-      expect(parsedConfirm.table).toBe("A5");
       expect(parsedConfirm.iso_time).toBe("2025-10-20T19:30:00-07:00");
     });
   });
@@ -192,7 +190,7 @@ describe("Reservation Flow Integration Tests", () => {
 
       // Response with threading to root (using unsigned 9901 rumor ID)
       const response: ReservationResponse = {
-        status: "suggested",
+        status: "confirmed",
         iso_time: "2025-10-20T19:30:00-07:00",
       };
 
@@ -386,6 +384,7 @@ describe("Reservation Flow Integration Tests", () => {
       // Restaurant declines modification
       const decline: ReservationModificationResponse = {
         status: "declined",
+        iso_time: null,
         message: "That time is no longer available",
       };
 

@@ -3,30 +3,21 @@
   "type": "object",
   "title": "Reservation Modification Response",
   "description": "A reservation modification response (kind 9904) sent by a restaurant in response to a user's modification request",
-  "required": ["status"],
+  "required": ["status", "iso_time"],
   "properties": {
     "status": {
       "type": "string",
-      "enum": ["confirmed", "declined", "suggested", "expired", "cancelled"],
+      "enum": ["confirmed", "declined"],
       "description": "Status of the modification"
     },
     "iso_time": {
       "type": ["string", "null"],
       "format": "date-time",
-      "description": "Proposed or confirmed time (null for declined/expired)"
+      "description": "Proposed or confirmed time (null for declined)"
     },
     "message": {
       "type": "string",
       "description": "Optional message to the requester"
-    },
-    "table": {
-      "type": ["string", "null"],
-      "description": "Optional table identifier"
-    },
-    "hold_expires_at": {
-      "type": ["string", "null"],
-      "format": "date-time",
-      "description": "When a soft hold expires (if applicable)"
     }
   }
 }

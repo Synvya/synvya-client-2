@@ -384,7 +384,7 @@ export function validateReservationModificationResponse(payload: unknown): Valid
  *   {
  *     party_size: 2,
  *     iso_time: "2025-10-20T19:30:00-07:00",
- *     notes: "The suggested time works"
+ *     notes: "This time works for us"
  *   },
  *   myPrivateKey,
  *   restaurantPublicKey,

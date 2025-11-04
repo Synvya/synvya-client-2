@@ -54,12 +54,6 @@
         "latest_iso_time": {
           "type": "string",
           "format": "date-time"
-        },
-        "outdoor_ok": {
-          "type": "boolean"
-        },
-        "accessibility_required": {
-          "type": "boolean"
         }
       }
     }
