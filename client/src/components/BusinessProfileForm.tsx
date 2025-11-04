@@ -316,7 +316,7 @@ export function BusinessProfileForm(): JSX.Element {
         try {
           const firstRelay = relays[0] || "wss://relay.damus.io";
           
-          // Build and sign all three handler events
+          // Build and sign all handler events (1 handler info + 4 recommendations)
           const handlerInfoTemplate = buildHandlerInfo(pubkey);
           const handlerInfo = await signEvent(handlerInfoTemplate);
           
@@ -326,15 +326,23 @@ export function BusinessProfileForm(): JSX.Element {
           const recommendation9902Template = buildHandlerRecommendation(pubkey, "9902", firstRelay);
           const recommendation9902 = await signEvent(recommendation9902Template);
           
+          const recommendation9903Template = buildHandlerRecommendation(pubkey, "9903", firstRelay);
+          const recommendation9903 = await signEvent(recommendation9903Template);
+          
+          const recommendation9904Template = buildHandlerRecommendation(pubkey, "9904", firstRelay);
+          const recommendation9904 = await signEvent(recommendation9904Template);
+          
           // Build and sign DM relay event (kind 10050) as per NIP-17
           const dmRelayTemplate = buildDmRelayEvent(relays);
           const dmRelayEvent = await signEvent(dmRelayTemplate);
           
-          // Publish all four events in parallel
+          // Publish all events in parallel (1 handler info + 4 recommendations + 1 DM relay)
           await Promise.all([
             publishToRelays(handlerInfo, relays),
             publishToRelays(recommendation9901, relays),
             publishToRelays(recommendation9902, relays),
+            publishToRelays(recommendation9903, relays),
+            publishToRelays(recommendation9904, relays),
             publishToRelays(dmRelayEvent, relays)
           ]);
           
