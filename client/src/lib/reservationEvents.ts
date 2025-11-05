@@ -7,7 +7,8 @@
 
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
-import type { Event, EventTemplate } from "nostr-tools";
+import type { Event, EventTemplate, UnsignedEvent } from "nostr-tools";
+import { getEventHash, getPublicKey } from "nostr-tools";
 import type {
   ReservationRequest,
   ReservationResponse,
@@ -29,11 +30,28 @@ import modificationResponseSchema from "@/schemas/reservation.modification.respo
 const ajv = new Ajv({ allErrors: true, validateSchema: false });
 addFormats(ajv);
 
-// Compile schemas
-const validateRequest = ajv.compile(requestSchema);
-const validateResponse = ajv.compile(responseSchema);
-const validateModificationRequest = ajv.compile(modificationRequestSchema);
-const validateModificationResponse = ajv.compile(modificationResponseSchema);
+// Extract payload schemas from the allOf structure
+// The payload schema is in the second allOf clause's contentSchema
+const extractPayloadSchema = (fullSchema: any) => {
+  return fullSchema.allOf[1].properties.content.contentSchema;
+};
+
+// Compile schemas for full rumor event validation
+const validateRequestEvent = ajv.compile(requestSchema);
+const validateResponseEvent = ajv.compile(responseSchema);
+const validateModificationRequestEvent = ajv.compile(modificationRequestSchema);
+const validateModificationResponseEvent = ajv.compile(modificationResponseSchema);
+
+// Compile payload schemas
+const payloadRequestSchema = extractPayloadSchema(requestSchema);
+const payloadResponseSchema = extractPayloadSchema(responseSchema);
+const payloadModificationRequestSchema = extractPayloadSchema(modificationRequestSchema);
+const payloadModificationResponseSchema = extractPayloadSchema(modificationResponseSchema);
+
+const validateRequestPayload = ajv.compile(payloadRequestSchema);
+const validateResponsePayload = ajv.compile(payloadResponseSchema);
+const validateModificationRequestPayload = ajv.compile(payloadModificationRequestSchema);
+const validateModificationResponsePayload = ajv.compile(payloadModificationResponseSchema);
 
 /**
  * Validates a reservation request payload against the JSON schema.
@@ -54,13 +72,47 @@ const validateModificationResponse = ajv.compile(modificationResponseSchema);
  * ```
  */
 export function validateReservationRequest(payload: unknown): ValidationResult {
-  const valid = validateRequest(payload);
+  const valid = validateRequestPayload(payload);
 
   if (valid) {
     return { valid: true };
   }
 
-  const errors: ValidationError[] = (validateRequest.errors || []).map((err) => ({
+  const errors: ValidationError[] = (validateRequestPayload.errors || []).map((err) => ({
+    field: err.instancePath || err.params?.missingProperty,
+    message: err.message || "Validation failed",
+    value: err.data,
+  }));
+
+  return { valid: false, errors };
+}
+
+/**
+ * Validates a full rumor event (kind 9901) including structure and content.
+ * 
+ * @param rumor - The rumor event to validate
+ * @returns Validation result with errors if invalid
+ */
+export function validateReservationRequestRumor(rumor: UnsignedEvent & { id?: string }): ValidationResult {
+  // Ensure id is present - calculate if missing
+  // But only if rumor has all required fields for hash calculation
+  let rumorWithId: UnsignedEvent & { id: string };
+  if (rumor.id) {
+    rumorWithId = rumor as UnsignedEvent & { id: string };
+  } else if (rumor.pubkey && rumor.kind && rumor.content !== undefined && rumor.created_at !== undefined && rumor.tags) {
+    rumorWithId = { ...rumor, id: getEventHash(rumor) };
+  } else {
+    // Can't calculate hash, but schema validation will catch missing fields
+    rumorWithId = { ...rumor, id: "" };
+  }
+  
+  const valid = validateRequestEvent(rumorWithId);
+
+  if (valid) {
+    return { valid: true };
+  }
+
+  const errors: ValidationError[] = (validateRequestEvent.errors || []).map((err) => ({
     field: err.instancePath || err.params?.missingProperty,
     message: err.message || "Validation failed",
     value: err.data,
@@ -84,13 +136,38 @@ export function validateReservationRequest(payload: unknown): ValidationResult {
  * ```
  */
 export function validateReservationResponse(payload: unknown): ValidationResult {
-  const valid = validateResponse(payload);
+  const valid = validateResponsePayload(payload);
 
   if (valid) {
     return { valid: true };
   }
 
-  const errors: ValidationError[] = (validateResponse.errors || []).map((err) => ({
+  const errors: ValidationError[] = (validateResponsePayload.errors || []).map((err) => ({
+    field: err.instancePath || err.params?.missingProperty,
+    message: err.message || "Validation failed",
+    value: err.data,
+  }));
+
+  return { valid: false, errors };
+}
+
+/**
+ * Validates a full rumor event (kind 9902) including structure and content.
+ * 
+ * @param rumor - The rumor event to validate
+ * @returns Validation result with errors if invalid
+ */
+export function validateReservationResponseRumor(rumor: UnsignedEvent & { id?: string }): ValidationResult {
+  // Ensure id is present - calculate if missing
+  const rumorWithId = rumor.id ? rumor : { ...rumor, id: getEventHash(rumor) };
+  
+  const valid = validateResponseEvent(rumorWithId);
+
+  if (valid) {
+    return { valid: true };
+  }
+
+  const errors: ValidationError[] = (validateResponseEvent.errors || []).map((err) => ({
     field: err.instancePath || err.params?.missingProperty,
     message: err.message || "Validation failed",
     value: err.data,
@@ -136,15 +213,15 @@ export function buildReservationRequest(
   additionalTags: string[][] = []
 ): EventTemplate {
   // Validate payload
-  const validation = validateReservationRequest(request);
-  if (!validation.valid) {
-    const errorMessages = validation.errors?.map(e => e.message).join(", ");
-    throw new Error(`Invalid reservation request: ${errorMessages}`);
+  const payloadValidation = validateReservationRequest(request);
+  if (!payloadValidation.valid) {
+    const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
+    throw new Error(`Invalid reservation request payload: ${errorMessages}`);
   }
 
   // Build event template with plain text JSON content
   // Encryption happens at seal/gift wrap layers via NIP-59
-  return {
+  const template: EventTemplate = {
     kind: 9901,
     content: JSON.stringify(request),
     tags: [
@@ -153,6 +230,26 @@ export function buildReservationRequest(
     ],
     created_at: Math.floor(Date.now() / 1000),
   };
+
+  // Create full unsigned event to get ID and validate full event structure
+  const pubkey = getPublicKey(senderPrivateKey);
+  const unsignedEvent: UnsignedEvent = {
+    ...template,
+    pubkey,
+  };
+  const rumorEvent: UnsignedEvent & { id: string } = {
+    ...unsignedEvent,
+    id: getEventHash(unsignedEvent),
+  };
+
+  // Validate full rumor event structure (including id, pubkey, tags, etc.)
+  const eventValidation = validateReservationRequestRumor(rumorEvent);
+  if (!eventValidation.valid) {
+    const errorMessages = eventValidation.errors?.map(e => `${e.field}: ${e.message}`).join(", ");
+    throw new Error(`Invalid reservation request rumor event: ${errorMessages}`);
+  }
+
+  return template;
 }
 
 /**
@@ -195,15 +292,15 @@ export function buildReservationResponse(
   additionalTags: string[][] = []
 ): EventTemplate {
   // Validate payload
-  const validation = validateReservationResponse(response);
-  if (!validation.valid) {
-    const errorMessages = validation.errors?.map(e => e.message).join(", ");
-    throw new Error(`Invalid reservation response: ${errorMessages}`);
+  const payloadValidation = validateReservationResponse(response);
+  if (!payloadValidation.valid) {
+    const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
+    throw new Error(`Invalid reservation response payload: ${errorMessages}`);
   }
 
   // Build event template with plain text JSON content
   // Encryption happens at seal/gift wrap layers via NIP-59
-  return {
+  const template: EventTemplate = {
     kind: 9902,
     content: JSON.stringify(response),
     tags: [
@@ -212,12 +309,33 @@ export function buildReservationResponse(
     ],
     created_at: Math.floor(Date.now() / 1000),
   };
+
+  // Create full unsigned event to get ID and validate full event structure
+  const pubkey = getPublicKey(senderPrivateKey);
+  const unsignedEvent: UnsignedEvent = {
+    ...template,
+    pubkey,
+  };
+  const rumorEvent: UnsignedEvent & { id: string } = {
+    ...unsignedEvent,
+    id: getEventHash(unsignedEvent),
+  };
+
+  // Validate full rumor event structure (including id, pubkey, tags, etc.)
+  const eventValidation = validateReservationResponseRumor(rumorEvent);
+  if (!eventValidation.valid) {
+    const errorMessages = eventValidation.errors?.map(e => `${e.field}: ${e.message}`).join(", ");
+    throw new Error(`Invalid reservation response rumor event: ${errorMessages}`);
+  }
+
+  return template;
 }
 
 /**
  * Parses a reservation request from a rumor event.
  * 
  * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
+ * Validates the full rumor event structure (including id, pubkey, tags, etc.) and content.
  * 
  * @param rumor - The unwrapped rumor event (kind 9901)
  * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
@@ -242,15 +360,22 @@ export function parseReservationRequest(
     throw new Error(`Expected kind 9901, got ${rumor.kind}`);
   }
 
+  // Validate full rumor event structure (including id, pubkey, tags, etc.)
+  const eventValidation = validateReservationRequestRumor(rumor as UnsignedEvent & { id?: string });
+  if (!eventValidation.valid) {
+    const errorMessages = eventValidation.errors?.map(e => `${e.field}: ${e.message}`).join(", ");
+    throw new Error(`Invalid reservation request rumor event: ${errorMessages}`);
+  }
+
   // Parse plain text JSON content
   // Decryption happened at seal/gift wrap layers via NIP-59
   const payload = JSON.parse(rumor.content);
 
-  // Validate
-  const validation = validateReservationRequest(payload);
-  if (!validation.valid) {
-    const errorMessages = validation.errors?.map(e => e.message).join(", ");
-    throw new Error(`Invalid reservation request: ${errorMessages}`);
+  // Validate payload
+  const payloadValidation = validateReservationRequest(payload);
+  if (!payloadValidation.valid) {
+    const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
+    throw new Error(`Invalid reservation request payload: ${errorMessages}`);
   }
 
   return payload as ReservationRequest;
@@ -260,6 +385,7 @@ export function parseReservationRequest(
  * Parses a reservation response from a rumor event.
  * 
  * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
+ * Validates the full rumor event structure (including id, pubkey, tags, etc.) and content.
  * 
  * @param rumor - The unwrapped rumor event (kind 9902)
  * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
@@ -282,15 +408,22 @@ export function parseReservationResponse(
     throw new Error(`Expected kind 9902, got ${rumor.kind}`);
   }
 
+  // Validate full rumor event structure (including id, pubkey, tags, etc.)
+  const eventValidation = validateReservationResponseRumor(rumor as UnsignedEvent & { id?: string });
+  if (!eventValidation.valid) {
+    const errorMessages = eventValidation.errors?.map(e => `${e.field}: ${e.message}`).join(", ");
+    throw new Error(`Invalid reservation response rumor event: ${errorMessages}`);
+  }
+
   // Parse plain text JSON content
   // Decryption happened at seal/gift wrap layers via NIP-59
   const payload = JSON.parse(rumor.content);
 
-  // Validate
-  const validation = validateReservationResponse(payload);
-  if (!validation.valid) {
-    const errorMessages = validation.errors?.map(e => e.message).join(", ");
-    throw new Error(`Invalid reservation response: ${errorMessages}`);
+  // Validate payload
+  const payloadValidation = validateReservationResponse(payload);
+  if (!payloadValidation.valid) {
+    const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
+    throw new Error(`Invalid reservation response payload: ${errorMessages}`);
   }
 
   return payload as ReservationResponse;
@@ -315,13 +448,38 @@ export function parseReservationResponse(
  * ```
  */
 export function validateReservationModificationRequest(payload: unknown): ValidationResult {
-  const valid = validateModificationRequest(payload);
+  const valid = validateModificationRequestPayload(payload);
 
   if (valid) {
     return { valid: true };
   }
 
-  const errors: ValidationError[] = (validateModificationRequest.errors || []).map((err) => ({
+  const errors: ValidationError[] = (validateModificationRequestPayload.errors || []).map((err) => ({
+    field: err.instancePath || err.params?.missingProperty,
+    message: err.message || "Validation failed",
+    value: err.data,
+  }));
+
+  return { valid: false, errors };
+}
+
+/**
+ * Validates a full rumor event (kind 9903) including structure and content.
+ * 
+ * @param rumor - The rumor event to validate
+ * @returns Validation result with errors if invalid
+ */
+export function validateReservationModificationRequestRumor(rumor: UnsignedEvent & { id?: string }): ValidationResult {
+  // Ensure id is present - calculate if missing
+  const rumorWithId = rumor.id ? rumor : { ...rumor, id: getEventHash(rumor) };
+  
+  const valid = validateModificationRequestEvent(rumorWithId);
+
+  if (valid) {
+    return { valid: true };
+  }
+
+  const errors: ValidationError[] = (validateModificationRequestEvent.errors || []).map((err) => ({
     field: err.instancePath || err.params?.missingProperty,
     message: err.message || "Validation failed",
     value: err.data,
@@ -345,13 +503,38 @@ export function validateReservationModificationRequest(payload: unknown): Valida
  * ```
  */
 export function validateReservationModificationResponse(payload: unknown): ValidationResult {
-  const valid = validateModificationResponse(payload);
+  const valid = validateModificationResponsePayload(payload);
 
   if (valid) {
     return { valid: true };
   }
 
-  const errors: ValidationError[] = (validateModificationResponse.errors || []).map((err) => ({
+  const errors: ValidationError[] = (validateModificationResponsePayload.errors || []).map((err) => ({
+    field: err.instancePath || err.params?.missingProperty,
+    message: err.message || "Validation failed",
+    value: err.data,
+  }));
+
+  return { valid: false, errors };
+}
+
+/**
+ * Validates a full rumor event (kind 9904) including structure and content.
+ * 
+ * @param rumor - The rumor event to validate
+ * @returns Validation result with errors if invalid
+ */
+export function validateReservationModificationResponseRumor(rumor: UnsignedEvent & { id?: string }): ValidationResult {
+  // Ensure id is present - calculate if missing
+  const rumorWithId = rumor.id ? rumor : { ...rumor, id: getEventHash(rumor) };
+  
+  const valid = validateModificationResponseEvent(rumorWithId);
+
+  if (valid) {
+    return { valid: true };
+  }
+
+  const errors: ValidationError[] = (validateModificationResponseEvent.errors || []).map((err) => ({
     field: err.instancePath || err.params?.missingProperty,
     message: err.message || "Validation failed",
     value: err.data,
@@ -401,15 +584,15 @@ export function buildReservationModificationRequest(
   additionalTags: string[][] = []
 ): EventTemplate {
   // Validate payload
-  const validation = validateReservationModificationRequest(request);
-  if (!validation.valid) {
-    const errorMessages = validation.errors?.map(e => e.message).join(", ");
-    throw new Error(`Invalid reservation modification request: ${errorMessages}`);
+  const payloadValidation = validateReservationModificationRequest(request);
+  if (!payloadValidation.valid) {
+    const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
+    throw new Error(`Invalid reservation modification request payload: ${errorMessages}`);
   }
 
   // Build event template with plain text JSON content
   // Encryption happens at seal/gift wrap layers via NIP-59
-  return {
+  const template: EventTemplate = {
     kind: 9903,
     content: JSON.stringify(request),
     tags: [
@@ -418,6 +601,26 @@ export function buildReservationModificationRequest(
     ],
     created_at: Math.floor(Date.now() / 1000),
   };
+
+  // Create full unsigned event to get ID and validate full event structure
+  const pubkey = getPublicKey(senderPrivateKey);
+  const unsignedEvent: UnsignedEvent = {
+    ...template,
+    pubkey,
+  };
+  const rumorEvent: UnsignedEvent & { id: string } = {
+    ...unsignedEvent,
+    id: getEventHash(unsignedEvent),
+  };
+
+  // Validate full rumor event structure (including id, pubkey, tags, etc.)
+  const eventValidation = validateReservationModificationRequestRumor(rumorEvent);
+  if (!eventValidation.valid) {
+    const errorMessages = eventValidation.errors?.map(e => `${e.field}: ${e.message}`).join(", ");
+    throw new Error(`Invalid reservation modification request rumor event: ${errorMessages}`);
+  }
+
+  return template;
 }
 
 /**
@@ -461,15 +664,15 @@ export function buildReservationModificationResponse(
   additionalTags: string[][] = []
 ): EventTemplate {
   // Validate payload
-  const validation = validateReservationModificationResponse(response);
-  if (!validation.valid) {
-    const errorMessages = validation.errors?.map(e => e.message).join(", ");
-    throw new Error(`Invalid reservation modification response: ${errorMessages}`);
+  const payloadValidation = validateReservationModificationResponse(response);
+  if (!payloadValidation.valid) {
+    const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
+    throw new Error(`Invalid reservation modification response payload: ${errorMessages}`);
   }
 
   // Build event template with plain text JSON content
   // Encryption happens at seal/gift wrap layers via NIP-59
-  return {
+  const template: EventTemplate = {
     kind: 9904,
     content: JSON.stringify(response),
     tags: [
@@ -478,12 +681,33 @@ export function buildReservationModificationResponse(
     ],
     created_at: Math.floor(Date.now() / 1000),
   };
+
+  // Create full unsigned event to get ID and validate full event structure
+  const pubkey = getPublicKey(senderPrivateKey);
+  const unsignedEvent: UnsignedEvent = {
+    ...template,
+    pubkey,
+  };
+  const rumorEvent: UnsignedEvent & { id: string } = {
+    ...unsignedEvent,
+    id: getEventHash(unsignedEvent),
+  };
+
+  // Validate full rumor event structure (including id, pubkey, tags, etc.)
+  const eventValidation = validateReservationModificationResponseRumor(rumorEvent);
+  if (!eventValidation.valid) {
+    const errorMessages = eventValidation.errors?.map(e => `${e.field}: ${e.message}`).join(", ");
+    throw new Error(`Invalid reservation modification response rumor event: ${errorMessages}`);
+  }
+
+  return template;
 }
 
 /**
  * Parses a reservation modification request from a rumor event.
  * 
  * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
+ * Validates the full rumor event structure (including id, pubkey, tags, etc.) and content.
  * 
  * @param rumor - The unwrapped rumor event (kind 9903)
  * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
@@ -507,15 +731,22 @@ export function parseReservationModificationRequest(
     throw new Error(`Expected kind 9903, got ${rumor.kind}`);
   }
 
+  // Validate full rumor event structure (including id, pubkey, tags, etc.)
+  const eventValidation = validateReservationModificationRequestRumor(rumor as UnsignedEvent & { id?: string });
+  if (!eventValidation.valid) {
+    const errorMessages = eventValidation.errors?.map(e => `${e.field}: ${e.message}`).join(", ");
+    throw new Error(`Invalid reservation modification request rumor event: ${errorMessages}`);
+  }
+
   // Parse plain text JSON content
   // Decryption happened at seal/gift wrap layers via NIP-59
   const payload = JSON.parse(rumor.content);
 
-  // Validate
-  const validation = validateReservationModificationRequest(payload);
-  if (!validation.valid) {
-    const errorMessages = validation.errors?.map(e => e.message).join(", ");
-    throw new Error(`Invalid reservation modification request: ${errorMessages}`);
+  // Validate payload
+  const payloadValidation = validateReservationModificationRequest(payload);
+  if (!payloadValidation.valid) {
+    const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
+    throw new Error(`Invalid reservation modification request payload: ${errorMessages}`);
   }
 
   return payload as ReservationModificationRequest;
@@ -525,6 +756,7 @@ export function parseReservationModificationRequest(
  * Parses a reservation modification response from a rumor event.
  * 
  * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
+ * Validates the full rumor event structure (including id, pubkey, tags, etc.) and content.
  * 
  * @param rumor - The unwrapped rumor event (kind 9904)
  * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
@@ -547,15 +779,22 @@ export function parseReservationModificationResponse(
     throw new Error(`Expected kind 9904, got ${rumor.kind}`);
   }
 
+  // Validate full rumor event structure (including id, pubkey, tags, etc.)
+  const eventValidation = validateReservationModificationResponseRumor(rumor as UnsignedEvent & { id?: string });
+  if (!eventValidation.valid) {
+    const errorMessages = eventValidation.errors?.map(e => `${e.field}: ${e.message}`).join(", ");
+    throw new Error(`Invalid reservation modification response rumor event: ${errorMessages}`);
+  }
+
   // Parse plain text JSON content
   // Decryption happened at seal/gift wrap layers via NIP-59
   const payload = JSON.parse(rumor.content);
 
-  // Validate
-  const validation = validateReservationModificationResponse(payload);
-  if (!validation.valid) {
-    const errorMessages = validation.errors?.map(e => e.message).join(", ");
-    throw new Error(`Invalid reservation modification response: ${errorMessages}`);
+  // Validate payload
+  const payloadValidation = validateReservationModificationResponse(payload);
+  if (!payloadValidation.valid) {
+    const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
+    throw new Error(`Invalid reservation modification response payload: ${errorMessages}`);
   }
 
   return payload as ReservationModificationResponse;

@@ -309,11 +309,13 @@ describe("reservationEvents", () => {
         recipientPublicKey
       );
 
-      // Create a pseudo-rumor
+      // Create a pseudo-rumor with all required fields
       const rumor = {
         kind: 9901,
         content: template.content,
         pubkey: senderPublicKey,
+        created_at: template.created_at,
+        tags: template.tags,
       };
 
       const parsed = parseReservationRequest(rumor, recipientPrivateKey);
@@ -360,6 +362,8 @@ describe("reservationEvents", () => {
         kind: 9902,
         content: template.content,
         pubkey: senderPublicKey,
+        created_at: template.created_at,
+        tags: template.tags,
       };
 
       const parsed = parseReservationResponse(rumor, recipientPrivateKey);

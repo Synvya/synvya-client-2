@@ -1,40 +1,84 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://synvya.com/schemas/reservation.response.schema.json",
-  "title": "Synvya Reservation Response Payload",
+  "title": "Synvya Reservation Response Rumor Event",
+  "description": "Schema for a rumor event (kind 9902) containing a reservation response payload",
   "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "status",
-    "iso_time"
-  ],
-  "properties": {
-    "status": {
-      "type": "string",
-      "enum": [
-        "confirmed",
-        "declined",
-        "cancelled"
-      ]
+  "allOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA256 hash of the serialized event (rumor ID)"
+        },
+        "pubkey": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Sender's public key (hex)"
+        },
+        "kind": {
+          "type": "integer",
+          "const": 9902
+        },
+        "created_at": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unix timestamp in seconds"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Event tags (must include 'p' tag for recipient and 'e' tag for threading)",
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "content": {
+          "type": "string",
+          "description": "Plain text JSON payload (not encrypted - encryption occurs at seal/gift wrap layers)"
+        }
+      },
+      "required": ["id", "pubkey", "kind", "created_at", "tags", "content"]
     },
-    "iso_time": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "format": "date-time",
-      "description": "Proposed or confirmed time; null when declined/cancelled"
-    },
-    "message": {
-      "type": "string",
-      "maxLength": 2000
-    },
-    "table": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Optional table identifier"
+    {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "contentMediaType": "application/json",
+          "contentSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "iso_time"],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["confirmed", "declined", "cancelled"]
+              },
+              "iso_time": {
+                "type": ["string", "null"],
+                "format": "date-time",
+                "description": "Proposed or confirmed time; null when declined/cancelled"
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "table": {
+                "type": ["string", "null"],
+                "description": "Optional table identifier"
+              }
+            }
+          }
+        }
+      }
     }
-  }
+  ]
 }

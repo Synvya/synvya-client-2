@@ -1,24 +1,82 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://synvya.com/schemas/reservation.modification.response.schema.json",
+  "title": "Synvya Reservation Modification Response Rumor Event",
+  "description": "Schema for a rumor event (kind 9904) containing a reservation modification response payload",
   "type": "object",
-  "title": "Reservation Modification Response",
-  "description": "A reservation modification response (kind 9904) sent by a restaurant in response to a user's modification request",
-  "required": ["status", "iso_time"],
-  "properties": {
-    "status": {
-      "type": "string",
-      "enum": ["confirmed", "declined"],
-      "description": "Status of the modification"
+  "allOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA256 hash of the serialized event (rumor ID)"
+        },
+        "pubkey": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Sender's public key (hex)"
+        },
+        "kind": {
+          "type": "integer",
+          "const": 9904
+        },
+        "created_at": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unix timestamp in seconds"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Event tags (must include 'p' tag for recipient and 'e' tags for threading)",
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "content": {
+          "type": "string",
+          "description": "Plain text JSON payload (not encrypted - encryption occurs at seal/gift wrap layers)"
+        }
+      },
+      "required": ["id", "pubkey", "kind", "created_at", "tags", "content"]
     },
-    "iso_time": {
-      "type": ["string", "null"],
-      "format": "date-time",
-      "description": "Proposed or confirmed time (null for declined)"
-    },
-    "message": {
-      "type": "string",
-      "description": "Optional message to the requester"
+    {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "contentMediaType": "application/json",
+          "contentSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "iso_time"],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["confirmed", "declined"],
+                "description": "Status of the modification"
+              },
+              "iso_time": {
+                "type": ["string", "null"],
+                "format": "date-time",
+                "description": "Proposed or confirmed time (null for declined)"
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "Optional message to the requester"
+              }
+            }
+          }
+        }
+      }
     }
-  }
+  ]
 }
-
