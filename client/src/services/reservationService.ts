@@ -158,11 +158,6 @@ export class ReservationSubscription {
       if (rumor.kind === 9901) {
         // Reservation request
         const payload = parseReservationRequest(rumor, privateKey);
-        console.log("[ReservationService] Received 9901 request - rumor.id:", rumor.id, "giftWrap.id:", event.id);
-        console.log("[ReservationService] Rumor tags:", JSON.stringify(rumor.tags));
-        console.log("[ReservationService] Rumor content length:", rumor.content.length);
-        console.log("[ReservationService] Rumor created_at:", rumor.created_at);
-        console.log("[ReservationService] Rumor pubkey:", rumor.pubkey);
         onMessage({
           rumor,
           type: "request",
