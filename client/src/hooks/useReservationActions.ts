@@ -82,11 +82,15 @@ export function useReservationActions() {
 
                 // Find the original request's rumor ID for threading
                 // Per NIP-17, all messages in a thread must reference the unsigned 9901 rumor ID
-                // - If this is a request message, use its own rumor ID (it's the root)
-                // - If this is a response/modification message, extract root from e tags
+                // CRITICAL: Must use the rumor.id from the ORIGINAL 9901 request rumor, NOT gift wrap or seal IDs
                 let rootRumorId: string;
                 if (request.type === "request") {
                     // For requests, use the rumor ID directly (it's the thread root)
+                    // This is the unsigned 9901 rumor ID that all subsequent messages must reference
+                    // CRITICAL: request.rumor.id MUST be the original 9901 rumor ID, not gift wrap or seal ID
+                    if (request.rumor.kind !== 9901) {
+                        throw new Error(`Expected request rumor to be kind 9901, got ${request.rumor.kind}`);
+                    }
                     rootRumorId = request.rumor.id;
                 } else {
                     // Extract root rumor ID from e tags (per NIP-17)
