@@ -1,7 +1,7 @@
 /**
  * Types for Synvya Reservation Messages (NIP-9901/9902/9903/9904)
  * 
- * These types match the JSON schemas defined in docs/schemas/
+ * These types match the JSON schemas defined in https://github.com/Synvya/nip-rr/tree/main/schemas
  */
 
 /**

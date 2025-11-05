@@ -19,10 +19,10 @@ import type {
 import { encryptMessage, decryptMessage } from "./nip44";
 
 // Import JSON schemas
-import requestSchema from "../../../docs/schemas/reservation.request.schema.json";
-import responseSchema from "../../../docs/schemas/reservation.response.schema.json";
-import modificationRequestSchema from "../../../docs/schemas/reservation.modification.request.schema.json";
-import modificationResponseSchema from "../../../docs/schemas/reservation.modification.response.schema.json";
+import requestSchema from "@/schemas/reservation.request.schema.json";
+import responseSchema from "@/schemas/reservation.response.schema.json";
+import modificationRequestSchema from "@/schemas/reservation.modification.request.schema.json";
+import modificationResponseSchema from "@/schemas/reservation.modification.response.schema.json";
 
 // Initialize AJV with formats support
 const ajv = new Ajv({ allErrors: true, validateSchema: false });

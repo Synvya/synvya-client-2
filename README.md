@@ -27,7 +27,7 @@ Synvya’s merchant-facing web client for onboarding, profile management, and Sq
   - Kind 9904: Reservation modification response 
 - **Message Exchange**: Encrypted NIP-59 gift-wrapped messages with NIP-17 Self CC pattern
 - **AI Integration**: AI agents can discover and communicate with restaurants using standard Nostr protocols
-- See `docs/restaurants/NIP-RR.md` for the complete protocol specification
+- See [NIP-RR repository](https://github.com/Synvya/nip-rr) for the complete protocol specification
 
 ### Square Integration
 - OAuth flow for connecting Square merchant accounts
