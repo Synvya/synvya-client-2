@@ -20,7 +20,7 @@ import {
   parseReservationModificationRequest,
   parseReservationModificationResponse,
 } from "@/lib/reservationEvents";
-import { wrapEvent, unwrapAndDecrypt, createRumor } from "@/lib/nip59";
+import { wrapEvent, unwrapEvent, createRumor } from "@/lib/nip59";
 import { buildHandlerInfo, buildHandlerRecommendation } from "@/lib/handlerEvents";
 import type {
   ReservationRequest,
@@ -61,7 +61,7 @@ describe("Reservation Flow Integration Tests", () => {
       const rootRumorId = requestRumor.id;
 
       const requestWrap = wrapEvent(requestTemplate, conciergePrivateKey, restaurantPublicKey);
-      const { rumor: unwrappedRequestRumor } = unwrapAndDecrypt(requestWrap, restaurantPrivateKey);
+      const unwrappedRequestRumor = unwrapEvent(requestWrap, restaurantPrivateKey);
       const parsedRequest = parseReservationRequest(unwrappedRequestRumor, restaurantPrivateKey);
 
       expect(parsedRequest.party_size).toBe(2);
@@ -91,7 +91,7 @@ describe("Reservation Flow Integration Tests", () => {
         restaurantPrivateKey,
         conciergePublicKey
       );
-      const { rumor: unwrappedSuggestionRumor } = unwrapAndDecrypt(suggestionWrap, conciergePrivateKey);
+      const unwrappedSuggestionRumor = unwrapEvent(suggestionWrap, conciergePrivateKey);
       const parsedSuggestion = parseReservationResponse(unwrappedSuggestionRumor, conciergePrivateKey);
 
       expect(parsedSuggestion.status).toBe("confirmed");
@@ -127,7 +127,7 @@ describe("Reservation Flow Integration Tests", () => {
         conciergePrivateKey,
         restaurantPublicKey
       );
-      const { rumor: unwrappedModRequestRumor } = unwrapAndDecrypt(modRequestWrap, restaurantPrivateKey);
+      const unwrappedModRequestRumor = unwrapEvent(modRequestWrap, restaurantPrivateKey);
       const parsedModRequest = parseReservationModificationRequest(
         unwrappedModRequestRumor,
         restaurantPrivateKey
@@ -160,7 +160,7 @@ describe("Reservation Flow Integration Tests", () => {
       expect(confirmTags.length).toBeGreaterThan(0);
 
       const confirmWrap = wrapEvent(confirmTemplate, restaurantPrivateKey, conciergePublicKey);
-      const { rumor: confirmRumor } = unwrapAndDecrypt(confirmWrap, conciergePrivateKey);
+      const confirmRumor = unwrapEvent(confirmWrap, conciergePrivateKey);
       const parsedConfirm = parseReservationModificationResponse(confirmRumor, conciergePrivateKey);
 
       expect(parsedConfirm.status).toBe("confirmed");
@@ -379,7 +379,7 @@ describe("Reservation Flow Integration Tests", () => {
         conciergePrivateKey,
         restaurantPublicKey
       );
-      const { rumor: modRequestRumor } = unwrapAndDecrypt(modRequestWrap, restaurantPrivateKey);
+      const modRequestRumor = unwrapEvent(modRequestWrap, restaurantPrivateKey);
 
       // Restaurant declines modification
       const decline: ReservationModificationResponse = {
@@ -394,7 +394,7 @@ describe("Reservation Flow Integration Tests", () => {
         conciergePublicKey
       );
       const declineWrap = wrapEvent(declineTemplate, restaurantPrivateKey, conciergePublicKey);
-      const { rumor: declineRumor } = unwrapAndDecrypt(declineWrap, conciergePrivateKey);
+      const declineRumor = unwrapEvent(declineWrap, conciergePrivateKey);
       const parsedDecline = parseReservationModificationResponse(declineRumor, conciergePrivateKey);
 
       expect(parsedDecline.status).toBe("declined");

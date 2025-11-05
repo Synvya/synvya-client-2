@@ -24,7 +24,7 @@ import type {
   ReservationModificationRequest,
   ReservationModificationResponse
 } from "@/types/reservation";
-import { unwrapAndDecrypt, wrapEvent } from "./nip59";
+import { unwrapEvent, wrapEvent } from "./nip59";
 
 describe("reservationEvents", () => {
   describe("validateReservationRequest", () => {
@@ -408,7 +408,7 @@ describe("reservationEvents", () => {
       const giftWrap = wrapEvent(template, conciergePrivateKey, restaurantPublicKey);
 
       // Unwrap and parse
-      const { rumor } = unwrapAndDecrypt(giftWrap, restaurantPrivateKey);
+      const rumor = unwrapEvent(giftWrap, restaurantPrivateKey);
       const parsed = parseReservationRequest(rumor, restaurantPrivateKey);
 
       expect(parsed).toEqual(request);
@@ -435,7 +435,7 @@ describe("reservationEvents", () => {
       const giftWrap = wrapEvent(template, restaurantPrivateKey, conciergePublicKey);
 
       // Unwrap and parse
-      const { rumor } = unwrapAndDecrypt(giftWrap, conciergePrivateKey);
+      const rumor = unwrapEvent(giftWrap, conciergePrivateKey);
       const parsed = parseReservationResponse(rumor, conciergePrivateKey);
 
       expect(parsed).toEqual(response);
@@ -459,7 +459,7 @@ describe("reservationEvents", () => {
       );
 
       const giftWrap = wrapEvent(template, restaurantPrivateKey, conciergePublicKey);
-      const { rumor } = unwrapAndDecrypt(giftWrap, conciergePrivateKey);
+      const rumor = unwrapEvent(giftWrap, conciergePrivateKey);
       const parsed = parseReservationResponse(rumor, conciergePrivateKey);
 
       expect(parsed.status).toBe("declined");
@@ -490,7 +490,7 @@ describe("reservationEvents", () => {
         restaurantPublicKey
       );
 
-      const { rumor: requestRumor } = unwrapAndDecrypt(requestWrap, restaurantPrivateKey);
+      const requestRumor = unwrapEvent(requestWrap, restaurantPrivateKey);
       const parsedRequest = parseReservationRequest(requestRumor, restaurantPrivateKey);
 
       expect(parsedRequest.party_size).toBe(2);
@@ -515,7 +515,7 @@ describe("reservationEvents", () => {
         conciergePublicKey
       );
 
-      const { rumor: confirmRumor } = unwrapAndDecrypt(confirmWrap, conciergePrivateKey);
+      const confirmRumor = unwrapEvent(confirmWrap, conciergePrivateKey);
       const parsedConfirm = parseReservationResponse(confirmRumor, conciergePrivateKey);
 
       expect(parsedConfirm.status).toBe("confirmed");
@@ -684,7 +684,7 @@ describe("reservationEvents", () => {
       );
 
       const giftWrap = wrapEvent(template, conciergePrivateKey, restaurantPublicKey);
-      const { rumor } = unwrapAndDecrypt(giftWrap, restaurantPrivateKey);
+      const rumor = unwrapEvent(giftWrap, restaurantPrivateKey);
       const parsed = parseReservationModificationRequest(rumor, restaurantPrivateKey);
 
       expect(parsed).toEqual(request);
@@ -723,7 +723,7 @@ describe("reservationEvents", () => {
       );
 
       const giftWrap = wrapEvent(template, restaurantPrivateKey, conciergePublicKey);
-      const { rumor } = unwrapAndDecrypt(giftWrap, conciergePrivateKey);
+      const rumor = unwrapEvent(giftWrap, conciergePrivateKey);
       const parsed = parseReservationModificationResponse(rumor, conciergePrivateKey);
 
       expect(parsed).toEqual(response);
@@ -762,7 +762,7 @@ describe("reservationEvents", () => {
         restaurantPublicKey
       );
       const requestWrap = wrapEvent(requestTemplate, conciergePrivateKey, restaurantPublicKey);
-      const { rumor: requestRumor } = unwrapAndDecrypt(requestWrap, restaurantPrivateKey);
+      const requestRumor = unwrapEvent(requestWrap, restaurantPrivateKey);
 
       // Step 2: Restaurant responds with a suggested time (using 9902)
       const suggestion: ReservationResponse = {
@@ -781,7 +781,7 @@ describe("reservationEvents", () => {
         restaurantPrivateKey,
         conciergePublicKey
       );
-      const { rumor: suggestionRumor } = unwrapAndDecrypt(suggestionWrap, conciergePrivateKey);
+      const suggestionRumor = unwrapEvent(suggestionWrap, conciergePrivateKey);
 
       // Step 3: User sends modification request (9903) accepting the suggested time
       const modificationRequest: ReservationModificationRequest = {
@@ -800,7 +800,7 @@ describe("reservationEvents", () => {
         conciergePrivateKey,
         restaurantPublicKey
       );
-      const { rumor: modRequestRumor } = unwrapAndDecrypt(modRequestWrap, restaurantPrivateKey);
+      const modRequestRumor = unwrapEvent(modRequestWrap, restaurantPrivateKey);
       const parsedModRequest = parseReservationModificationRequest(
         modRequestRumor,
         restaurantPrivateKey
@@ -822,7 +822,7 @@ describe("reservationEvents", () => {
         conciergePublicKey
       );
       const confirmWrap = wrapEvent(confirmTemplate, restaurantPrivateKey, conciergePublicKey);
-      const { rumor: confirmRumor } = unwrapAndDecrypt(confirmWrap, conciergePrivateKey);
+      const confirmRumor = unwrapEvent(confirmWrap, conciergePrivateKey);
       const parsedConfirm = parseReservationModificationResponse(confirmRumor, conciergePrivateKey);
 
       expect(parsedConfirm.status).toBe("confirmed");

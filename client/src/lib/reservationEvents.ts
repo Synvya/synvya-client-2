@@ -16,7 +16,8 @@ import type {
   ValidationResult,
   ValidationError,
 } from "@/types/reservation";
-import { encryptMessage, decryptMessage } from "./nip44";
+// Note: Encryption/decryption handled by NIP-59 seal/gift wrap layers
+// Rumor content is plain text JSON per NIP-59 spec
 
 // Import JSON schemas
 import requestSchema from "@/schemas/reservation.request.schema.json";
@@ -99,11 +100,14 @@ export function validateReservationResponse(payload: unknown): ValidationResult 
 }
 
 /**
- * Creates an encrypted rumor event for a reservation request (kind 9901).
+ * Creates a rumor event for a reservation request (kind 9901).
+ * 
+ * The rumor contains plain text JSON content. Encryption happens at the seal
+ * (kind 13) and gift wrap (kind 1059) layers via NIP-59 wrapping.
  * 
  * @param request - The reservation request payload
- * @param senderPrivateKey - Sender's private key for encryption
- * @param recipientPublicKey - Recipient's public key for encryption
+ * @param senderPrivateKey - Sender's private key (used for rumor ID generation)
+ * @param recipientPublicKey - Recipient's public key (for p tag)
  * @param additionalTags - Optional additional tags (e.g., thread markers)
  * @returns Event template ready to be wrapped with NIP-59
  * @throws Error if validation fails
@@ -138,17 +142,11 @@ export function buildReservationRequest(
     throw new Error(`Invalid reservation request: ${errorMessages}`);
   }
 
-  // Encrypt the payload
-  const encrypted = encryptMessage(
-    JSON.stringify(request),
-    senderPrivateKey,
-    recipientPublicKey
-  );
-
-  // Build event template
+  // Build event template with plain text JSON content
+  // Encryption happens at seal/gift wrap layers via NIP-59
   return {
     kind: 9901,
-    content: encrypted,
+    content: JSON.stringify(request),
     tags: [
       ["p", recipientPublicKey],
       ...additionalTags,
@@ -158,15 +156,18 @@ export function buildReservationRequest(
 }
 
 /**
- * Creates an encrypted rumor event for a reservation response (kind 9902).
+ * Creates a rumor event for a reservation response (kind 9902).
+ * 
+ * The rumor contains plain text JSON content. Encryption happens at the seal
+ * (kind 13) and gift wrap (kind 1059) layers via NIP-59 wrapping.
  * 
  * IMPORTANT: When responding to a reservation request, the `e` tag in additionalTags
  * MUST reference the UNSIGNED 9901 RUMOR ID of the original request, per NIP-17.
  * This is the ID of the unsigned kind 9901 event before it was sealed and gift-wrapped.
  * 
  * @param response - The reservation response payload
- * @param senderPrivateKey - Sender's private key for encryption
- * @param recipientPublicKey - Recipient's public key for encryption
+ * @param senderPrivateKey - Sender's private key (used for rumor ID generation)
+ * @param recipientPublicKey - Recipient's public key (for p tag)
  * @param additionalTags - Optional additional tags (e.g., thread markers)
  *                        MUST include `["e", unsigned9901RumorId, "", "root"]` for threading
  * @returns Event template ready to be wrapped with NIP-59
@@ -200,17 +201,11 @@ export function buildReservationResponse(
     throw new Error(`Invalid reservation response: ${errorMessages}`);
   }
 
-  // Encrypt the payload
-  const encrypted = encryptMessage(
-    JSON.stringify(response),
-    senderPrivateKey,
-    recipientPublicKey
-  );
-
-  // Build event template
+  // Build event template with plain text JSON content
+  // Encryption happens at seal/gift wrap layers via NIP-59
   return {
     kind: 9902,
-    content: encrypted,
+    content: JSON.stringify(response),
     tags: [
       ["p", recipientPublicKey],
       ...additionalTags,
@@ -220,12 +215,14 @@ export function buildReservationResponse(
 }
 
 /**
- * Parses and decrypts a reservation request from a rumor event.
+ * Parses a reservation request from a rumor event.
+ * 
+ * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
  * 
  * @param rumor - The unwrapped rumor event (kind 9901)
- * @param recipientPrivateKey - Recipient's private key for decryption
+ * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
  * @returns Parsed and validated reservation request
- * @throws Error if decryption or validation fails
+ * @throws Error if parsing or validation fails
  * 
  * @example
  * ```typescript
@@ -245,9 +242,9 @@ export function parseReservationRequest(
     throw new Error(`Expected kind 9901, got ${rumor.kind}`);
   }
 
-  // Decrypt content
-  const decrypted = decryptMessage(rumor.content, recipientPrivateKey, rumor.pubkey);
-  const payload = JSON.parse(decrypted);
+  // Parse plain text JSON content
+  // Decryption happened at seal/gift wrap layers via NIP-59
+  const payload = JSON.parse(rumor.content);
 
   // Validate
   const validation = validateReservationRequest(payload);
@@ -260,12 +257,14 @@ export function parseReservationRequest(
 }
 
 /**
- * Parses and decrypts a reservation response from a rumor event.
+ * Parses a reservation response from a rumor event.
+ * 
+ * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
  * 
  * @param rumor - The unwrapped rumor event (kind 9902)
- * @param recipientPrivateKey - Recipient's private key for decryption
+ * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
  * @returns Parsed and validated reservation response
- * @throws Error if decryption or validation fails
+ * @throws Error if parsing or validation fails
  * 
  * @example
  * ```typescript
@@ -283,9 +282,9 @@ export function parseReservationResponse(
     throw new Error(`Expected kind 9902, got ${rumor.kind}`);
   }
 
-  // Decrypt content
-  const decrypted = decryptMessage(rumor.content, recipientPrivateKey, rumor.pubkey);
-  const payload = JSON.parse(decrypted);
+  // Parse plain text JSON content
+  // Decryption happened at seal/gift wrap layers via NIP-59
+  const payload = JSON.parse(rumor.content);
 
   // Validate
   const validation = validateReservationResponse(payload);
@@ -362,7 +361,10 @@ export function validateReservationModificationResponse(payload: unknown): Valid
 }
 
 /**
- * Creates an encrypted rumor event for a reservation modification request (kind 9903).
+ * Creates a rumor event for a reservation modification request (kind 9903).
+ * 
+ * The rumor contains plain text JSON content. Encryption happens at the seal
+ * (kind 13) and gift wrap (kind 1059) layers via NIP-59 wrapping.
  * 
  * IMPORTANT: When sending a modification request, the `e` tag in additionalTags
  * MUST reference the UNSIGNED RUMOR IDs per NIP-17:
@@ -370,8 +372,8 @@ export function validateReservationModificationResponse(payload: unknown): Valid
  * - Reply: unsigned 9902 rumor ID (the response being modified)
  * 
  * @param request - The reservation modification request payload
- * @param senderPrivateKey - Sender's private key for encryption
- * @param recipientPublicKey - Recipient's public key for encryption
+ * @param senderPrivateKey - Sender's private key (used for rumor ID generation)
+ * @param recipientPublicKey - Recipient's public key (for p tag)
  * @param additionalTags - Optional additional tags (e.g., thread markers)
  *                        MUST include `["e", unsigned9901RumorId, "", "root"]` and
  *                        `["e", unsigned9902RumorId, "", "reply"]` for threading
@@ -405,17 +407,11 @@ export function buildReservationModificationRequest(
     throw new Error(`Invalid reservation modification request: ${errorMessages}`);
   }
 
-  // Encrypt the payload
-  const encrypted = encryptMessage(
-    JSON.stringify(request),
-    senderPrivateKey,
-    recipientPublicKey
-  );
-
-  // Build event template
+  // Build event template with plain text JSON content
+  // Encryption happens at seal/gift wrap layers via NIP-59
   return {
     kind: 9903,
-    content: encrypted,
+    content: JSON.stringify(request),
     tags: [
       ["p", recipientPublicKey],
       ...additionalTags,
@@ -425,7 +421,10 @@ export function buildReservationModificationRequest(
 }
 
 /**
- * Creates an encrypted rumor event for a reservation modification response (kind 9904).
+ * Creates a rumor event for a reservation modification response (kind 9904).
+ * 
+ * The rumor contains plain text JSON content. Encryption happens at the seal
+ * (kind 13) and gift wrap (kind 1059) layers via NIP-59 wrapping.
  * 
  * IMPORTANT: When responding to a modification request, the `e` tag in additionalTags
  * MUST reference the UNSIGNED RUMOR IDs per NIP-17:
@@ -433,8 +432,8 @@ export function buildReservationModificationRequest(
  * - Reply: unsigned 9903 rumor ID (the modification request being responded to)
  * 
  * @param response - The reservation modification response payload
- * @param senderPrivateKey - Sender's private key for encryption
- * @param recipientPublicKey - Recipient's public key for encryption
+ * @param senderPrivateKey - Sender's private key (used for rumor ID generation)
+ * @param recipientPublicKey - Recipient's public key (for p tag)
  * @param additionalTags - Optional additional tags (e.g., thread markers)
  *                        MUST include `["e", unsigned9901RumorId, "", "root"]` and
  *                        `["e", unsigned9903RumorId, "", "reply"]` for threading
@@ -468,17 +467,11 @@ export function buildReservationModificationResponse(
     throw new Error(`Invalid reservation modification response: ${errorMessages}`);
   }
 
-  // Encrypt the payload
-  const encrypted = encryptMessage(
-    JSON.stringify(response),
-    senderPrivateKey,
-    recipientPublicKey
-  );
-
-  // Build event template
+  // Build event template with plain text JSON content
+  // Encryption happens at seal/gift wrap layers via NIP-59
   return {
     kind: 9904,
-    content: encrypted,
+    content: JSON.stringify(response),
     tags: [
       ["p", recipientPublicKey],
       ...additionalTags,
@@ -488,12 +481,14 @@ export function buildReservationModificationResponse(
 }
 
 /**
- * Parses and decrypts a reservation modification request from a rumor event.
+ * Parses a reservation modification request from a rumor event.
+ * 
+ * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
  * 
  * @param rumor - The unwrapped rumor event (kind 9903)
- * @param recipientPrivateKey - Recipient's private key for decryption
+ * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
  * @returns Parsed and validated reservation modification request
- * @throws Error if decryption or validation fails
+ * @throws Error if parsing or validation fails
  * 
  * @example
  * ```typescript
@@ -512,9 +507,9 @@ export function parseReservationModificationRequest(
     throw new Error(`Expected kind 9903, got ${rumor.kind}`);
   }
 
-  // Decrypt content
-  const decrypted = decryptMessage(rumor.content, recipientPrivateKey, rumor.pubkey);
-  const payload = JSON.parse(decrypted);
+  // Parse plain text JSON content
+  // Decryption happened at seal/gift wrap layers via NIP-59
+  const payload = JSON.parse(rumor.content);
 
   // Validate
   const validation = validateReservationModificationRequest(payload);
@@ -527,12 +522,14 @@ export function parseReservationModificationRequest(
 }
 
 /**
- * Parses and decrypts a reservation modification response from a rumor event.
+ * Parses a reservation modification response from a rumor event.
+ * 
+ * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
  * 
  * @param rumor - The unwrapped rumor event (kind 9904)
- * @param recipientPrivateKey - Recipient's private key for decryption
+ * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
  * @returns Parsed and validated reservation modification response
- * @throws Error if decryption or validation fails
+ * @throws Error if parsing or validation fails
  * 
  * @example
  * ```typescript
@@ -550,9 +547,9 @@ export function parseReservationModificationResponse(
     throw new Error(`Expected kind 9904, got ${rumor.kind}`);
   }
 
-  // Decrypt content
-  const decrypted = decryptMessage(rumor.content, recipientPrivateKey, rumor.pubkey);
-  const payload = JSON.parse(decrypted);
+  // Parse plain text JSON content
+  // Decryption happened at seal/gift wrap layers via NIP-59
+  const payload = JSON.parse(rumor.content);
 
   // Validate
   const validation = validateReservationModificationResponse(payload);
