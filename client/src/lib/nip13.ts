@@ -181,6 +181,7 @@ export async function mineEvent(
 
   let nonce = startNonce;
   let bestDifficulty = 0;
+  let progressCalled = false;
 
   for (let i = 0; i < maxIterations; i++) {
     // Create unsigned event with current nonce
@@ -207,6 +208,11 @@ export async function mineEvent(
 
     // Check if we've reached target difficulty
     if (difficulty >= targetDifficulty) {
+      // Ensure progress callback is called at least once
+      if (onProgress && !progressCalled) {
+        onProgress(nonce, bestDifficulty);
+      }
+      
       // Finalize with correct signature
       const finalEvent = finalizeEvent(
         {
@@ -228,6 +234,7 @@ export async function mineEvent(
     // Progress callback
     if (onProgress && i % progressInterval === 0) {
       onProgress(nonce, bestDifficulty);
+      progressCalled = true;
     }
 
     nonce++;
@@ -279,6 +286,7 @@ export async function mineEventUnsigned(
 
   let nonce = startNonce;
   let bestDifficulty = 0;
+  let progressCalled = false;
 
   for (let i = 0; i < maxIterations; i++) {
     const tags = [
@@ -302,6 +310,11 @@ export async function mineEventUnsigned(
     }
 
     if (difficulty >= targetDifficulty) {
+      // Ensure progress callback is called at least once
+      if (onProgress && !progressCalled) {
+        onProgress(nonce, bestDifficulty);
+      }
+      
       return {
         template: {
           kind: template.kind,
@@ -316,6 +329,7 @@ export async function mineEventUnsigned(
 
     if (onProgress && i % progressInterval === 0) {
       onProgress(nonce, bestDifficulty);
+      progressCalled = true;
     }
 
     nonce++;
