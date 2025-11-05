@@ -30,6 +30,7 @@ export interface ReservationActionState {
 export interface AcceptOptions {
     table?: string;
     message?: string;
+    iso_time?: string | null; // Optional override for iso_time (used when auto-replying to modification responses)
 }
 
 export interface DeclineOptions {
@@ -175,7 +176,7 @@ export function useReservationActions() {
         ): Promise<void> => {
             const response: ReservationResponse = {
                 status: "confirmed",
-                iso_time: (request.payload as any).iso_time,
+                iso_time: options.iso_time !== undefined ? options.iso_time : (request.payload as any).iso_time,
                 table: options.table || null,
                 message: options.message,
             };
@@ -218,13 +219,19 @@ export function useReservationActions() {
                 const privateKey = skFromNsec(nsec);
 
                 // Find the original request's rumor ID for threading
-                // - If this is a request message, use its own rumor ID
+                // CRITICAL: Always use the unsigned 9901 rumor ID as the root
+                // - If this is a request message (kind 9901), use its own rumor ID
                 // - If this is a response/modification message, extract root from e tags
                 let rootRumorId: string;
                 if (response.type === "request") {
+                    // This is the original 9901 request - use its rumor ID directly
+                    if (response.rumor.kind !== 9901) {
+                        throw new Error(`Expected request rumor to be kind 9901, got ${response.rumor.kind}`);
+                    }
                     rootRumorId = response.rumor.id;
                 } else {
                     // Extract root rumor ID from e tags (per NIP-17)
+                    // The root e tag should point to the unsigned 9901 rumor ID
                     const rootTag = response.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
                     if (!rootTag) {
                         throw new Error("Cannot find root rumor ID in message tags");
@@ -241,12 +248,11 @@ export function useReservationActions() {
                     constraints: options.constraints,
                 };
 
-                // Build thread tags per NIP-17:
-                // - Root: unsigned 9901 rumor ID (the original request)
-                // - Reply: unsigned 9902 rumor ID (the response being modified)
+                // Build thread tags per NIP-17 and NIP-RR:
+                // - Root: ALWAYS the unsigned 9901 rumor ID (the original request)
+                // - Only use root tag, no reply tags per NIP-RR specification
                 const threadTag: string[][] = [
-                    ["e", rootRumorId, "", "root"],
-                    ["e", response.rumor.id, "", "reply"],
+                    ["e", rootRumorId, "", "root"]
                 ];
 
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern

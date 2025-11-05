@@ -38,14 +38,18 @@ export function ReservationsPage(): JSX.Element {
     startListening,
     stopListening,
     getThreads,
+    messages,
   } = useReservations();
-
+  
+  const { acceptReservation, declineReservation } = useReservationActions();
   const threads = getThreads();
   const loadPersistedMessages = useReservations((state) => state.loadPersistedMessages);
   const isInitialized = useReservations((state) => state.isInitialized);
+  const merchantPubkey = useReservations((state) => state.merchantPubkey);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const [processedModificationResponses, setProcessedModificationResponses] = useState<Set<string>>(new Set());
 
   const toggleThread = (threadId: string) => {
     setExpandedThreads((prev) => {
@@ -58,6 +62,67 @@ export function ReservationsPage(): JSX.Element {
       return next;
     });
   };
+
+  // Auto-reply to modification responses (kind:9904)
+  // When restaurant receives a modification response, automatically send a reservation response (kind:9902)
+  useEffect(() => {
+    if (!merchantPubkey || !messages.length) return;
+
+    const handleAutoReply = async () => {
+      for (const message of messages) {
+        // Only process modification-response messages sent TO the merchant (not from the merchant)
+        if (message.type === "modification-response" && message.senderPubkey !== merchantPubkey) {
+          // Skip if already processed
+          if (processedModificationResponses.has(message.rumor.id)) {
+            continue;
+          }
+
+          const modificationResponse = message.payload as ReservationModificationResponse;
+          
+          // Find the original request in the thread to reply to
+          // The root e tag points to the unsigned 9901 rumor ID
+          const rootTag = message.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
+          if (!rootTag) {
+            console.warn("Could not find root tag in modification response");
+            continue;
+          }
+          
+          const rootRumorId = rootTag[1];
+          const originalRequest = messages.find(m => 
+            m.type === "request" && m.rumor.id === rootRumorId
+          );
+          
+          if (!originalRequest) {
+            console.warn("Could not find original request for auto-reply");
+            continue;
+          }
+
+          try {
+            // Send reservation response with same status as modification response
+            // Per NIP-RR: when restaurant receives kind:9904, auto-reply with kind:9902
+            // The response should use the iso_time from the modification response if confirmed
+            if (modificationResponse.status === "confirmed") {
+              await acceptReservation(originalRequest, {
+                message: modificationResponse.message,
+                iso_time: modificationResponse.iso_time || undefined,
+              });
+            } else if (modificationResponse.status === "declined") {
+              await declineReservation(originalRequest, {
+                message: modificationResponse.message,
+              });
+            }
+
+            // Mark as processed
+            setProcessedModificationResponses(prev => new Set(prev).add(message.rumor.id));
+          } catch (error) {
+            console.error("Failed to auto-reply to modification response:", error);
+          }
+        }
+      }
+    };
+
+    handleAutoReply();
+  }, [messages, merchantPubkey, acceptReservation, declineReservation, processedModificationResponses]);
 
   // Load persisted messages immediately on mount
   useEffect(() => {
@@ -212,7 +277,9 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
       return response.status;
     }
     if (latestMessage.type === "modification-request") {
-      return "pending"; // Awaiting restaurant's response to modification
+      // If modification request is from merchant (restaurant), it's pending customer response
+      // If modification request is from customer, it's pending restaurant response
+      return "pending";
     }
     if (latestMessage.type === "request") {
       return "pending"; // Awaiting restaurant's response
@@ -486,6 +553,12 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
   const [modifyTime, setModifyTime] = useState("");
   const [modifyPartySize, setModifyPartySize] = useState("");
   const [modifyNotes, setModifyNotes] = useState("");
+  
+  // Time picker state (for restaurant proposing new time)
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedHour, setSelectedHour] = useState<number>(12);
+  const [selectedMinute, setSelectedMinute] = useState<number>(0);
+  const [selectedAmPm, setSelectedAmPm] = useState<"AM" | "PM">("PM");
 
   const handleAccept = async () => {
     try {
@@ -515,9 +588,20 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
 
 
   const handleSendModificationRequest = async () => {
-    if (!modifyTime || !modifyPartySize) return;
+    if (!selectedDate || !modifyPartySize) return;
     try {
-      const isoTime = new Date(modifyTime).toISOString();
+      // Convert selected date/time to ISO8601 format
+      const [year, month, day] = selectedDate.split('-').map(Number);
+      let hour24 = selectedHour;
+      if (selectedAmPm === "PM" && hour24 !== 12) {
+        hour24 += 12;
+      } else if (selectedAmPm === "AM" && hour24 === 12) {
+        hour24 = 0;
+      }
+      
+      // Create date object with timezone (use local timezone)
+      const localDate = new Date(year, month - 1, day, hour24, selectedMinute);
+      const isoTime = localDate.toISOString();
       
       await sendModificationRequest(message, {
         party_size: parseInt(modifyPartySize),
@@ -525,7 +609,10 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
         notes: modifyNotes || undefined,
       });
       setModifyDialogOpen(false);
-      setModifyTime("");
+      setSelectedDate("");
+      setSelectedHour(12);
+      setSelectedMinute(0);
+      setSelectedAmPm("PM");
       setModifyPartySize("");
       setModifyNotes("");
     } catch (error) {
@@ -643,6 +730,35 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               <Button
                 size="sm"
                 variant="outline"
+                onClick={() => {
+                  // Initialize time picker with original request time
+                  const originalDate = new Date(request.iso_time);
+                  const year = originalDate.getFullYear();
+                  const month = String(originalDate.getMonth() + 1).padStart(2, '0');
+                  const day = String(originalDate.getDate()).padStart(2, '0');
+                  setSelectedDate(`${year}-${month}-${day}`);
+                  
+                  let hour = originalDate.getHours();
+                  const minute = originalDate.getMinutes();
+                  const amPm = hour >= 12 ? "PM" : "AM";
+                  hour = hour % 12;
+                  if (hour === 0) hour = 12;
+                  
+                  setSelectedHour(hour);
+                  setSelectedMinute(Math.round(minute / 15) * 15); // Round to nearest 15 minutes
+                  setSelectedAmPm(amPm);
+                  setModifyPartySize(request.party_size.toString());
+                  setModifyNotes(request.notes || "");
+                  setModifyDialogOpen(true);
+                }}
+                disabled={actionState.loading}
+              >
+                <CalendarDays className="mr-1 h-3 w-3" />
+                Propose New Time
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={() => setDeclineDialogOpen(true)}
                 disabled={actionState.loading}
               >
@@ -735,6 +851,124 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 disabled={actionState.loading}
               >
                 {actionState.loading ? "Sending..." : "Decline Request"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Propose New Time Dialog */}
+        <Dialog open={modifyDialogOpen} onOpenChange={setModifyDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Propose New Time</DialogTitle>
+              <DialogDescription>
+                Suggest an alternative time for this reservation request
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              {/* Date Picker */}
+              <div className="grid gap-2">
+                <Label htmlFor="modify-date">Date *</Label>
+                <Input
+                  id="modify-date"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* Time Picker */}
+              <div className="grid gap-2">
+                <Label>Time *</Label>
+                <div className="flex items-center gap-2">
+                  {/* Hour Select */}
+                  <select
+                    value={selectedHour}
+                    onChange={(e) => setSelectedHour(parseInt(e.target.value))}
+                    className="flex h-10 w-20 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((hour) => (
+                      <option key={hour} value={hour}>
+                        {hour}
+                      </option>
+                    ))}
+                  </select>
+
+                  <span className="text-lg font-semibold">:</span>
+
+                  {/* Minute Select */}
+                  <select
+                    value={selectedMinute}
+                    onChange={(e) => setSelectedMinute(parseInt(e.target.value))}
+                    className="flex h-10 w-20 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {[0, 15, 30, 45].map((minute) => (
+                      <option key={minute} value={minute}>
+                        {String(minute).padStart(2, '0')}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* AM/PM Select */}
+                  <select
+                    value={selectedAmPm}
+                    onChange={(e) => setSelectedAmPm(e.target.value as "AM" | "PM")}
+                    className="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Party Size */}
+              <div className="grid gap-2">
+                <Label htmlFor="modify-party-size">Party Size *</Label>
+                <Input
+                  id="modify-party-size"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={modifyPartySize}
+                  onChange={(e) => setModifyPartySize(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="grid gap-2">
+                <Label htmlFor="modify-notes">Notes (optional)</Label>
+                <Textarea
+                  id="modify-notes"
+                  placeholder="Any additional notes for the guest..."
+                  value={modifyNotes}
+                  onChange={(e) => setModifyNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setModifyDialogOpen(false);
+                  setSelectedDate("");
+                  setSelectedHour(12);
+                  setSelectedMinute(0);
+                  setSelectedAmPm("PM");
+                  setModifyPartySize("");
+                  setModifyNotes("");
+                }}
+                disabled={actionState.loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSendModificationRequest}
+                disabled={actionState.loading || !selectedDate || !modifyPartySize}
+              >
+                {actionState.loading ? "Sending..." : "Send Proposal"}
               </Button>
             </DialogFooter>
           </DialogContent>
