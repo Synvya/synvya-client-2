@@ -9,8 +9,6 @@
   },
   "constraints": {
     "earliest_iso_time": "2025-10-17T18:30:00-07:00",
-    "latest_iso_time": "2025-10-17T20:00:00-07:00",
-    "outdoor_ok": true,
-    "accessibility_required": false
+    "latest_iso_time": "2025-10-17T20:00:00-07:00"
   }
 }

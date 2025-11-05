@@ -31,7 +31,7 @@
     },
     "content": {
       "type": "string",
-      "description": "NIP-44 encrypted payload (opaque ciphertext)"
+      "description": "Plain text JSON payload (not encrypted - encryption occurs at seal/gift wrap layers)"
     }
   }
 }

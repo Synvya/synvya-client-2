@@ -1,8 +1,6 @@
 {
   "status": "confirmed",
   "iso_time": "2025-10-17T19:30:00-07:00",
-  "message": "Perfect! We'll see you at 7:30pm",
-  "table": "T-12",
-  "hold_expires_at": null
+  "message": "Perfect! We'll see you at 7:30pm"
 }
 
