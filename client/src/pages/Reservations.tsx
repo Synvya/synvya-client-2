@@ -29,6 +29,45 @@ import type { ReservationMessage } from "@/services/reservationService";
 import type { ConversationThread } from "@/state/useReservations";
 import { UserLink } from "@/components/UserLink";
 
+/**
+ * Formats an ISO8601 datetime string for display in restaurant UI
+ * Shows the time without timezone offset (restaurant knows their own timezone)
+ */
+function formatDateTimeWithTimezone(isoTime: string): string {
+  // Parse ISO8601 string to extract components
+  // Format: YYYY-MM-DDTHH:mm:ss±HH:MM
+  const isoMatch = isoTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})([+-]\d{2}):(\d{2})$/);
+  
+  if (!isoMatch) {
+    // Fallback: try parsing as Date and show without timezone
+    const date = new Date(isoTime);
+    return date.toLocaleString(undefined, { 
+      dateStyle: 'medium', 
+      timeStyle: 'short'
+    });
+  }
+  
+  const [, year, month, day, hour, minute] = isoMatch;
+  
+  // Format the date
+  const dateStr = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+  
+  // Format the time (keep in 12-hour format)
+  let hourNum = parseInt(hour);
+  const minuteNum = parseInt(minute);
+  const amPm = hourNum >= 12 ? 'PM' : 'AM';
+  hourNum = hourNum % 12;
+  if (hourNum === 0) hourNum = 12;
+  const timeStr = `${hourNum}:${minute.toString().padStart(2, '0')} ${amPm}`;
+  
+  // Show just the date and time (restaurant knows their own timezone)
+  return `${dateStr} at ${timeStr}`;
+}
+
 export function ReservationsPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
   const relays = useRelays((state) => state.relays);
@@ -309,7 +348,7 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
                 </div>
                 <div>
                   <h3 className="font-semibold">
-                    {request.party_size} guests • {new Date(request.iso_time).toLocaleDateString()}
+                    {request.party_size} guests • {formatDateTimeWithTimezone(request.iso_time)}
                   </h3>
                   <p className="text-xs text-muted-foreground">
                     <UserLink pubkey={partnerPubkey} contactName={request.contact?.name} />
@@ -324,7 +363,7 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {new Date(request.iso_time).toLocaleTimeString()}
+                {formatDateTimeWithTimezone(request.iso_time)}
               </span>
               <span className="flex items-center gap-1">
                 <MessageSquare className="h-3 w-3" />
@@ -419,7 +458,7 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
               <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
             </div>
             <div className="text-sm">
-              <p>{request.party_size} guests on {new Date(request.iso_time).toLocaleString()}</p>
+              <p>{request.party_size} guests on {formatDateTimeWithTimezone(request.iso_time)}</p>
               {request.notes && <p className="mt-1 text-muted-foreground">{request.notes}</p>}
               {request.contact?.phone && (
                 <p className="mt-1">
@@ -451,7 +490,7 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
               <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
             </div>
             <div className="text-sm">
-              <p>{request.party_size} guests on {new Date(request.iso_time).toLocaleString()}</p>
+              <p>{request.party_size} guests on {formatDateTimeWithTimezone(request.iso_time)}</p>
               {request.notes && <p className="mt-1 text-muted-foreground">{request.notes}</p>}
               {request.contact?.phone && (
                 <p className="mt-1">
@@ -486,7 +525,7 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
             </div>
             <div className="text-sm">
               {response.status === "confirmed" && response.iso_time && (
-                <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
+                <p>Confirmed for {formatDateTimeWithTimezone(response.iso_time)}</p>
               )}
               {response.status === "declined" && <p className="text-destructive">Declined</p>}
               {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
@@ -512,7 +551,7 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
           </div>
           <div className="text-sm">
             {response.status === "confirmed" && response.iso_time && (
-              <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
+              <p>Confirmed for {formatDateTimeWithTimezone(response.iso_time)}</p>
             )}
             {response.status === "declined" && <p className="text-destructive">Declined</p>}
             {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
@@ -590,7 +629,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
   const handleSendModificationRequest = async () => {
     if (!selectedDate || !modifyPartySize) return;
     try {
-      // Convert selected date/time to ISO8601 format
+      // Convert selected date/time to ISO8601 format with timezone offset
       const [year, month, day] = selectedDate.split('-').map(Number);
       let hour24 = selectedHour;
       if (selectedAmPm === "PM" && hour24 !== 12) {
@@ -599,9 +638,21 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
         hour24 = 0;
       }
       
-      // Create date object with timezone (use local timezone)
+      // Create date object in local timezone
       const localDate = new Date(year, month - 1, day, hour24, selectedMinute);
-      const isoTime = localDate.toISOString();
+      
+      // Format as ISO8601 with timezone offset (not UTC)
+      // Get timezone offset in minutes and convert to +/-HH:MM format
+      const offsetMinutes = -localDate.getTimezoneOffset(); // Note: getTimezoneOffset returns opposite sign
+      const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+      const offsetMins = Math.abs(offsetMinutes) % 60;
+      const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+      const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+      
+      // Format date components
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const timeStr = `${String(hour24).padStart(2, '0')}:${String(selectedMinute).padStart(2, '0')}:00`;
+      const isoTime = `${dateStr}T${timeStr}${offsetString}`;
       
       await sendModificationRequest(message, {
         party_size: parseInt(modifyPartySize),
@@ -685,11 +736,11 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{new Date(request.iso_time).toLocaleDateString()}</span>
+                  <span>{formatDateTimeWithTimezone(request.iso_time)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>{new Date(request.iso_time).toLocaleTimeString()}</span>
+                  <span className="text-muted-foreground">Time shown in restaurant's timezone</span>
                 </div>
                 {request.notes && (
                   <div className="flex items-start gap-2">
@@ -776,7 +827,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               <DialogTitle>Accept Reservation</DialogTitle>
               <DialogDescription>
                 Confirm the reservation for {request.party_size} guests on{" "}
-                {new Date(request.iso_time).toLocaleString()}
+                {formatDateTimeWithTimezone(request.iso_time)}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -822,7 +873,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               <DialogTitle>Decline Reservation</DialogTitle>
               <DialogDescription>
                 Decline the reservation request for {request.party_size} guests on{" "}
-                {new Date(request.iso_time).toLocaleString()}
+                {formatDateTimeWithTimezone(request.iso_time)}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -1017,11 +1068,11 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{new Date(request.iso_time).toLocaleDateString()}</span>
+                  <span>{formatDateTimeWithTimezone(request.iso_time)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>{new Date(request.iso_time).toLocaleTimeString()}</span>
+                  <span className="text-muted-foreground">Time shown in restaurant's timezone</span>
                 </div>
                 {request.notes && (
                   <div className="flex items-start gap-2">
@@ -1183,7 +1234,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
             
             {response.status === "confirmed" && response.iso_time && (
             <div className="text-sm">
-              <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
+              <p>Confirmed for {formatDateTimeWithTimezone(response.iso_time)}</p>
             </div>
             )}
             
@@ -1227,7 +1278,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
           
           {response.status === "confirmed" && response.iso_time && (
             <div className="text-sm">
-              <p>Confirmed for {new Date(response.iso_time).toLocaleString()}</p>
+              <p>Confirmed for {formatDateTimeWithTimezone(response.iso_time)}</p>
               {response.table && <p className="text-muted-foreground">Table: {response.table}</p>}
             </div>
           )}
