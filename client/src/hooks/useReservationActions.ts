@@ -83,6 +83,11 @@ export function useReservationActions() {
                 // Find the original request's rumor ID for threading
                 // Per NIP-17, all messages in a thread must reference the unsigned 9901 rumor ID
                 // CRITICAL: Must use the rumor.id from the ORIGINAL 9901 request rumor, NOT gift wrap or seal IDs
+                console.log("[useReservationActions] sendResponse called with request type:", request.type);
+                console.log("[useReservationActions] request.rumor.id:", request.rumor.id);
+                console.log("[useReservationActions] request.rumor.kind:", request.rumor.kind);
+                console.log("[useReservationActions] request.giftWrap.id:", request.giftWrap.id);
+                
                 let rootRumorId: string;
                 if (request.type === "request") {
                     // For requests, use the rumor ID directly (it's the thread root)
@@ -92,6 +97,7 @@ export function useReservationActions() {
                         throw new Error(`Expected request rumor to be kind 9901, got ${request.rumor.kind}`);
                     }
                     rootRumorId = request.rumor.id;
+                    console.log("[useReservationActions] Using request.rumor.id as root:", rootRumorId);
                 } else {
                     // Extract root rumor ID from e tags (per NIP-17)
                     // The root e tag should point to the unsigned 9901 rumor ID
@@ -100,7 +106,10 @@ export function useReservationActions() {
                         throw new Error("Cannot find root rumor ID in message tags");
                     }
                     rootRumorId = rootTag[1];
+                    console.log("[useReservationActions] Extracted root from e tag:", rootRumorId);
                 }
+                
+                console.log("[useReservationActions] Final rootRumorId for response:", rootRumorId);
 
                 // Build thread tag - MUST reference the unsigned 9901 rumor ID per NIP-17
                 // The unsigned 9901 event ID threads all subsequent messages together
