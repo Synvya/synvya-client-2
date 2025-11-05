@@ -81,13 +81,16 @@ export function useReservationActions() {
                 const privateKey = skFromNsec(nsec);
 
                 // Find the original request's rumor ID for threading
-                // - If this is a request message, use its own rumor ID
+                // Per NIP-17, all messages in a thread must reference the unsigned 9901 rumor ID
+                // - If this is a request message, use its own rumor ID (it's the root)
                 // - If this is a response/modification message, extract root from e tags
                 let rootRumorId: string;
                 if (request.type === "request") {
+                    // For requests, use the rumor ID directly (it's the thread root)
                     rootRumorId = request.rumor.id;
                 } else {
                     // Extract root rumor ID from e tags (per NIP-17)
+                    // The root e tag should point to the unsigned 9901 rumor ID
                     const rootTag = request.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
                     if (!rootTag) {
                         throw new Error("Cannot find root rumor ID in message tags");
