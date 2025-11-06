@@ -191,8 +191,18 @@ export const useReservations = create<ReservationState>((set, get) => ({
     const threads: ConversationThread[] = [];
     
     for (const [rootEventId, threadMessages] of threadMap.entries()) {
+      // Deduplicate by rumor ID (Self CC messages will have same rumor ID)
+      const seenRumorIds = new Set<string>();
+      const uniqueMessages = threadMessages.filter(msg => {
+        if (seenRumorIds.has(msg.rumor.id)) {
+          return false; // Skip duplicate
+        }
+        seenRumorIds.add(msg.rumor.id);
+        return true;
+      });
+
       // Sort messages chronologically
-      const sortedMessages = [...threadMessages].sort(
+      const sortedMessages = [...uniqueMessages].sort(
         (a, b) => a.rumor.created_at - b.rumor.created_at
       );
 
