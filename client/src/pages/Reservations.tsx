@@ -4,7 +4,7 @@
  * Displays inbox of reservation requests and responses
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { useReservations } from "@/state/useReservations";
@@ -88,7 +88,8 @@ export function ReservationsPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
-  const [processedModificationResponses, setProcessedModificationResponses] = useState<Set<string>>(new Set());
+  const processedModificationResponsesRef = useRef<Set<string>>(new Set());
+  const [isProcessingAutoReply, setIsProcessingAutoReply] = useState(false);
 
   const toggleThread = (threadId: string) => {
     setExpandedThreads((prev) => {
@@ -105,63 +106,86 @@ export function ReservationsPage(): JSX.Element {
   // Auto-reply to modification responses (kind:9904)
   // When restaurant receives a modification response, automatically send a reservation response (kind:9902)
   useEffect(() => {
-    if (!merchantPubkey || !messages.length) return;
+    if (!merchantPubkey || !messages.length || isProcessingAutoReply) return;
 
     const handleAutoReply = async () => {
-      for (const message of messages) {
-        // Only process modification-response messages sent TO the merchant (not from the merchant)
-        if (message.type === "modification-response" && message.senderPubkey !== merchantPubkey) {
-          // Skip if already processed
-          if (processedModificationResponses.has(message.rumor.id)) {
-            continue;
-          }
-
-          const modificationResponse = message.payload as ReservationModificationResponse;
-          
-          // Find the original request in the thread to reply to
-          // The root e tag points to the unsigned 9901 rumor ID
-          const rootTag = message.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
-          if (!rootTag) {
-            console.warn("Could not find root tag in modification response");
-            continue;
-          }
-          
-          const rootRumorId = rootTag[1];
-          const originalRequest = messages.find(m => 
-            m.type === "request" && m.rumor.id === rootRumorId
-          );
-          
-          if (!originalRequest) {
-            console.warn("Could not find original request for auto-reply");
-            continue;
-          }
-
-          try {
-            // Send reservation response with same status as modification response
-            // Per NIP-RR: when restaurant receives kind:9904, auto-reply with kind:9902
-            // The response should use the iso_time from the modification response if confirmed
-            if (modificationResponse.status === "confirmed") {
-              await acceptReservation(originalRequest, {
-                message: modificationResponse.message,
-                iso_time: modificationResponse.iso_time || undefined,
-              });
-            } else if (modificationResponse.status === "declined") {
-              await declineReservation(originalRequest, {
-                message: modificationResponse.message,
-              });
+      setIsProcessingAutoReply(true);
+      
+      try {
+        for (const message of messages) {
+          // Only process modification-response messages sent TO the merchant (not from the merchant)
+          if (message.type === "modification-response" && message.senderPubkey !== merchantPubkey) {
+            // Skip if already processed
+            if (processedModificationResponsesRef.current.has(message.rumor.id)) {
+              continue;
             }
 
-            // Mark as processed
-            setProcessedModificationResponses(prev => new Set(prev).add(message.rumor.id));
-          } catch (error) {
-            console.error("Failed to auto-reply to modification response:", error);
+            const modificationResponse = message.payload as ReservationModificationResponse;
+            
+            // Find the original request in the thread to reply to
+            // The root e tag points to the unsigned 9901 rumor ID
+            const rootTag = message.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
+            if (!rootTag) {
+              console.warn("Could not find root tag in modification response");
+              continue;
+            }
+            
+            const rootRumorId = rootTag[1];
+            const originalRequest = messages.find(m => 
+              m.type === "request" && m.rumor.id === rootRumorId
+            );
+            
+            if (!originalRequest) {
+              console.warn("Could not find original request for auto-reply");
+              continue;
+            }
+
+            // Check if we've already sent a response for this modification-response
+            // by looking for a response message that references the same root
+            const alreadyReplied = messages.some(m => {
+              if (m.type !== "response") return false;
+              const responseRootTag = m.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
+              return responseRootTag && responseRootTag[1] === rootRumorId && 
+                     m.rumor.created_at >= message.rumor.created_at;
+            });
+
+            if (alreadyReplied) {
+              // Already replied, mark as processed
+              processedModificationResponsesRef.current.add(message.rumor.id);
+              continue;
+            }
+
+            try {
+              // Mark as processed BEFORE sending to prevent duplicates
+              processedModificationResponsesRef.current.add(message.rumor.id);
+
+              // Send reservation response with same status as modification response
+              // Per NIP-RR: when restaurant receives kind:9904, auto-reply with kind:9902
+              // The response should use the iso_time from the modification response if confirmed
+              if (modificationResponse.status === "confirmed") {
+                await acceptReservation(originalRequest, {
+                  message: modificationResponse.message,
+                  iso_time: modificationResponse.iso_time || undefined,
+                });
+              } else if (modificationResponse.status === "declined") {
+                await declineReservation(originalRequest, {
+                  message: modificationResponse.message,
+                });
+              }
+            } catch (error) {
+              console.error("Failed to auto-reply to modification response:", error);
+              // Remove from processed set on error so we can retry
+              processedModificationResponsesRef.current.delete(message.rumor.id);
+            }
           }
         }
+      } finally {
+        setIsProcessingAutoReply(false);
       }
     };
 
     handleAutoReply();
-  }, [messages, merchantPubkey, acceptReservation, declineReservation, processedModificationResponses]);
+  }, [messages, merchantPubkey, acceptReservation, declineReservation, isProcessingAutoReply]);
 
   // Load persisted messages immediately on mount
   useEffect(() => {
