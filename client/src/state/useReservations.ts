@@ -201,10 +201,35 @@ export const useReservations = create<ReservationState>((set, get) => ({
         return true;
       });
 
-      // Sort messages chronologically
-      const sortedMessages = [...uniqueMessages].sort(
-        (a, b) => a.rumor.created_at - b.rumor.created_at
-      );
+      // Sort messages chronologically, with secondary sort by message type for protocol flow
+      // When timestamps are equal, ensure correct order:
+      // 1. request (9901)
+      // 2. modification-request (9903)
+      // 3. modification-response (9904) - customer responds to modification request
+      // 4. response (9902) - restaurant auto-replies after modification response
+      const getMessageTypeOrder = (type: ReservationMessage["type"]): number => {
+        switch (type) {
+          case "request":
+            return 1;
+          case "modification-request":
+            return 2;
+          case "modification-response":
+            return 3;
+          case "response":
+            return 4;
+          default:
+            return 99;
+        }
+      };
+
+      const sortedMessages = [...uniqueMessages].sort((a, b) => {
+        // Primary sort: timestamp
+        if (a.rumor.created_at !== b.rumor.created_at) {
+          return a.rumor.created_at - b.rumor.created_at;
+        }
+        // Secondary sort: message type order for protocol flow
+        return getMessageTypeOrder(a.type) - getMessageTypeOrder(b.type);
+      });
 
       // Find the initial request (first message with type "request" or "modification-request")
       // Prioritize "request" over "modification-request" as initial request
