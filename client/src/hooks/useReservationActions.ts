@@ -144,19 +144,9 @@ export function useReservationActions() {
                     publishToRelays(giftWrapToSelf, relays),
                 ]);
 
-        // Add response to local state immediately for instant UI feedback
-        // Note: With Self CC implemented, this message will also come back
-        // from the relay subscription, but we add it now for responsiveness
-        if (pubkey) {
-          const responseMessage: ReservationMessage = {
-            rumor: rumor,
-            type: "response",
-            payload: response,
-            senderPubkey: pubkey, // We're the sender
-            giftWrap: giftWrapToSelf, // Use self-addressed wrap for consistency
-          };
-          addMessage(responseMessage);
-        }
+        // DON'T add message immediately - let it come back from relay subscription
+        // This prevents duplicates from Self CC pattern
+        // The relay subscription will receive the Self CC message and add it via addMessage
 
                 setState({ loading: false, error: null, success: true });
             } catch (error) {
@@ -166,7 +156,7 @@ export function useReservationActions() {
                 throw error;
             }
         },
-        [relays, addMessage, pubkey]
+        [relays, pubkey]
     );
 
     const acceptReservation = useCallback(
@@ -292,17 +282,9 @@ export function useReservationActions() {
                     publishToRelays(giftWrapToSelf, relays),
                 ]);
 
-                // Add modification request to local state immediately
-                if (pubkey) {
-                    const requestMessage: ReservationMessage = {
-                        rumor: rumor,
-                        type: "modification-request",
-                        payload: modificationRequest,
-                        senderPubkey: pubkey,
-                        giftWrap: giftWrapToSelf,
-                    };
-                    addMessage(requestMessage);
-                }
+                // DON'T add message immediately - let it come back from relay subscription
+                // This prevents duplicates from Self CC pattern
+                // The relay subscription will receive the Self CC message and add it via addMessage
 
                 setState({ loading: false, error: null, success: true });
             } catch (error) {
@@ -312,7 +294,7 @@ export function useReservationActions() {
                 throw error;
             }
         },
-        [relays, addMessage, pubkey]
+        [relays, pubkey]
     );
 
     const sendModificationResponse = useCallback(
@@ -381,17 +363,9 @@ export function useReservationActions() {
                     publishToRelays(giftWrapToSelf, relays),
                 ]);
 
-                // Add response to local state immediately
-                if (pubkey) {
-                    const responseMessage: ReservationMessage = {
-                        rumor: rumor,
-                        type: "modification-response",
-                        payload: response,
-                        senderPubkey: pubkey,
-                        giftWrap: giftWrapToSelf,
-                    };
-                    addMessage(responseMessage);
-                }
+                // DON'T add message immediately - let it come back from relay subscription
+                // This prevents duplicates from Self CC pattern
+                // The relay subscription will receive the Self CC message and add it via addMessage
 
                 setState({ loading: false, error: null, success: true });
             } catch (error) {
@@ -401,7 +375,7 @@ export function useReservationActions() {
                 throw error;
             }
         },
-        [relays, addMessage, pubkey]
+        [relays, pubkey]
     );
 
     const acceptModification = useCallback(

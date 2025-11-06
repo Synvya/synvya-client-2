@@ -305,6 +305,35 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
   const request = initialRequest.payload as ReservationRequest;
   const latestTimestamp = new Date(latestMessage.rumor.created_at * 1000);
 
+  // Find the latest confirmed time to display in the top card
+  // This should be the latest confirmed response's iso_time, or fall back to the original request time
+  const getDisplayTime = (): string => {
+    // Search backwards through messages for the latest confirmed time
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.type === "response") {
+        const response = msg.payload as ReservationResponse;
+        if (response.status === "confirmed" && response.iso_time) {
+          return response.iso_time;
+        }
+      } else if (msg.type === "modification-response") {
+        const response = msg.payload as ReservationModificationResponse;
+        if (response.status === "confirmed" && response.iso_time) {
+          return response.iso_time;
+        }
+      } else if (msg.type === "modification-request") {
+        const modRequest = msg.payload as ReservationModificationRequest;
+        if (modRequest.iso_time) {
+          return modRequest.iso_time;
+        }
+      }
+    }
+    // Fall back to original request time
+    return request.iso_time;
+  };
+
+  const displayTime = getDisplayTime();
+
   // Determine thread status based on latest message
   const getThreadStatus = () => {
     if (latestMessage.type === "response") {
@@ -348,7 +377,7 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
                 </div>
                 <div>
                   <h3 className="font-semibold">
-                    {request.party_size} guests • {formatDateTimeWithTimezone(request.iso_time)}
+                    {request.party_size} guests • {formatDateTimeWithTimezone(displayTime)}
                   </h3>
                   <p className="text-xs text-muted-foreground">
                     <UserLink pubkey={partnerPubkey} contactName={request.contact?.name} />
@@ -363,7 +392,7 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {formatDateTimeWithTimezone(request.iso_time)}
+                {formatDateTimeWithTimezone(displayTime)}
               </span>
               <span className="flex items-center gap-1">
                 <MessageSquare className="h-3 w-3" />
