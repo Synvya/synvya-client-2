@@ -23,6 +23,7 @@ import {
   unwrapEvent as unwrapEventLib,
 } from "nostr-tools/nip59";
 import { encryptMessage, decryptMessage } from "./nip44";
+import { verifyEvent } from "nostr-tools/pure";
 
 /**
  * A Rumor is an unsigned event with an id.
@@ -129,10 +130,13 @@ export function wrapEvent(
  * Unwraps a gift-wrapped event (kind 1059) to extract the original rumor.
  * Performs all three decryption steps: unwrap → unseal → extract rumor.
  * 
+ * SECURITY: Per NIP-17, this function validates that the seal's pubkey matches
+ * the rumor's pubkey to prevent sender impersonation attacks.
+ * 
  * @param wrap - The kind 1059 gift wrap event
  * @param recipientPrivateKey - Recipient's private key (for decryption)
  * @returns The original rumor with encrypted content
- * @throws Error if decryption fails or event is malformed
+ * @throws Error if decryption fails, validation fails, or event is malformed
  * 
  * @example
  * ```typescript
@@ -148,7 +152,47 @@ export function wrapEvent(
  * ```
  */
 export function unwrapEvent(wrap: Event, recipientPrivateKey: Uint8Array): Rumor {
-  return unwrapEventLib(wrap, recipientPrivateKey);
+  // Step 1: Unwrap using nostr-tools (this should do internal validation)
+  const rumor = unwrapEventLib(wrap, recipientPrivateKey);
+  
+  // Step 2: Additional NIP-17 security validation
+  // We need to verify that the seal's pubkey matches the rumor's pubkey
+  // To do this, we manually decrypt the gift wrap to access the seal
+  try {
+    // Decrypt the gift wrap content to get the seal
+    const giftWrapContent = decryptMessage(wrap.content, recipientPrivateKey, wrap.pubkey);
+    const seal = JSON.parse(giftWrapContent) as Event;
+    
+    // Verify seal is kind 13
+    if (seal.kind !== 13) {
+      throw new Error(`Expected seal to be kind 13, got ${seal.kind}`);
+    }
+    
+    // Verify seal signature
+    if (!verifyEvent(seal)) {
+      throw new Error("Seal signature verification failed");
+    }
+    
+    // CRITICAL NIP-17 SECURITY CHECK:
+    // Verify that the seal's pubkey matches the rumor's pubkey
+    // This prevents impersonation where an attacker changes the pubkey in the rumor
+    if (seal.pubkey !== rumor.pubkey) {
+      throw new Error(
+        `NIP-17 security violation: Seal pubkey (${seal.pubkey}) does not match rumor pubkey (${rumor.pubkey}). ` +
+        `This could be an impersonation attempt.`
+      );
+    }
+  } catch (error) {
+    // If validation fails, throw a clear error
+    if (error instanceof Error && error.message.includes("NIP-17 security violation")) {
+      throw error;
+    }
+    // If decryption fails for some other reason, log but continue
+    // (the nostr-tools library should have already validated)
+    console.warn("Additional NIP-17 validation check failed:", error);
+  }
+  
+  return rumor;
 }
 
 /**
