@@ -92,11 +92,18 @@ export class ReservationSubscription {
     const { relays, publicKey, privateKey, onMessage, onError, onReady } = this.config;
 
     // Subscribe to gift wrap events addressed to this merchant
+    // Query events up to 9 days old to capture all rumors from the last 7 days
+    // Rationale: Gift wrap events have randomized created_at within last 2 days (NIP-59)
+    // To capture all rumors from last 7 days, we query 7 + 2 = 9 days back
+    const NINE_DAYS_IN_SECONDS = 9 * 24 * 60 * 60;
+    const since = Math.floor(Date.now() / 1000) - NINE_DAYS_IN_SECONDS;
+
     this.subscription = pool.subscribeMany(
       relays,
       {
         kinds: [1059], // Gift wrap
         "#p": [publicKey], // Addressed to merchant
+        since, // Only query events from last 9 days
       },
       {
         onevent: (event: Event) => {
