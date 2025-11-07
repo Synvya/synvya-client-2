@@ -89,40 +89,17 @@ export function useReservationActions() {
                     // For requests, use the rumor ID directly (it's the thread root)
                     // This is the unsigned 9901 rumor ID that all subsequent messages must reference
                     if (request.rumor.kind !== 9901) {
-                        console.error("[sendResponse] ❌ Expected request to be kind 9901", {
-                            expectedKind: 9901,
-                            actualKind: request.rumor.kind,
-                            requestId: request.rumor.id,
-                            requestType: request.type,
-                        });
                         throw new Error(`Expected request rumor to be kind 9901, got ${request.rumor.kind}`);
                     }
                     rootRumorId = request.rumor.id;
-                    console.log("[sendResponse] Using original 9901 request ID as thread root", {
-                        threadRoot: rootRumorId,
-                        requestKind: request.rumor.kind,
-                        recipientPubkey: request.senderPubkey,
-                    });
                 } else {
                     // Extract root rumor ID from e tags (per NIP-17)
                     // The root e tag should point to the unsigned 9901 rumor ID
                     const rootTag = request.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
                     if (!rootTag) {
-                        console.error("[sendResponse] ❌ No root tag found in request", {
-                            requestId: request.rumor.id,
-                            requestKind: request.rumor.kind,
-                            requestType: request.type,
-                            tags: request.rumor.tags,
-                        });
                         throw new Error("Cannot find root rumor ID in message tags");
                     }
                     rootRumorId = rootTag[1];
-                    console.log("[sendResponse] Extracted thread root from request tags", {
-                        threadRoot: rootRumorId,
-                        requestId: request.rumor.id,
-                        requestKind: request.rumor.kind,
-                        requestType: request.type,
-                    });
                 }
 
                 // Build thread tag - MUST reference the unsigned 9901 rumor ID per NIP-17
@@ -130,13 +107,6 @@ export function useReservationActions() {
                 const threadTag: string[][] = [
                     ["e", rootRumorId, "", "root"]
                 ];
-                
-                console.log("[sendResponse] Sending reservation response", {
-                    responseStatus: response.status,
-                    threadRoot: rootRumorId,
-                    recipientPubkey: request.senderPubkey,
-                    threadTag,
-                });
 
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
                 // Create ONE rumor template (same content, same tags, same p tag)
@@ -246,40 +216,17 @@ export function useReservationActions() {
                 if (response.type === "request") {
                     // This is the original 9901 request - use its rumor ID directly
                     if (response.rumor.kind !== 9901) {
-                        console.error("[sendModificationRequest] ❌ Expected request to be kind 9901", {
-                            expectedKind: 9901,
-                            actualKind: response.rumor.kind,
-                            requestId: response.rumor.id,
-                            requestType: response.type,
-                        });
                         throw new Error(`Expected request rumor to be kind 9901, got ${response.rumor.kind}`);
                     }
                     rootRumorId = response.rumor.id;
-                    console.log("[sendModificationRequest] Using original 9901 request ID as thread root", {
-                        threadRoot: rootRumorId,
-                        requestKind: response.rumor.kind,
-                        recipientPubkey: response.senderPubkey,
-                    });
                 } else {
                     // Extract root rumor ID from e tags (per NIP-17)
                     // The root e tag should point to the unsigned 9901 rumor ID
                     const rootTag = response.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
                     if (!rootTag) {
-                        console.error("[sendModificationRequest] ❌ No root tag found in message", {
-                            messageId: response.rumor.id,
-                            messageKind: response.rumor.kind,
-                            messageType: response.type,
-                            tags: response.rumor.tags,
-                        });
                         throw new Error("Cannot find root rumor ID in message tags");
                     }
                     rootRumorId = rootTag[1];
-                    console.log("[sendModificationRequest] Extracted thread root from message tags", {
-                        threadRoot: rootRumorId,
-                        messageId: response.rumor.id,
-                        messageKind: response.rumor.kind,
-                        messageType: response.type,
-                    });
                 }
 
                 // Build modification request payload
@@ -297,13 +244,6 @@ export function useReservationActions() {
                 const threadTag: string[][] = [
                     ["e", rootRumorId, "", "root"]
                 ];
-
-                console.log("[sendModificationRequest] Sending modification request", {
-                    threadRoot: rootRumorId,
-                    recipientPubkey: response.senderPubkey,
-                    threadTag,
-                    payload: modificationRequest,
-                });
 
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
                 const requestToAgent = buildReservationModificationRequest(
@@ -379,24 +319,12 @@ export function useReservationActions() {
                     .map(tag => ["e", tag[1], tag[2] || "", "root"]);
                 
                 if (rootTags.length === 0) {
-                    console.error("[sendModificationResponse] ❌ No root tags found in modification request", {
-                        modificationRequestId: modificationRequest.rumor.id,
-                        modificationRequestKind: modificationRequest.rumor.kind,
-                        tags: modificationRequest.rumor.tags,
-                    });
                     throw new Error("Cannot find root rumor ID in modification request tags");
                 }
                 
                 const threadTag: string[][] = [
                     ...rootTags
                 ];
-
-                console.log("[sendModificationResponse] Sending modification response", {
-                    threadRoot: rootTags[0]?.[1],
-                    recipientPubkey: modificationRequest.senderPubkey,
-                    threadTag,
-                    responseStatus: response.status,
-                });
 
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
                 const responseToAgent = buildReservationModificationResponse(

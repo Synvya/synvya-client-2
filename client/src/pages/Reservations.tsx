@@ -122,26 +122,15 @@ export function ReservationsPage(): JSX.Element {
 
             const modificationResponse = message.payload as ReservationModificationResponse;
             
-            // CRITICAL: Find the root e tag that points to the UNSIGNED 9901 rumor ID
-            // This is the thread root that all messages must reference
+            // Find the root e tag that points to the unsigned 9901 rumor ID
             const rootTag = message.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
             if (!rootTag) {
-              console.error("[Auto-reply] ❌ No root tag found in modification response", {
-                modificationResponseId: message.rumor.id,
-                tags: message.rumor.tags,
-              });
               continue;
             }
             
             const rootRumorId = rootTag[1];
-            console.log("[Auto-reply] Processing modification response", {
-              modificationResponseId: message.rumor.id,
-              threadRoot: rootRumorId,
-              status: modificationResponse.status,
-            });
 
-            // CRITICAL: Find the original 9901 request that started this thread
-            // We MUST match on BOTH type AND rumor.id to ensure we get the correct request
+            // Find the original 9901 request that started this thread
             const originalRequest = messages.find(m => 
               m.type === "request" && 
               m.rumor.kind === 9901 && 
@@ -149,30 +138,13 @@ export function ReservationsPage(): JSX.Element {
             );
             
             if (!originalRequest) {
-              console.error("[Auto-reply] ❌ Could not find original 9901 request", {
-                threadRoot: rootRumorId,
-                availableRequests: messages
-                  .filter(m => m.type === "request")
-                  .map(m => ({ id: m.rumor.id, kind: m.rumor.kind, pubkey: m.senderPubkey })),
-              });
               continue;
             }
 
             // Verify the original request is the correct kind
             if (originalRequest.rumor.kind !== 9901) {
-              console.error("[Auto-reply] ❌ Found request but wrong kind", {
-                expected: 9901,
-                actual: originalRequest.rumor.kind,
-                requestId: originalRequest.rumor.id,
-              });
               continue;
             }
-
-            console.log("[Auto-reply] ✅ Found original request", {
-              requestId: originalRequest.rumor.id,
-              requestKind: originalRequest.rumor.kind,
-              customerPubkey: originalRequest.senderPubkey,
-            });
 
             // Check if we've already sent a response for this modification-response
             // by looking for a response message that references the same root
@@ -185,7 +157,6 @@ export function ReservationsPage(): JSX.Element {
             });
 
             if (alreadyReplied) {
-              console.log("[Auto-reply] Already replied to this modification response, skipping");
               processedModificationResponsesRef.current.add(message.rumor.id);
               continue;
             }
@@ -193,12 +164,6 @@ export function ReservationsPage(): JSX.Element {
             try {
               // Mark as processed BEFORE sending to prevent duplicates
               processedModificationResponsesRef.current.add(message.rumor.id);
-
-              console.log("[Auto-reply] Sending auto-response", {
-                status: modificationResponse.status,
-                iso_time: modificationResponse.iso_time,
-                threadRoot: rootRumorId,
-              });
 
               // Send reservation response with same status as modification response
               // Per NIP-RR: when restaurant receives kind:9904, auto-reply with kind:9902
@@ -213,10 +178,8 @@ export function ReservationsPage(): JSX.Element {
                   message: modificationResponse.message,
                 });
               }
-
-              console.log("[Auto-reply] ✅ Auto-response sent successfully");
             } catch (error) {
-              console.error("[Auto-reply] ❌ Failed to send auto-response:", error);
+              console.error("Failed to auto-reply to modification response:", error);
               // Remove from processed set on error so we can retry
               processedModificationResponsesRef.current.delete(message.rumor.id);
             }
