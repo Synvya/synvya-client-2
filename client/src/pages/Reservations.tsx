@@ -81,7 +81,7 @@ export function ReservationsPage(): JSX.Element {
   } = useReservations();
   
   const { acceptReservation, declineReservation } = useReservationActions();
-  const threads = getThreads();
+  const allThreads = getThreads();
   const loadPersistedMessages = useReservations((state) => state.loadPersistedMessages);
   const isInitialized = useReservations((state) => state.isInitialized);
   const merchantPubkey = useReservations((state) => state.merchantPubkey);
@@ -90,6 +90,73 @@ export function ReservationsPage(): JSX.Element {
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const processedModificationResponsesRef = useRef<Set<string>>(new Set());
   const [isProcessingAutoReply, setIsProcessingAutoReply] = useState(false);
+
+  // Helper function to extract display time from thread
+  const getDisplayTimeForThread = (thread: ConversationThread): string => {
+    const request = thread.initialRequest.payload as ReservationRequest;
+    // Search backwards through messages for the latest confirmed time
+    for (let i = thread.messages.length - 1; i >= 0; i--) {
+      const msg = thread.messages[i];
+      if (msg.type === "response") {
+        const response = msg.payload as ReservationResponse;
+        if (response.status === "confirmed" && response.iso_time) {
+          return response.iso_time;
+        }
+      } else if (msg.type === "modification-response") {
+        const response = msg.payload as ReservationModificationResponse;
+        if (response.status === "confirmed" && response.iso_time) {
+          return response.iso_time;
+        }
+      } else if (msg.type === "modification-request") {
+        const modRequest = msg.payload as ReservationModificationRequest;
+        if (modRequest.iso_time) {
+          return modRequest.iso_time;
+        }
+      }
+    }
+    return request.iso_time;
+  };
+
+  // Helper function to get thread status
+  const getThreadStatusForFilter = (thread: ConversationThread): string => {
+    const latestMessage = thread.latestMessage;
+    if (latestMessage.type === "response") {
+      const response = latestMessage.payload as ReservationResponse;
+      return response.status;
+    }
+    if (latestMessage.type === "modification-response") {
+      const response = latestMessage.payload as ReservationModificationResponse;
+      return response.status;
+    }
+    if (latestMessage.type === "modification-request") {
+      return "pending";
+    }
+    if (latestMessage.type === "request") {
+      return "pending";
+    }
+    return "pending";
+  };
+
+  // Filter reservations per Guidance.md line 116:
+  // Only show reservations with date in future or current day
+  // Only show statuses: Confirmed, Modification Requested, or Modification Confirmed
+  const isReservationActive = (thread: ConversationThread): boolean => {
+    // Get display time from thread
+    const displayTime = getDisplayTimeForThread(thread);
+    const reservationDate = new Date(displayTime);
+    
+    // Check if date is today or future
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (reservationDate < today) return false;
+    
+    // Check if status is active (confirmed or pending covers all active states)
+    const status = getThreadStatusForFilter(thread);
+    return status === "confirmed" || status === "pending";
+  };
+
+  // Apply filter to show only active reservations
+  const threads = allThreads.filter(isReservationActive);
 
   const toggleThread = (threadId: string) => {
     setExpandedThreads((prev) => {
