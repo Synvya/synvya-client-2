@@ -439,25 +439,38 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
     confirmed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/40",
     declined: "bg-red-500/10 text-red-600 border-red-500/40",
     cancelled: "bg-gray-500/10 text-gray-600 border-gray-500/40",
+    arrived: "bg-blue-500/10 text-blue-600 border-blue-500/40",
   };
 
-  // Collect all messages with text content
-  const allMessages: string[] = [];
+  // Format phone number to (xxx) xxx-xxxx
+  const formatPhoneNumber = (phone: string): string => {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+    return phone; // Return as-is if not 10 digits
+  };
+
+  // Collect only customer messages (not restaurant messages)
+  let lastCustomerMessage = "";
   messages.forEach((message) => {
-    if (message.type === "request") {
-      const req = message.payload as ReservationRequest;
-      if (req.notes) allMessages.push(req.notes);
-    } else if (message.type === "response") {
-      const resp = message.payload as ReservationResponse;
-      if (resp.message) allMessages.push(resp.message);
-    } else if (message.type === "modification-request") {
-      const modReq = message.payload as ReservationModificationRequest;
-      if (modReq.notes) allMessages.push(modReq.notes);
-    } else if (message.type === "modification-response") {
-      const modResp = message.payload as ReservationModificationResponse;
-      if (modResp.message) allMessages.push(modResp.message);
+    // Only include messages from the customer (partnerPubkey)
+    if (message.senderPubkey === partnerPubkey) {
+      if (message.type === "request") {
+        const req = message.payload as ReservationRequest;
+        if (req.notes) lastCustomerMessage = req.notes;
+      } else if (message.type === "modification-request") {
+        const modReq = message.payload as ReservationModificationRequest;
+        if (modReq.notes) lastCustomerMessage = modReq.notes;
+      }
     }
   });
+
+  // Check if we should show "Arrived" button
+  const reservationTime = new Date(displayTime);
+  const now = new Date();
+  const oneHourBefore = new Date(reservationTime.getTime() - 60 * 60 * 1000);
+  const showArrivedButton = status === "confirmed" && now >= oneHourBefore && now <= reservationTime;
 
   return (
     <div className="rounded-lg border bg-card">
@@ -483,18 +496,16 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
                           href={`tel:+1${request.contact.phone.replace(/\D/g, '')}`}
                           className="text-primary hover:underline"
                         >
-                          {request.contact.phone}
+                          {formatPhoneNumber(request.contact.phone)}
                         </a>
                       </>
                     )}
                   </div>
-                  {allMessages.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {allMessages.map((msg, idx) => (
-                        <p key={idx} className="text-xs text-muted-foreground italic">
-                          "{msg}"
-                        </p>
-                      ))}
+                  {lastCustomerMessage && (
+                    <div className="mt-2">
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium">Notes:</span> {lastCustomerMessage}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -502,20 +513,6 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
               <div className={`rounded-full border px-3 py-1 text-xs font-medium ${statusColors[status]}`}>
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </div>
-            </div>
-
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {formatDateTimeWithTimezone(displayTime)}
-              </span>
-              <span className="flex items-center gap-1">
-                <MessageSquare className="h-3 w-3" />
-                {messageCount} message{messageCount !== 1 ? "s" : ""}
-              </span>
-              <span className="text-xs">
-                Last: {latestTimestamp.toLocaleString()}
-              </span>
             </div>
           </div>
         </div>
@@ -525,6 +522,27 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
       {latestMessage.type === "request" && status === "pending" && (
         <div className="border-t p-6">
           <ReservationMessageCard message={latestMessage} />
+        </div>
+      )}
+
+      {/* Arrived button - show 1 hour before reservation time for confirmed reservations */}
+      {showArrivedButton && (
+        <div className="border-t p-4 bg-muted/10">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Mark customer as arrived
+            </p>
+            <Button 
+              variant="default" 
+              size="sm"
+              onClick={() => {
+                // TODO: Implement arrived status tracking
+                console.log("Mark as arrived:", thread.rootEventId);
+              }}
+            >
+              Arrived
+            </Button>
+          </div>
         </div>
       )}
     </div>
