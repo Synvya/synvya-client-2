@@ -78,6 +78,7 @@ describe("reservationService", () => {
         {
           kinds: [1059],
           "#p": [publicKey],
+          since: expect.any(Number),
         },
         expect.objectContaining({
           onevent: expect.any(Function),
