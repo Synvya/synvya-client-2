@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Inbox, Users, Calendar, Clock, MessageSquare, AlertCircle, Check, X, CalendarDays, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { Inbox, Users, Calendar, Clock, MessageSquare, AlertCircle, Check, X, CalendarDays, RefreshCw } from "lucide-react";
 import type { ReservationRequest, ReservationResponse, ReservationModificationRequest, ReservationModificationResponse } from "@/types/reservation";
 import type { ReservationMessage } from "@/services/reservationService";
 import type { ConversationThread } from "@/state/useReservations";
@@ -87,7 +87,6 @@ export function ReservationsPage(): JSX.Element {
   const merchantPubkey = useReservations((state) => state.merchantPubkey);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const processedModificationResponsesRef = useRef<Set<string>>(new Set());
   const [isProcessingAutoReply, setIsProcessingAutoReply] = useState(false);
 
@@ -157,18 +156,6 @@ export function ReservationsPage(): JSX.Element {
 
   // Apply filter to show only active reservations
   const threads = allThreads.filter(isReservationActive);
-
-  const toggleThread = (threadId: string) => {
-    setExpandedThreads((prev) => {
-      const next = new Set(prev);
-      if (next.has(threadId)) {
-        next.delete(threadId);
-      } else {
-        next.add(threadId);
-      }
-      return next;
-    });
-  };
 
   // Auto-reply to modification responses (kind:9904)
   // When restaurant receives a modification response, automatically send a reservation response (kind:9902)
@@ -381,8 +368,6 @@ export function ReservationsPage(): JSX.Element {
             <ConversationThreadCard
               key={thread.rootEventId}
               thread={thread}
-              isExpanded={expandedThreads.has(thread.rootEventId)}
-              onToggle={() => toggleThread(thread.rootEventId)}
             />
           ))}
         </div>
@@ -393,11 +378,9 @@ export function ReservationsPage(): JSX.Element {
 
 interface ConversationThreadCardProps {
   thread: ConversationThread;
-  isExpanded: boolean;
-  onToggle: () => void;
 }
 
-function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationThreadCardProps): JSX.Element {
+function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.Element {
   const { initialRequest, latestMessage, messages, messageCount, partnerPubkey } = thread;
   const request = initialRequest.payload as ReservationRequest;
   const latestTimestamp = new Date(latestMessage.rumor.created_at * 1000);
@@ -500,63 +483,13 @@ function ConversationThreadCard({ thread, isExpanded, onToggle }: ConversationTh
               </span>
             </div>
           </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggle}
-          >
-            {isExpanded ? (
-              <>
-                <ChevronUp className="h-4 w-4 mr-1" />
-                Collapse
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-4 w-4 mr-1" />
-                View History
-              </>
-            )}
-          </Button>
         </div>
       </div>
 
-      {/* Expanded Conversation History */}
-      {isExpanded && (
-        <>
-          <div className="border-t bg-muted/30 p-6">
-            <h4 className="mb-4 font-semibold">Conversation History</h4>
-            <div className="space-y-4">
-              {messages.map((message, index) => (
-                <ConversationMessageItem
-                  key={message.rumor.id}
-                  message={message}
-                  isLatest={index === messages.length - 1}
-                />
-              ))}
-            </div>
-          </div>
-          
-          {/* Action buttons for pending requests */}
-          {latestMessage.type === "request" && status === "pending" && (
-            <div className="border-t p-6">
-              <ReservationMessageCard message={latestMessage} />
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Actions for pending requests */}
-      {latestMessage.type === "request" && status === "pending" && !isExpanded && (
-        <div className="border-t bg-muted/10 p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Awaiting response
-            </p>
-            <Button variant="outline" size="sm" onClick={onToggle}>
-              Expand to respond
-            </Button>
-          </div>
+      {/* Action buttons for pending requests */}
+      {latestMessage.type === "request" && status === "pending" && (
+        <div className="border-t p-6">
+          <ReservationMessageCard message={latestMessage} />
         </div>
       )}
     </div>
