@@ -120,8 +120,9 @@ export const useReservations = create<ReservationState>((set, get) => ({
         get().addMessage(message);
       },
       onError: (error) => {
-        console.error("Reservation subscription error:", error);
-        set({ error: error.message });
+        // Log errors silently without showing to user
+        // Common errors: JSON parsing failures, invalid payloads, decryption issues
+        console.debug("Reservation subscription error (silently handled):", error.message);
       },
       onReady: () => {
         set({ isConnected: true, error: null });
