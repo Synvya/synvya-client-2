@@ -486,6 +486,99 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
         </div>
       </div>
 
+      {/* Messages and Notes Section */}
+      {messages.length > 0 && (
+        <div className="border-t bg-muted/20 p-6">
+          <h4 className="mb-3 text-sm font-semibold text-muted-foreground">Messages & Notes</h4>
+          <div className="space-y-3">
+            {messages.map((message) => {
+              const timestamp = new Date(message.rumor.created_at * 1000);
+              const timeStr = timestamp.toLocaleString();
+              
+              if (message.type === "request") {
+                const req = message.payload as ReservationRequest;
+                return (
+                  <div key={message.rumor.id} className="rounded-lg bg-card p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-medium text-primary">Initial Request</span>
+                      <span className="text-xs text-muted-foreground">{timeStr}</span>
+                    </div>
+                    {req.notes && (
+                      <p className="text-muted-foreground">{req.notes}</p>
+                    )}
+                    {req.contact?.phone && (
+                      <p className="mt-1 text-xs">
+                        <span className="text-muted-foreground">Phone: </span>
+                        <a 
+                          href={`tel:${req.contact.phone}`}
+                          className="text-primary hover:underline"
+                        >
+                          {req.contact.phone}
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+              
+              if (message.type === "response") {
+                const resp = message.payload as ReservationResponse;
+                return (
+                  <div key={message.rumor.id} className="rounded-lg bg-card p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-medium text-emerald-600">
+                        Response: {resp.status.charAt(0).toUpperCase() + resp.status.slice(1)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{timeStr}</span>
+                    </div>
+                    {resp.message && (
+                      <p className="text-muted-foreground">{resp.message}</p>
+                    )}
+                  </div>
+                );
+              }
+              
+              if (message.type === "modification-request") {
+                const modReq = message.payload as ReservationModificationRequest;
+                return (
+                  <div key={message.rumor.id} className="rounded-lg bg-card p-3 text-sm border-blue-200">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-medium text-blue-600">Modification Request</span>
+                      <span className="text-xs text-muted-foreground">{timeStr}</span>
+                    </div>
+                    <p className="text-sm mb-1">
+                      New time: {formatDateTimeWithTimezone(modReq.iso_time)}
+                    </p>
+                    {modReq.notes && (
+                      <p className="text-muted-foreground">{modReq.notes}</p>
+                    )}
+                  </div>
+                );
+              }
+              
+              if (message.type === "modification-response") {
+                const modResp = message.payload as ReservationModificationResponse;
+                return (
+                  <div key={message.rumor.id} className="rounded-lg bg-card p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-medium text-blue-600">
+                        Modification Response: {modResp.status.charAt(0).toUpperCase() + modResp.status.slice(1)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{timeStr}</span>
+                    </div>
+                    {modResp.message && (
+                      <p className="text-muted-foreground">{modResp.message}</p>
+                    )}
+                  </div>
+                );
+              }
+              
+              return null;
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Action buttons for pending requests */}
       {latestMessage.type === "request" && status === "pending" && (
         <div className="border-t p-6">
