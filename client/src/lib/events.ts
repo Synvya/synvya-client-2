@@ -53,13 +53,9 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
     }
   }
 
-  // Add chamber membership tags if chamber is specified
+  // Add chamber membership tag if chamber is specified
   if (profile.chamber) {
-    tags.push(
-      ["L", "com.synvya.chamber"],
-      ["l", profile.chamber, "com.synvya.chamber"],
-      ["i", `com.synvya.chamber:${profile.chamber}`, ""]
-    );
+    tags.push(["i", `com.synvya.chamber:${profile.chamber}`, ""]);
   }
 
   const event: EventTemplate = {

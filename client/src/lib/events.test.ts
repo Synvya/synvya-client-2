@@ -29,7 +29,7 @@ describe("buildProfileEvent", () => {
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
   });
 
-  it("should include chamber tags when chamber is specified", () => {
+  it("should include chamber tag when chamber is specified", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
       chamber: "snovalley"
@@ -38,9 +38,10 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithChamber);
 
     expect(event.kind).toBe(0);
-    expect(event.tags).toContainEqual(["L", "com.synvya.chamber"]);
-    expect(event.tags).toContainEqual(["l", "snovalley", "com.synvya.chamber"]);
     expect(event.tags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
+    // Should NOT contain namespace tags
+    expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
+    expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
   it("should support different chamber IDs", () => {
@@ -51,12 +52,13 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithEastside);
 
-    expect(event.tags).toContainEqual(["L", "com.synvya.chamber"]);
-    expect(event.tags).toContainEqual(["l", "eastside", "com.synvya.chamber"]);
     expect(event.tags).toContainEqual(["i", "com.synvya.chamber:eastside", ""]);
+    // Should NOT contain namespace tags
+    expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
+    expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
-  it("should include chamber tags along with other tags", () => {
+  it("should include chamber tag along with other tags", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
       phone: "(555) 123-4567",
@@ -73,10 +75,10 @@ describe("buildProfileEvent", () => {
     expect(event.tags).toContainEqual(["i", "phone:(555) 123-4567", ""]);
     expect(event.tags).toContainEqual(["i", "location:123 Main St, Seattle, WA, 98101, USA", ""]);
     
-    // Should also include chamber tags
-    expect(event.tags).toContainEqual(["L", "com.synvya.chamber"]);
-    expect(event.tags).toContainEqual(["l", "snovalley", "com.synvya.chamber"]);
+    // Should also include chamber tag (only the "i" tag, no namespace tags)
     expect(event.tags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
+    expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
+    expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
   it("should not add chamber tags when chamber is undefined", () => {
@@ -105,7 +107,7 @@ describe("buildProfileEvent", () => {
     expect(event.tags.some(tag => tag[0] === "i" && tag[1].startsWith("com.synvya.chamber:"))).toBe(false);
   });
 
-  it("should place chamber tags after location tags", () => {
+  it("should place chamber tag after location tag", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
       location: "Seattle, WA, 98101",
@@ -117,16 +119,16 @@ describe("buildProfileEvent", () => {
     const locationIndex = event.tags.findIndex(
       tag => tag[0] === "i" && tag[1].startsWith("location:")
     );
-    const chamberLabelIndex = event.tags.findIndex(
-      tag => tag[0] === "L" && tag[1] === "com.synvya.chamber"
+    const chamberTagIndex = event.tags.findIndex(
+      tag => tag[0] === "i" && tag[1].startsWith("com.synvya.chamber:")
     );
 
     expect(locationIndex).toBeGreaterThan(-1);
-    expect(chamberLabelIndex).toBeGreaterThan(-1);
-    expect(chamberLabelIndex).toBeGreaterThan(locationIndex);
+    expect(chamberTagIndex).toBeGreaterThan(-1);
+    expect(chamberTagIndex).toBeGreaterThan(locationIndex);
   });
 
-  it("should verify complete chamber tag structure", () => {
+  it("should verify chamber tag structure", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
       chamber: "snovalley"
@@ -134,18 +136,17 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithChamber);
 
-    // Find all chamber-related tags
+    // Find all chamber-related tags (should only be the "i" tag)
     const chamberTags = event.tags.filter(
-      tag => 
-        (tag[0] === "L" && tag[1] === "com.synvya.chamber") ||
-        (tag[0] === "l" && tag[2] === "com.synvya.chamber") ||
-        (tag[0] === "i" && tag[1].startsWith("com.synvya.chamber:"))
+      tag => tag[0] === "i" && tag[1].startsWith("com.synvya.chamber:")
     );
 
-    expect(chamberTags).toHaveLength(3);
-    expect(chamberTags).toContainEqual(["L", "com.synvya.chamber"]);
-    expect(chamberTags).toContainEqual(["l", "snovalley", "com.synvya.chamber"]);
+    expect(chamberTags).toHaveLength(1);
     expect(chamberTags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
+    
+    // Verify no namespace tags are present
+    expect(event.tags.some(tag => tag[0] === "L" && tag[1] === "com.synvya.chamber")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
   it("should preserve content structure with chamber", () => {
@@ -247,7 +248,7 @@ describe("buildProfileEvent", () => {
     expect(geohashIndex).toBeGreaterThan(locationIndex);
   });
 
-  it("should include geohash tag along with location and chamber tags", () => {
+  it("should include geohash tag along with location and chamber tag", () => {
     const profileWithAll: BusinessProfile = {
       ...baseProfile,
       location: "123 Main St, Seattle, WA, 98101, USA",
@@ -258,8 +259,10 @@ describe("buildProfileEvent", () => {
 
     expect(event.tags).toContainEqual(["i", "location:123 Main St, Seattle, WA, 98101, USA", ""]);
     expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
-    expect(event.tags).toContainEqual(["L", "com.synvya.chamber"]);
-    expect(event.tags).toContainEqual(["l", "snovalley", "com.synvya.chamber"]);
+    expect(event.tags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
+    // Should NOT contain namespace tags
+    expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
+    expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 });
 
