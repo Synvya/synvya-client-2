@@ -6,6 +6,7 @@ import { skFromNsec } from "@/lib/nostrKeys";
 interface BuildOptions {
   createdAt?: number;
   nsec?: string;
+  geohash?: string | null;
 }
 
 export function buildProfileEvent(profile: BusinessProfile, options: BuildOptions = {}): EventTemplate {
@@ -42,6 +43,14 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
       ? trimmedLocation
       : `${trimmedLocation}${trimmedLocation ? ", " : ""}USA`;
     tags.push(["i", `location:${locationValue}`, ""]);
+  }
+
+  // Add geohash tag if provided
+  if (options.geohash) {
+    const trimmedGeohash = options.geohash.trim();
+    if (trimmedGeohash) {
+      tags.push(["g", trimmedGeohash]);
+    }
   }
 
   // Add chamber membership tags if chamber is specified

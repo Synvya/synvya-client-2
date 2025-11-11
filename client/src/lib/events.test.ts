@@ -168,5 +168,98 @@ describe("buildProfileEvent", () => {
     // Chamber should not be in content, only in tags
     expect(content.chamber).toBeUndefined();
   });
+
+  it("should include geohash tag when geohash is provided", () => {
+    const profileWithLocation: BusinessProfile = {
+      ...baseProfile,
+      location: "123 Main St, Seattle, WA, 98101, USA"
+    };
+
+    const event = buildProfileEvent(profileWithLocation, { geohash: "c23q6sydb" });
+
+    expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
+  });
+
+  it("should not include geohash tag when geohash is not provided", () => {
+    const profileWithLocation: BusinessProfile = {
+      ...baseProfile,
+      location: "123 Main St, Seattle, WA, 98101, USA"
+    };
+
+    const event = buildProfileEvent(profileWithLocation);
+
+    expect(event.tags).not.toContainEqual(["g", expect.any(String)]);
+    expect(event.tags.some(tag => tag[0] === "g")).toBe(false);
+  });
+
+  it("should not include geohash tag when geohash is null", () => {
+    const profileWithLocation: BusinessProfile = {
+      ...baseProfile,
+      location: "123 Main St, Seattle, WA, 98101, USA"
+    };
+
+    const event = buildProfileEvent(profileWithLocation, { geohash: null });
+
+    expect(event.tags).not.toContainEqual(["g", expect.any(String)]);
+    expect(event.tags.some(tag => tag[0] === "g")).toBe(false);
+  });
+
+  it("should not include geohash tag when geohash is empty string", () => {
+    const profileWithLocation: BusinessProfile = {
+      ...baseProfile,
+      location: "123 Main St, Seattle, WA, 98101, USA"
+    };
+
+    const event = buildProfileEvent(profileWithLocation, { geohash: "" });
+
+    expect(event.tags).not.toContainEqual(["g", expect.any(String)]);
+    expect(event.tags.some(tag => tag[0] === "g")).toBe(false);
+  });
+
+  it("should trim geohash before adding tag", () => {
+    const profileWithLocation: BusinessProfile = {
+      ...baseProfile,
+      location: "123 Main St, Seattle, WA, 98101, USA"
+    };
+
+    const event = buildProfileEvent(profileWithLocation, { geohash: "  c23q6sydb  " });
+
+    expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
+  });
+
+  it("should place geohash tag after location tag", () => {
+    const profileWithLocation: BusinessProfile = {
+      ...baseProfile,
+      location: "123 Main St, Seattle, WA, 98101, USA"
+    };
+
+    const event = buildProfileEvent(profileWithLocation, { geohash: "c23q6sydb" });
+
+    const locationIndex = event.tags.findIndex(
+      tag => tag[0] === "i" && tag[1].startsWith("location:")
+    );
+    const geohashIndex = event.tags.findIndex(
+      tag => tag[0] === "g"
+    );
+
+    expect(locationIndex).toBeGreaterThan(-1);
+    expect(geohashIndex).toBeGreaterThan(-1);
+    expect(geohashIndex).toBeGreaterThan(locationIndex);
+  });
+
+  it("should include geohash tag along with location and chamber tags", () => {
+    const profileWithAll: BusinessProfile = {
+      ...baseProfile,
+      location: "123 Main St, Seattle, WA, 98101, USA",
+      chamber: "snovalley"
+    };
+
+    const event = buildProfileEvent(profileWithAll, { geohash: "c23q6sydb" });
+
+    expect(event.tags).toContainEqual(["i", "location:123 Main St, Seattle, WA, 98101, USA", ""]);
+    expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
+    expect(event.tags).toContainEqual(["L", "com.synvya.chamber"]);
+    expect(event.tags).toContainEqual(["l", "snovalley", "com.synvya.chamber"]);
+  });
 });
 
