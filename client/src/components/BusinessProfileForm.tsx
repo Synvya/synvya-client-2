@@ -5,6 +5,7 @@ import { useChamber } from "@/state/useChamber";
 import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { buildProfileEvent } from "@/lib/events";
 import { publishToRelays, getPool } from "@/lib/relayPool";
+import { geocodeLocation } from "@/lib/geocode";
 import { buildHandlerInfo, buildHandlerRecommendation, buildDeletionEvent, buildDmRelayEvent, SYNVYA_HANDLER_D_IDENTIFIER } from "@/lib/handlerEvents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -306,7 +307,19 @@ export function BusinessProfileForm(): JSX.Element {
       };
       setProfileLocation(fullLocation ?? null);
 
-      const template = buildProfileEvent(finalPayload);
+      // Geocode location to get geohash
+      let geohash: string | null = null;
+      if (fullLocation) {
+        try {
+          const geocodeResult = await geocodeLocation(fullLocation);
+          geohash = geocodeResult.geohash;
+        } catch (error) {
+          console.warn("Failed to geocode location for geohash", error);
+          // Continue without geohash if geocoding fails
+        }
+      }
+
+      const template = buildProfileEvent(finalPayload, { geohash });
       const signed = await signEvent(template);
       await publishToRelays(signed, relays);
 
