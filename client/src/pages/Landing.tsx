@@ -150,7 +150,7 @@ export function LandingPage(): JSX.Element {
 
             <div className="grid gap-6 sm:grid-cols-2">
               <div className="flex flex-col rounded-2xl border bg-muted/20 p-6">
-                <h2 className="text-lg font-semibold">New Business</h2>
+                <h2 className="text-lg font-semibold">Sign Up</h2>
                 <label className="mt-4 flex items-start gap-2 text-sm text-muted-foreground">
                   <input
                     type="checkbox"
@@ -191,7 +191,7 @@ export function LandingPage(): JSX.Element {
               </div>
 
               <div className="flex flex-col rounded-2xl border bg-muted/20 p-6">
-                <h2 className="text-lg font-semibold">Existing Business</h2>
+                <h2 className="text-lg font-semibold">Log In</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Use the `business-encrypted-key.txt` file to restore your merchant identity.
                 </p>

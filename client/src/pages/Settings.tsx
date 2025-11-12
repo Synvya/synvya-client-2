@@ -12,6 +12,14 @@ import { publishToRelays } from "@/lib/relayPool";
 import { validateEvent } from "@/validation/nostrValidation";
 import { resolveProfileLocation } from "@/lib/profileLocation";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export function SettingsPage(): JSX.Element {
   const npub = useAuth((state) => state.npub);
@@ -39,6 +47,7 @@ export function SettingsPage(): JSX.Element {
   const [statusVersion, setStatusVersion] = useState(0);
   const [connectBusy, setConnectBusy] = useState(false);
   const [resyncBusy, setResyncBusy] = useState(false);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
 
   const handleReveal = async () => {
     setBusy(true);
@@ -270,7 +279,7 @@ export function SettingsPage(): JSX.Element {
           <Store className="h-5 w-5 text-muted-foreground" />
           <div>
             <h2 className="text-lg font-semibold">Square Integration</h2>
-            <p className="text-sm text-muted-foreground">Connect your Square account to sync catalog items and publish NIP-99 listings.</p>
+            <p className="text-sm text-muted-foreground">Connect your Square account to sync catalog items and make them visible to AI assistants.</p>
           </div>
         </header>
 
@@ -286,59 +295,94 @@ export function SettingsPage(): JSX.Element {
           </div>
         ) : null}
 
-        <div className="grid gap-4 text-sm">
-          {squareLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="h-4 w-4 animate-spin rounded-full border border-primary border-t-transparent" />
-              <span>Checking Square connection…</span>
-            </div>
-          ) : squareStatus?.connected ? (
-            <dl className="grid gap-3">
-              <div>
-                <dt className="text-xs uppercase text-muted-foreground">Status</dt>
-                <dd className="font-medium text-emerald-600">Connected</dd>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 text-sm">
+            {squareLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="h-4 w-4 animate-spin rounded-full border border-primary border-t-transparent" />
+                <span>Checking Square connection…</span>
               </div>
-              <div>
-                <dt className="text-xs uppercase text-muted-foreground">Merchant</dt>
-                <dd className="font-medium">
-                  {squareStatus.merchantName || squareStatus.merchantId || "Square merchant"}
-                </dd>
+            ) : squareStatus?.connected ? (
+              <dl className="grid gap-3">
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">Status</dt>
+                  <dd className="font-medium text-emerald-600">Connected</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">Merchant</dt>
+                  <dd className="font-medium">
+                    {squareStatus.merchantName || squareStatus.merchantId || "Square merchant"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">Locations</dt>
+                  <dd className="font-mono text-xs text-muted-foreground">{squareLocationsLabel}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">Scopes</dt>
+                  <dd className="font-mono text-xs text-muted-foreground">{scopesLabel}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">Connected</dt>
+                  <dd>{connectedAtLabel}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">Last sync</dt>
+                  <dd>{lastSyncLabel}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">Listings prepared</dt>
+                  <dd>{lastPublishCount}</dd>
+                </div>
+              </dl>
+            ) : (
+              <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Square is not connected.</p>
+                <p className="mt-1">
+                  Connect your Square seller account to read your catalog and publish NIP-99 classified listings to your Nostr relays.
+                </p>
               </div>
-              <div>
-                <dt className="text-xs uppercase text-muted-foreground">Locations</dt>
-                <dd className="font-mono text-xs text-muted-foreground">{squareLocationsLabel}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase text-muted-foreground">Scopes</dt>
-                <dd className="font-mono text-xs text-muted-foreground">{scopesLabel}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase text-muted-foreground">Connected</dt>
-                <dd>{connectedAtLabel}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase text-muted-foreground">Last sync</dt>
-                <dd>{lastSyncLabel}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase text-muted-foreground">Listings prepared</dt>
-                <dd>{lastPublishCount}</dd>
-              </div>
-            </dl>
-          ) : (
-            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">Square is not connected.</p>
-              <p className="mt-1">
-                Connect your Square seller account to read your catalog and publish NIP-99 classified listings to your Nostr relays.
-              </p>
-            </div>
-          )}
+            )}
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-4 text-sm">
+            <h3 className="mb-3 font-medium text-foreground">Public Information</h3>
+            <p className="mb-3 text-muted-foreground">
+              The following information is extracted from your Square catalog and made public to AI assistants:
+            </p>
+            <ul className="space-y-1.5 text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5">•</span>
+                <span>Title</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5">•</span>
+                <span>Description</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5">•</span>
+                <span>Location</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5">•</span>
+                <span>Picture (if available)</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5">•</span>
+                <span>Price</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5">•</span>
+                <span>Categories</span>
+              </li>
+            </ul>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-3">
           {squareStatus?.connected ? (
             <>
-              <Button onClick={handleResyncSquare} disabled={resyncBusy || squareLoading}>
+              <Button onClick={() => setPublishConfirmOpen(true)} disabled={resyncBusy || squareLoading}>
                 {resyncBusy ? "Publishing…" : "Publish Latest Catalog"}
               </Button>
               <Button variant="ghost" onClick={handleConnectSquare} disabled={connectBusy}>
@@ -351,6 +395,35 @@ export function SettingsPage(): JSX.Element {
             </Button>
           )}
         </div>
+
+        <Dialog open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Publish Catalog</DialogTitle>
+              <DialogDescription>
+                This action will make your product catalog visible to AI assistants. This step can NOT be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setPublishConfirmOpen(false)}
+                disabled={resyncBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  setPublishConfirmOpen(false);
+                  await handleResyncSquare();
+                }}
+                disabled={resyncBusy}
+              >
+                OK
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </section>
 
       <section className="space-y-4 rounded-lg border bg-card p-6">

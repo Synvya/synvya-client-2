@@ -23,12 +23,7 @@ interface FormStatus {
 }
 
 const businessTypes: { label: string; value: BusinessType }[] = [
-  { label: "Retail", value: "retail" },
-  { label: "Restaurant", value: "restaurant" },
-  { label: "Service", value: "service" },
-  { label: "Business", value: "business" },
-  { label: "Entertainment", value: "entertainment" },
-  { label: "Other", value: "other" }
+  { label: "Restaurant", value: "restaurant" }
 ];
 
 const allowedBusinessTypes = new Set<BusinessType>(businessTypes.map((item) => item.value));
@@ -95,7 +90,7 @@ function createInitialProfile(): BusinessProfile {
     nip05: "",
     picture: "",
     banner: "",
-    businessType: "retail",
+    businessType: "restaurant",
     categories: [],
     phone: "",
     street: "",
