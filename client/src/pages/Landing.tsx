@@ -122,7 +122,7 @@ export function LandingPage(): JSX.Element {
           <div className="flex justify-center">
             <img src={synvyaLogo} alt="Synvya logo" className="h-12 w-auto" />
           </div>
-          <h1 className="text-2xl font-semibold">Synvya Business Onboarder</h1>
+          <h1 className="text-2xl font-semibold">Synvya for Restaurants</h1>
           <p className="text-sm text-muted-foreground">
             Start fresh or import your existing merchant key to continue.
           </p>

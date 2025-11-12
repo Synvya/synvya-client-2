@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Synvya Retail Onboarder - API
+Description: Synvya for Restaurants - API
 
 Parameters:
   UploadSecretArn:
@@ -133,7 +133,7 @@ Resources:
 
 Outputs:
   ApiBaseUrl:
-    Description: Base URL for the Synvya Retail Onboarder API.
+    Description: Base URL for the Synvya for Restaurants API.
     Value: !Sub "https://${UploadApi}.execute-api.${AWS::Region}.amazonaws.com"
   UploadProxyEndpoint:
     Description: API Gateway endpoint for the upload proxy.

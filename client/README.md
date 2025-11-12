@@ -1,4 +1,4 @@
-# Synvya Retail Onboarder
+# Synvya for Restaurants
 
 A frontend-only onboarding tool for Synvya merchants. It generates a Nostr identity in the browser, stores the `nsec` securely, and publishes business profile (kind 0) events to configured relays. Media uploads use nostr.build with NIP-98 auth during local development.
 
