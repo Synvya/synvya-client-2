@@ -5,7 +5,7 @@ import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { KeyBackupDrawer } from "@/components/KeyBackupDrawer";
 import { useLocation } from "react-router-dom";
-import { Copy, KeyRound, RadioTower, Store } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, KeyRound, RadioTower, Store } from "lucide-react";
 import { buildSquareAuthorizeUrl } from "@/lib/square/auth";
 import { fetchSquareStatus, publishSquareCatalog, type SquareConnectionStatus } from "@/services/square";
 import { publishToRelays } from "@/lib/relayPool";
@@ -48,6 +48,7 @@ export function SettingsPage(): JSX.Element {
   const [connectBusy, setConnectBusy] = useState(false);
   const [resyncBusy, setResyncBusy] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
 
   const handleReveal = async () => {
     setBusy(true);
@@ -427,37 +428,56 @@ export function SettingsPage(): JSX.Element {
       </section>
 
       <section className="space-y-4 rounded-lg border bg-card p-6">
-        <header className="flex items-center gap-3">
-          <RadioTower className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <h2 className="text-lg font-semibold">Relays</h2>
-            <p className="text-sm text-muted-foreground">Configure the relays that receive your profile event.</p>
+        <button
+          type="button"
+          onClick={() => setAdvancedSettingsOpen(!advancedSettingsOpen)}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <div className="flex items-center gap-3">
+            <RadioTower className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <h2 className="text-lg font-semibold">Advanced Settings</h2>
+            </div>
           </div>
-        </header>
+          {advancedSettingsOpen ? (
+            <ChevronUp className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-muted-foreground" />
+          )}
+        </button>
 
-        <ul className="grid gap-2 text-sm">
-          {relays.map((relay) => (
-            <li key={relay} className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-              <span className="font-mono text-xs">{relay}</span>
-              <Button variant="ghost" size="sm" onClick={() => removeRelay(relay)}>
-                Remove
+        {advancedSettingsOpen && (
+          <div className="space-y-4 pt-2">
+            <div>
+              <h3 className="mb-1 text-base font-semibold">Relays</h3>
+              <p className="text-sm text-muted-foreground">Configure the relays where your information is published.</p>
+            </div>
+
+            <ul className="grid gap-2 text-sm">
+              {relays.map((relay) => (
+                <li key={relay} className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                  <span className="font-mono text-xs">{relay}</span>
+                  <Button variant="ghost" size="sm" onClick={() => removeRelay(relay)}>
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+
+            <form onSubmit={handleAddRelay} className="flex flex-wrap gap-2">
+              <Input
+                value={newRelay}
+                onChange={(event) => setNewRelay(event.target.value)}
+                placeholder="wss://relay.example.com"
+                className="max-w-sm"
+              />
+              <Button type="submit">Add relay</Button>
+              <Button type="button" variant="ghost" onClick={resetRelays}>
+                Reset defaults
               </Button>
-            </li>
-          ))}
-        </ul>
-
-        <form onSubmit={handleAddRelay} className="flex flex-wrap gap-2">
-          <Input
-            value={newRelay}
-            onChange={(event) => setNewRelay(event.target.value)}
-            placeholder="wss://relay.example.com"
-            className="max-w-sm"
-          />
-          <Button type="submit">Add relay</Button>
-          <Button type="button" variant="ghost" onClick={resetRelays}>
-            Reset defaults
-          </Button>
-        </form>
+            </form>
+          </div>
+        )}
       </section>
 
       <KeyBackupDrawer open={drawerOpen} onOpenChange={setDrawerOpen} nsec={drawerSecret} />

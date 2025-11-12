@@ -614,7 +614,7 @@ export function BusinessProfileForm(): JSX.Element {
             </div>
           </div>
 
-          <div className="grid gap-2">
+          <div className="hidden grid gap-2">
             <Label htmlFor="businessType">Business type</Label>
             <select
               id="businessType"

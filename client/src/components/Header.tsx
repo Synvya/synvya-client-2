@@ -24,19 +24,17 @@ export function Header(): JSX.Element {
             >
               Profile
             </NavLink>
-            {businessType === "restaurant" && (
-              <NavLink
-                to="/app/reservations"
-                className={({ isActive }) =>
-                  cn(
-                    "transition-colors hover:text-primary",
-                    isActive ? "text-primary" : "text-muted-foreground"
-                  )
-                }
-              >
-                Reservations
-              </NavLink>
-            )}
+            <NavLink
+              to="/app/reservations"
+              className={({ isActive }) =>
+                cn(
+                  "transition-colors hover:text-primary",
+                  isActive ? "text-primary" : "text-muted-foreground"
+                )
+              }
+            >
+              Reservations
+            </NavLink>
             {import.meta.env.DEV && (
               <NavLink
                 to="/app/test-harness"
