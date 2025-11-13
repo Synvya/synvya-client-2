@@ -1,12 +1,7 @@
 import { NavLink } from "react-router-dom";
-import { useAuth } from "@/state/useAuth";
-import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { cn } from "@/lib/utils";
 
 export function Header(): JSX.Element {
-  const npub = useAuth((state) => state.npub);
-  const businessType = useBusinessProfile((state) => state.businessType);
-
   return (
     <header className="border-b">
       <div className="container flex h-16 items-center justify-between">
@@ -60,13 +55,6 @@ export function Header(): JSX.Element {
               Settings
             </NavLink>
           </nav>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {npub ? (
-            <span className="font-mono">{npub}</span>
-          ) : (
-            <span>Loading identity…</span>
-          )}
         </div>
       </div>
     </header>
