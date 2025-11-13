@@ -100,6 +100,10 @@ interface SquarePublishParams {
   profileLocation?: string | null;
 }
 
+export interface SquarePreviewResponse extends SquareSyncResult {
+  merchantId: string;
+}
+
 export async function exchangeSquareCode(params: SquareExchangeParams): Promise<SquareExchangeResponse> {
   const base = getApiBaseUrl();
   const response = await fetch(`${base}/square/oauth/exchange`, {
@@ -116,6 +120,22 @@ export async function exchangeSquareCode(params: SquareExchangeParams): Promise<
     })
   });
   return handleResponse<SquareExchangeResponse>(response);
+}
+
+export async function previewSquareCatalog(params: SquarePublishParams): Promise<SquarePreviewResponse> {
+  const base = getApiBaseUrl();
+  const response = await fetch(`${base}/square/preview`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      pubkey: params.pubkey,
+      profileLocation: params.profileLocation ?? undefined
+    })
+  });
+  return handleResponse<SquarePreviewResponse>(response);
 }
 
 export async function publishSquareCatalog(params: SquarePublishParams): Promise<SquarePublishResponse> {

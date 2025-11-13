@@ -887,6 +887,94 @@ async function handleExchange(event) {
   });
 }
 
+async function performPreview(record, options) {
+  const refreshed = await refreshAccessToken(record);
+  const catalog = await fetchNormalizedCatalog(refreshed);
+  const requestedLocationRaw = options?.profileLocation;
+  const hasRequestedLocation =
+    typeof requestedLocationRaw === "string" && requestedLocationRaw.trim().length > 0;
+  const requestedLocation = hasRequestedLocation ? requestedLocationRaw.trim() : null;
+  const existingLocation =
+    typeof record.profileLocation === "string" && record.profileLocation.trim()
+      ? record.profileLocation.trim()
+      : null;
+  const pubkeyValue = extractPubkey(refreshed);
+
+  let profileLocation = hasRequestedLocation ? requestedLocation : existingLocation;
+
+  if (!profileLocation) {
+    const fromRelays = await fetchProfileLocationFromRelays(pubkeyValue);
+    if (fromRelays) {
+      profileLocation = fromRelays.trim();
+    }
+  }
+
+  const existingGeoHash =
+    typeof record.profileGeoHash === "string" && record.profileGeoHash.trim()
+      ? record.profileGeoHash.trim()
+      : null;
+
+  let profileGeoHash = existingGeoHash;
+  const locationHasFullAddress = profileLocation ? isCompleteAddress(profileLocation) : false;
+  if (locationHasFullAddress) {
+    if (!existingGeoHash) {
+      const { geohash } = await geocodeLocation(profileLocation);
+      profileGeoHash = geohash || null;
+    }
+  }
+
+  const events = buildEvents(catalog, profileLocation, profileGeoHash);
+
+  const previous = record.publishedFingerprints || {};
+  const toPublish = [];
+
+  for (const event of events) {
+    const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
+    if (!dTag) continue;
+    const fingerprint = computeFingerprint(event);
+    if (previous[dTag] && previous[dTag] === fingerprint) {
+      continue;
+    }
+    toPublish.push({
+      kind: event.kind,
+      created_at: event.created_at,
+      content: event.content,
+      tags: event.tags
+    });
+  }
+
+  return {
+    totalEvents: events.length,
+    pendingCount: toPublish.length,
+    events: toPublish
+  };
+}
+
+async function handlePreview(event) {
+  if (event.requestContext.http.method !== "POST") {
+    return jsonResponse(405, { error: "Method not allowed" });
+  }
+  const body = parseJson(event.body);
+  const { pubkey } = body;
+  if (!pubkey) {
+    return jsonResponse(400, { error: "pubkey is required" });
+  }
+  const rawProfileLocation =
+    typeof body.profileLocation === "string" ? body.profileLocation.trim() : null;
+  const profileLocation = rawProfileLocation && rawProfileLocation.length ? rawProfileLocation : null;
+  const record = await loadConnection(pubkey);
+  if (!record) {
+    return jsonResponse(404, { error: "Square connection not found" });
+  }
+  const result = await performPreview({ ...record, pubkey }, { profileLocation });
+  return jsonResponse(200, {
+    merchantId: record.merchantId,
+    pendingCount: result.pendingCount,
+    totalEvents: result.totalEvents,
+    events: result.events
+  });
+}
+
 async function handlePublish(event) {
   if (event.requestContext.http.method !== "POST") {
     return jsonResponse(405, { error: "Method not allowed" });
@@ -922,6 +1010,9 @@ export const handler = withErrorHandling(async (event) => {
   }
   if (path.endsWith("/square/oauth/exchange")) {
     return handleExchange(event);
+  }
+  if (path.endsWith("/square/preview")) {
+    return handlePreview(event);
   }
   if (path.endsWith("/square/publish")) {
     return handlePublish(event);

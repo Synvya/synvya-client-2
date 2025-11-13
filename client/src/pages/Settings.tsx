@@ -7,11 +7,18 @@ import { KeyBackupDrawer } from "@/components/KeyBackupDrawer";
 import { useLocation } from "react-router-dom";
 import { ChevronDown, ChevronUp, Copy, KeyRound, RadioTower, Store } from "lucide-react";
 import { buildSquareAuthorizeUrl } from "@/lib/square/auth";
-import { fetchSquareStatus, publishSquareCatalog, type SquareConnectionStatus } from "@/services/square";
+import {
+  fetchSquareStatus,
+  publishSquareCatalog,
+  previewSquareCatalog,
+  type SquareConnectionStatus,
+  type SquareEventTemplate,
+} from "@/services/square";
 import { publishToRelays } from "@/lib/relayPool";
 import { validateEvent } from "@/validation/nostrValidation";
 import { resolveProfileLocation } from "@/lib/profileLocation";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
+import { PublicationPreview } from "@/components/PublicationPreview";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +56,12 @@ export function SettingsPage(): JSX.Element {
   const [resyncBusy, setResyncBusy] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
+  const [previewViewed, setPreviewViewed] = useState(false);
+  const [previewEvents, setPreviewEvents] = useState<SquareEventTemplate[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewPendingCount, setPreviewPendingCount] = useState(0);
+  const [previewTotalEvents, setPreviewTotalEvents] = useState(0);
 
   const handleReveal = async () => {
     setBusy(true);
@@ -66,6 +79,8 @@ export function SettingsPage(): JSX.Element {
   useEffect(() => {
     if (!pubkey) {
       setSquareStatus(null);
+      setPreviewViewed(false);
+      setPreviewEvents(null);
       return;
     }
     setSquareLoading(true);
@@ -75,6 +90,8 @@ export function SettingsPage(): JSX.Element {
         setSquareStatus(status);
         if (!status.connected) {
           setSquareNotice(null);
+          setPreviewViewed(false);
+          setPreviewEvents(null);
         }
         if (status.profileLocation) {
           setCachedProfileLocation(status.profileLocation);
@@ -84,11 +101,13 @@ export function SettingsPage(): JSX.Element {
         const message = error instanceof Error ? error.message : "Failed to load Square status.";
         setSquareError(message);
         setSquareStatus(null);
+        setPreviewViewed(false);
+        setPreviewEvents(null);
       })
       .finally(() => {
         setSquareLoading(false);
       });
-  }, [pubkey, statusVersion]);
+  }, [pubkey, statusVersion, setCachedProfileLocation]);
 
   useEffect(() => {
     if (!pubkey || cachedProfileLocation) {
@@ -150,6 +169,38 @@ export function SettingsPage(): JSX.Element {
     setConnectBusy(false);
   };
 
+  const handlePreviewSquare = async () => {
+    if (!pubkey) return;
+    setSquareError(null);
+    setSquareNotice(null);
+    setPreviewLoading(true);
+    try {
+      const profileLocation = await resolveProfileLocation(pubkey, relays, cachedProfileLocation);
+      if (profileLocation && profileLocation !== cachedProfileLocation) {
+        setCachedProfileLocation(profileLocation);
+      }
+      const effectiveLocation =
+        profileLocation ?? squareStatus?.profileLocation ?? cachedProfileLocation ?? null;
+      const result = await previewSquareCatalog({
+        pubkey,
+        profileLocation: effectiveLocation ?? undefined
+      });
+      if (effectiveLocation && effectiveLocation !== cachedProfileLocation) {
+        setCachedProfileLocation(effectiveLocation);
+      }
+      setPreviewEvents(result.events);
+      setPreviewPendingCount(result.pendingCount);
+      setPreviewTotalEvents(result.totalEvents);
+      setPreviewOpen(true);
+      setPreviewViewed(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to preview catalog.";
+      setSquareError(message);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const handleResyncSquare = async () => {
     if (!pubkey) return;
     setSquareError(null);
@@ -172,6 +223,8 @@ export function SettingsPage(): JSX.Element {
       if (!events.length) {
         setSquareNotice("Square catalog is already up to date.");
         setStatusVersion((value) => value + 1);
+        setPreviewViewed(false);
+        setPreviewEvents(null);
         return;
       }
 
@@ -198,6 +251,8 @@ export function SettingsPage(): JSX.Element {
           `Published ${successes.length} listing${successes.length === 1 ? "" : "s"} to your relays.`
         );
         setStatusVersion((value) => value + 1);
+        setPreviewViewed(false);
+        setPreviewEvents(null);
       }
       if (failures.length) {
         setSquareError(
@@ -207,6 +262,8 @@ export function SettingsPage(): JSX.Element {
       if (!successes.length && !failures.length) {
         setSquareNotice("No listings required publishing.");
         setStatusVersion((value) => value + 1);
+        setPreviewViewed(false);
+        setPreviewEvents(null);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish catalog to Nostr.";
@@ -383,7 +440,17 @@ export function SettingsPage(): JSX.Element {
         <div className="flex flex-wrap gap-3">
           {squareStatus?.connected ? (
             <>
-              <Button onClick={() => setPublishConfirmOpen(true)} disabled={resyncBusy || squareLoading}>
+              <Button
+                onClick={handlePreviewSquare}
+                disabled={previewLoading || squareLoading}
+                variant="outline"
+              >
+                {previewLoading ? "Loading Preview…" : "Preview Publication"}
+              </Button>
+              <Button
+                onClick={() => setPublishConfirmOpen(true)}
+                disabled={resyncBusy || squareLoading || !previewViewed}
+              >
                 {resyncBusy ? "Publishing…" : "Publish Latest Catalog"}
               </Button>
               <Button variant="ghost" onClick={handleConnectSquare} disabled={connectBusy}>
@@ -396,6 +463,19 @@ export function SettingsPage(): JSX.Element {
             </Button>
           )}
         </div>
+        {squareStatus?.connected && !previewViewed && (
+          <p className="text-sm text-muted-foreground">
+            Please preview your publication before publishing.
+          </p>
+        )}
+
+        <PublicationPreview
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          events={previewEvents || []}
+          pendingCount={previewPendingCount}
+          totalEvents={previewTotalEvents}
+        />
 
         <Dialog open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
           <DialogContent>
@@ -403,6 +483,11 @@ export function SettingsPage(): JSX.Element {
               <DialogTitle>Publish Catalog</DialogTitle>
               <DialogDescription>
                 This action will make your product catalog visible to AI assistants. This step can NOT be undone.
+                {previewViewed && previewPendingCount > 0 && (
+                  <span className="block mt-2">
+                    You are about to publish {previewPendingCount} listing{previewPendingCount === 1 ? "" : "s"}.
+                  </span>
+                )}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
