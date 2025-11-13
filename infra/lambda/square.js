@@ -113,12 +113,23 @@ function isCompleteAddress(location) {
   return parts.length >= 4;
 }
 
-function jsonResponse(statusCode, body, headers = {}) {
+function getCorsOrigin(requestOrigin) {
+  const allowedOrigins = (process.env.CORS_ALLOW_ORIGIN || "*").split(",").map((o) => o.trim());
+  if (allowedOrigins.includes("*")) {
+    return "*";
+  }
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  return allowedOrigins[0] || "*";
+}
+
+function jsonResponse(statusCode, body, headers = {}, requestOrigin = null) {
   return {
     statusCode,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": process.env.CORS_ALLOW_ORIGIN || "*",
+      "Access-Control-Allow-Origin": getCorsOrigin(requestOrigin),
       "Access-Control-Allow-Headers": "*",
       "Access-Control-Allow-Methods": "OPTIONS,GET,POST",
       ...headers
@@ -794,14 +805,14 @@ async function loadConnection(pubkey) {
   return result.Item;
 }
 
-async function handleStatus(event) {
+async function handleStatus(event, requestOrigin = null) {
   const pubkey = event.queryStringParameters?.pubkey;
   if (!pubkey) {
-    return jsonResponse(400, { error: "pubkey query parameter required" });
+    return jsonResponse(400, { error: "pubkey query parameter required" }, {}, requestOrigin);
   }
   const record = await loadConnection(pubkey);
   if (!record) {
-    return jsonResponse(200, { connected: false });
+    return jsonResponse(200, { connected: false }, {}, requestOrigin);
   }
   return jsonResponse(200, {
     connected: true,
@@ -814,17 +825,17 @@ async function handleStatus(event) {
     lastPublishCount: record.lastPublishCount || 0,
     profileLocation: record.profileLocation || null,
     profileGeoHash: record.profileGeoHash || null
-  });
+  }, {}, requestOrigin);
 }
 
-async function handleExchange(event) {
+async function handleExchange(event, requestOrigin = null) {
   if (event.requestContext.http.method !== "POST") {
-    return jsonResponse(405, { error: "Method not allowed" });
+    return jsonResponse(405, { error: "Method not allowed" }, {}, requestOrigin);
   }
   const body = parseJson(event.body);
   const { code, codeVerifier, pubkey } = body;
   if (!code || !codeVerifier || !pubkey) {
-    return jsonResponse(400, { error: "code, codeVerifier, and pubkey are required" });
+    return jsonResponse(400, { error: "code, codeVerifier, and pubkey are required" }, {}, requestOrigin);
   }
   const rawProfileLocation =
     typeof body.profileLocation === "string" ? body.profileLocation.trim() : null;
@@ -884,7 +895,7 @@ async function handleExchange(event) {
     merchantName: item.merchantName,
     locations: item.locations,
     initialSync: result
-  });
+  }, {}, requestOrigin);
 }
 
 async function performPreview(record, options) {
@@ -950,21 +961,21 @@ async function performPreview(record, options) {
   };
 }
 
-async function handlePreview(event) {
+async function handlePreview(event, requestOrigin = null) {
   if (event.requestContext.http.method !== "POST") {
-    return jsonResponse(405, { error: "Method not allowed" });
+    return jsonResponse(405, { error: "Method not allowed" }, {}, requestOrigin);
   }
   const body = parseJson(event.body);
   const { pubkey } = body;
   if (!pubkey) {
-    return jsonResponse(400, { error: "pubkey is required" });
+    return jsonResponse(400, { error: "pubkey is required" }, {}, requestOrigin);
   }
   const rawProfileLocation =
     typeof body.profileLocation === "string" ? body.profileLocation.trim() : null;
   const profileLocation = rawProfileLocation && rawProfileLocation.length ? rawProfileLocation : null;
   const record = await loadConnection(pubkey);
   if (!record) {
-    return jsonResponse(404, { error: "Square connection not found" });
+    return jsonResponse(404, { error: "Square connection not found" }, {}, requestOrigin);
   }
   const result = await performPreview({ ...record, pubkey }, { profileLocation });
   return jsonResponse(200, {
@@ -972,24 +983,24 @@ async function handlePreview(event) {
     pendingCount: result.pendingCount,
     totalEvents: result.totalEvents,
     events: result.events
-  });
+  }, {}, requestOrigin);
 }
 
-async function handlePublish(event) {
+async function handlePublish(event, requestOrigin = null) {
   if (event.requestContext.http.method !== "POST") {
-    return jsonResponse(405, { error: "Method not allowed" });
+    return jsonResponse(405, { error: "Method not allowed" }, {}, requestOrigin);
   }
   const body = parseJson(event.body);
   const { pubkey } = body;
   if (!pubkey) {
-    return jsonResponse(400, { error: "pubkey is required" });
+    return jsonResponse(400, { error: "pubkey is required" }, {}, requestOrigin);
   }
   const rawProfileLocation =
     typeof body.profileLocation === "string" ? body.profileLocation.trim() : null;
   const profileLocation = rawProfileLocation && rawProfileLocation.length ? rawProfileLocation : null;
   const record = await loadConnection(pubkey);
   if (!record) {
-    return jsonResponse(404, { error: "Square connection not found" });
+    return jsonResponse(404, { error: "Square connection not found" }, {}, requestOrigin);
   }
   const result = await performSync({ ...record, pubkey }, { profileLocation });
   return jsonResponse(200, {
@@ -997,25 +1008,26 @@ async function handlePublish(event) {
     pendingCount: result.pendingCount,
     totalEvents: result.totalEvents,
     events: result.events
-  });
+  }, {}, requestOrigin);
 }
 
 export const handler = withErrorHandling(async (event) => {
+  const requestOrigin = event.headers?.["origin"] || event.headers?.["Origin"] || null;
   if (event.requestContext.http.method === "OPTIONS") {
-    return jsonResponse(200, { ok: true });
+    return jsonResponse(200, { ok: true }, {}, requestOrigin);
   }
   const path = event.requestContext.http.path || "";
   if (path.endsWith("/square/status")) {
-    return handleStatus(event);
+    return handleStatus(event, requestOrigin);
   }
   if (path.endsWith("/square/oauth/exchange")) {
-    return handleExchange(event);
+    return handleExchange(event, requestOrigin);
   }
   if (path.endsWith("/square/preview")) {
-    return handlePreview(event);
+    return handlePreview(event, requestOrigin);
   }
   if (path.endsWith("/square/publish")) {
-    return handlePublish(event);
+    return handlePublish(event, requestOrigin);
   }
-  return jsonResponse(404, { error: "Not found" });
+  return jsonResponse(404, { error: "Not found" }, {}, requestOrigin);
 });
