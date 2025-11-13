@@ -1,7 +1,7 @@
 /**
  * UserLink Component
  * 
- * Displays a user's display name from their kind:0 profile as a link to their nosta.me profile.
+ * Displays a user's display name from their kind:0 profile as a link to their Primal profile.
  * Falls back to abbreviated hex public key if profile is not available.
  */
 
@@ -17,8 +17,8 @@ interface UserLinkProps {
 export function UserLink({ pubkey, className = "", contactName }: UserLinkProps): JSX.Element {
   const { profile, loading } = useUserProfile(pubkey);
 
-  // Nosta.me profile URL
-  const profileUrl = `https://nosta.me/${pubkey}`;
+  // Primal profile URL
+  const profileUrl = `https://primal.net/p/${pubkey}`;
 
   // Display name priority: contactName > profile.display_name > profile.name > abbreviated hex
   const displayName = contactName || profile?.display_name || profile?.name;
@@ -38,7 +38,7 @@ export function UserLink({ pubkey, className = "", contactName }: UserLinkProps)
       target="_blank"
       rel="noopener noreferrer"
       className={`text-primary hover:underline ${className}`}
-      title={`View ${displayName || fallbackName}'s profile on nosta.me`}
+      title={`View ${displayName || fallbackName}'s profile on Primal`}
     >
       {displayName || fallbackName}
     </a>
