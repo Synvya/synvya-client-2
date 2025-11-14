@@ -144,8 +144,10 @@ function withErrorHandling(fn) {
       return await fn(event);
     } catch (error) {
       console.error("Error handling request", error);
+      console.error("Error stack:", error instanceof Error ? error.stack : String(error));
+      const requestOrigin = event?.headers?.["origin"] || event?.headers?.["Origin"] || null;
       const message = error instanceof Error ? error.message : "Unexpected error";
-      return jsonResponse(500, { error: message });
+      return jsonResponse(500, { error: message }, {}, requestOrigin);
     }
   };
 }
@@ -962,7 +964,7 @@ async function performPreview(record, options) {
 }
 
 async function handlePreview(event, requestOrigin = null) {
-  if (event.requestContext.http.method !== "POST") {
+  if (event.requestContext?.http?.method !== "POST") {
     return jsonResponse(405, { error: "Method not allowed" }, {}, requestOrigin);
   }
   const body = parseJson(event.body);
@@ -1013,10 +1015,10 @@ async function handlePublish(event, requestOrigin = null) {
 
 export const handler = withErrorHandling(async (event) => {
   const requestOrigin = event.headers?.["origin"] || event.headers?.["Origin"] || null;
-  if (event.requestContext.http.method === "OPTIONS") {
+  if (event.requestContext?.http?.method === "OPTIONS") {
     return jsonResponse(200, { ok: true }, {}, requestOrigin);
   }
-  const path = event.requestContext.http.path || "";
+  const path = event.requestContext?.http?.path || "";
   if (path.endsWith("/square/status")) {
     return handleStatus(event, requestOrigin);
   }
