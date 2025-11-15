@@ -489,6 +489,34 @@ SKU: ${variation.sku || "N/A"}`.trim();
   return events;
 }
 
+function buildDeletionEvent(eventIds, eventKinds) {
+  if (!eventIds || !Array.isArray(eventIds) || eventIds.length === 0) {
+    throw new Error("eventIds must be a non-empty array");
+  }
+  
+  const tags = eventIds.map((id) => {
+    if (typeof id !== "string" || !id.trim()) {
+      throw new Error("All event IDs must be non-empty strings");
+    }
+    return ["e", id];
+  });
+  
+  if (eventKinds && Array.isArray(eventKinds) && eventKinds.length > 0) {
+    for (const kind of eventKinds) {
+      if (typeof kind === "number" && kind > 0) {
+        tags.push(["k", String(kind)]);
+      }
+    }
+  }
+  
+  return {
+    kind: 5,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: ""
+  };
+}
+
 async function fetchSquare(path, { method = "GET", headers = {}, accessToken, body } = {}) {
   const base = resolveSquareBase();
   const url = `${base}${path}`;
