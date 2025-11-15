@@ -32,6 +32,7 @@ export interface BusinessProfile {
   city?: string;
   state?: string;
   zip?: string;
+  country?: string; // ISO 3166-1 alpha-2 country code (e.g., "US")
   location?: string;
   chamber?: string;
   acceptsReservations?: boolean;

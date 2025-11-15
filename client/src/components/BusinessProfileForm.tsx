@@ -134,6 +134,7 @@ function createInitialProfile(): BusinessProfile {
     city: "",
     state: "",
     zip: "",
+    country: "US", // Default to US
     location: ""
   };
 }
@@ -225,6 +226,8 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
         patch.state = tag[1].slice("postalAddress:addressRegion:".length);
       } else if (tag[1].startsWith("postalAddress:postalCode:")) {
         patch.zip = tag[1].slice("postalAddress:postalCode:".length);
+      } else if (tag[1].startsWith("postalAddress:addressCountry:")) {
+        patch.country = tag[1].slice("postalAddress:addressCountry:".length);
       } else if (tag[1].startsWith("location:")) {
         // Fallback to old format for backward compatibility
         locationValue = tag[1].slice("location:".length);

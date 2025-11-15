@@ -71,7 +71,7 @@ describe("buildProfileEvent", () => {
 
     // Should include all standard tags
     expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
-    expect(event.tags).toContainEqual(["i", "telephone:(555) 123-4567", "https://datatracker.ietf.org/doc/html/rfc3966"]);
+    expect(event.tags).toContainEqual(["i", "telephone:+15551234567", "https://datatracker.ietf.org/doc/html/rfc3966"]);
     expect(event.tags).toContainEqual(["i", "postalAddress:streetAddress:123 Main St", "https://schema.org/streetAddress"]);
     expect(event.tags).toContainEqual(["i", "postalAddress:addressLocality:Seattle", "https://schema.org/addressLocality"]);
     expect(event.tags).toContainEqual(["i", "postalAddress:addressRegion:WA", "https://schema.org/addressRegion"]);
