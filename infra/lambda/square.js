@@ -115,8 +115,8 @@ async function queryEventIdsByDTags(pubkey, dTags, relays) {
     const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
     
     // Query for all d-tags at once using #d filter
-    const listPromise = nostrPool
-      .list(relays, {
+    const queryPromise = nostrPool
+      .querySync(relays, {
         kinds: [30402],
         authors: [pubkey],
         "#d": dTags
@@ -126,7 +126,7 @@ async function queryEventIdsByDTags(pubkey, dTags, relays) {
         return [];
       });
     
-    const events = await Promise.race([listPromise, timeoutPromise]);
+    const events = await Promise.race([queryPromise, timeoutPromise]);
     
     if (!events || !Array.isArray(events)) {
       console.warn("No events returned from relay query", { pubkey, dTags });
