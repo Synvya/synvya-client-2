@@ -230,38 +230,85 @@ export function SettingsPage(): JSX.Element {
         return;
       }
 
-      const successes: string[] = [];
-      const failures: string[] = [];
+      // Separate deletion events (kind 5) from regular events (kind 30402)
+      const deletionEvents = events.filter((e) => e.kind === 5);
+      const updateEvents = events.filter((e) => e.kind === 30402);
 
-      for (const template of events) {
+      const updateSuccesses: string[] = [];
+      const updateFailures: string[] = [];
+      const deletionSuccesses: string[] = [];
+      const deletionFailures: string[] = [];
+
+      // Handle deletion events
+      for (const template of deletionEvents) {
         try {
           const signed = await signEvent(template);
           validateEvent(signed);
           await publishToRelays(signed, relays);
-          successes.push(signed.id);
+          deletionSuccesses.push(signed.id);
         } catch (error) {
-          console.error("Failed to publish catalog listing", error);
-          const dTag = template.tags.find((tag) => tag[0] === "d")?.[1];
-          if (dTag) {
-            failures.push(dTag);
+          console.error("Failed to publish deletion event", error);
+          // For deletion events, we can't use d-tag, so use event ID from e tags
+          const eventIds = template.tags.filter((tag) => tag[0] === "e").map((tag) => tag[1]);
+          if (eventIds.length > 0) {
+            deletionFailures.push(eventIds[0]);
+          } else {
+            deletionFailures.push("unknown");
           }
         }
       }
 
-      if (successes.length) {
-        setSquareNotice(
-          `Published ${successes.length} listing${successes.length === 1 ? "" : "s"} to your relays.`
+      // Handle update/create events
+      for (const template of updateEvents) {
+        try {
+          const signed = await signEvent(template);
+          validateEvent(signed);
+          await publishToRelays(signed, relays);
+          updateSuccesses.push(signed.id);
+        } catch (error) {
+          console.error("Failed to publish catalog listing", error);
+          const dTag = template.tags.find((tag) => tag[0] === "d")?.[1];
+          if (dTag) {
+            updateFailures.push(dTag);
+          }
+        }
+      }
+
+      // Build success/failure messages
+      const messages: string[] = [];
+      if (updateSuccesses.length > 0) {
+        messages.push(
+          `Published ${updateSuccesses.length} listing${updateSuccesses.length === 1 ? "" : "s"} to your relays.`
         );
+      }
+      if (deletionSuccesses.length > 0) {
+        messages.push(
+          `Deleted ${deletionSuccesses.length} listing${deletionSuccesses.length === 1 ? "" : "s"} from your relays.`
+        );
+      }
+      if (messages.length > 0) {
+        setSquareNotice(messages.join(" "));
         setStatusVersion((value) => value + 1);
         setPreviewViewed(false);
         setPreviewEvents(null);
       }
-      if (failures.length) {
-        setSquareError(
-          `Failed to publish ${failures.length} listing${failures.length === 1 ? "" : "s"}. Try again shortly.`
+
+      const errorMessages: string[] = [];
+      if (updateFailures.length > 0) {
+        errorMessages.push(
+          `Failed to publish ${updateFailures.length} listing${updateFailures.length === 1 ? "" : "s"}. Try again shortly.`
         );
       }
-      if (!successes.length && !failures.length) {
+      if (deletionFailures.length > 0) {
+        errorMessages.push(
+          `Failed to delete ${deletionFailures.length} listing${deletionFailures.length === 1 ? "" : "s"}. Try again shortly.`
+        );
+      }
+      if (errorMessages.length > 0) {
+        setSquareError(errorMessages.join(" "));
+      }
+
+      if (!updateSuccesses.length && !deletionSuccesses.length && !updateFailures.length && !deletionFailures.length) {
         setSquareNotice("No listings required publishing.");
         setStatusVersion((value) => value + 1);
         setPreviewViewed(false);
