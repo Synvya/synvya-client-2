@@ -265,7 +265,6 @@ describe("buildProfileEvent", () => {
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
-<<<<<<< HEAD
   it("should include servesCuisine tag when cuisine is provided", () => {
     const profileWithCuisine: BusinessProfile = {
       ...baseProfile,
@@ -368,7 +367,6 @@ describe("buildProfileEvent", () => {
     expect(phoneIndex).toBeGreaterThan(-1);
     expect(emailIndex).toBeGreaterThan(-1);
     expect(emailIndex).toBeGreaterThan(phoneIndex);
->>>>>>> 4b878c8 (Add email field and update email tag format to Schema.org standard)
   });
 });
 
