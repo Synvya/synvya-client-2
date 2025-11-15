@@ -302,11 +302,17 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithCuisine);
 
-    const lastCategoryIndex = event.tags.findLastIndex(
-      tag => tag[0] === "t" && tag[1] !== "production"
-    );
+    // Find last category index (ES2020 compatible - findLastIndex requires ES2023)
+    let lastCategoryIndex = -1;
+    for (let i = event.tags.length - 1; i >= 0; i--) {
+      const tag = event.tags[i];
+      if (Array.isArray(tag) && tag[0] === "t" && tag[1] !== "production") {
+        lastCategoryIndex = i;
+        break;
+      }
+    }
     const cuisineIndex = event.tags.findIndex(
-      tag => tag[0] === "servesCuisine"
+      (tag: string[]) => tag[0] === "servesCuisine"
     );
 
     expect(lastCategoryIndex).toBeGreaterThan(-1);
