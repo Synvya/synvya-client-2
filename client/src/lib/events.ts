@@ -1,12 +1,22 @@
 import type { Event, EventTemplate } from "nostr-tools";
 import { finalizeEvent } from "nostr-tools";
-import type { BusinessProfile } from "@/types/profile";
+import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { skFromNsec } from "@/lib/nostrKeys";
 
 interface BuildOptions {
   createdAt?: number;
   nsec?: string;
   geohash?: string | null;
+}
+
+/**
+ * Maps BusinessType (camelCase) to Schema.org URL format
+ * e.g., "barOrPub" → "https://schema.org/BarOrPub"
+ */
+function businessTypeToSchemaOrgUrl(businessType: BusinessType): string {
+  // Convert camelCase to PascalCase - just capitalize first letter
+  const pascalCase = businessType.charAt(0).toUpperCase() + businessType.slice(1);
+  return `https://schema.org/${pascalCase}`;
 }
 
 export function buildProfileEvent(profile: BusinessProfile, options: BuildOptions = {}): EventTemplate {
@@ -21,8 +31,7 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   if (profile.nip05) content.nip05 = profile.nip05;
 
   const tags: string[][] = [
-    ["L", "com.synvya.merchant"],
-    ["l", profile.businessType, "com.synvya.merchant"],
+    ["l", businessTypeToSchemaOrgUrl(profile.businessType)],
     ["t", "production"]
   ];
 
