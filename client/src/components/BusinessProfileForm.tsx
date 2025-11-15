@@ -128,6 +128,8 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       }
     } else if (tag[0] === "t" && typeof tag[1] === "string" && tag[1] !== "production") {
       categories.push(tag[1]);
+    } else if (tag[0] === "servesCuisine" && typeof tag[1] === "string") {
+      patch.cuisine = tag[1];
     } else if (tag[0] === "i" && typeof tag[1] === "string") {
       if (tag[1].startsWith("phone:")) {
         const phone = tag[1].slice("phone:".length);
@@ -169,6 +171,7 @@ export function BusinessProfileForm(): JSX.Element {
   const setProfileBusinessType = useBusinessProfile((state) => state.setBusinessType);
   const [profile, setProfile] = useState<BusinessProfile>(createInitialProfile);
   const [categoriesInput, setCategoriesInput] = useState("");
+  const [cuisineInput, setCuisineInput] = useState("");
   const [status, setStatus] = useState<FormStatus>({ type: "idle", message: null });
   const [publishing, setPublishing] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<{ picture: File | null; banner: File | null }>({
@@ -203,6 +206,7 @@ export function BusinessProfileForm(): JSX.Element {
       ...profile,
       nip05,
       categories: derivedCategories,
+      cuisine: cuisineInput?.trim() || undefined,
       phone: profile.phone?.trim() || undefined,
       street: profile.street?.trim() || undefined,
       city: profile.city?.trim() || undefined,
@@ -366,6 +370,7 @@ export function BusinessProfileForm(): JSX.Element {
         picture: pictureUrl,
         banner: bannerUrl,
         phone: payload.phone ?? "",
+        cuisine: payload.cuisine ?? "",
         street: payload.street ?? "",
         city: payload.city ?? "",
         state: payload.state ?? "",
@@ -481,6 +486,10 @@ export function BusinessProfileForm(): JSX.Element {
 
         if (categories.length) {
           setCategoriesInput(categories.join(", "));
+        }
+
+        if (patch.cuisine) {
+          setCuisineInput(patch.cuisine);
         }
       } catch (error) {
         console.warn("Failed to load existing profile", error);
@@ -638,6 +647,17 @@ export function BusinessProfileForm(): JSX.Element {
               placeholder="bakery, local, sweets"
               value={categoriesInput}
               onChange={(event) => setCategoriesInput(event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Comma separated values.</p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="cuisine">Cuisine</Label>
+            <Input
+              id="cuisine"
+              placeholder="Italian, Seafood"
+              value={cuisineInput}
+              onChange={(event) => setCuisineInput(event.target.value)}
             />
             <p className="text-xs text-muted-foreground">Comma separated values.</p>
           </div>

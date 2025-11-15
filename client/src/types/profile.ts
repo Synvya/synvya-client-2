@@ -16,6 +16,7 @@ export interface BusinessProfile {
   banner: string;
   businessType: BusinessType;
   categories: string[];
+  cuisine?: string;
   phone?: string;
   street?: string;
   city?: string;

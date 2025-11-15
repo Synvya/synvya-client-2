@@ -33,6 +33,10 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
     }
   }
 
+  if (profile.cuisine) {
+    tags.push(["servesCuisine", profile.cuisine, "https://schema.org/servesCuisine"]);
+  }
+
   if (profile.phone) {
     tags.push(["i", `phone:${profile.phone}`, ""]);
   }

@@ -264,5 +264,54 @@ describe("buildProfileEvent", () => {
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
+
+  it("should include servesCuisine tag when cuisine is provided", () => {
+    const profileWithCuisine: BusinessProfile = {
+      ...baseProfile,
+      cuisine: "Italian, Seafood"
+    };
+
+    const event = buildProfileEvent(profileWithCuisine);
+
+    expect(event.tags).toContainEqual(["servesCuisine", "Italian, Seafood", "https://schema.org/servesCuisine"]);
+  });
+
+  it("should not include servesCuisine tag when cuisine is not provided", () => {
+    const event = buildProfileEvent(baseProfile);
+
+    expect(event.tags.some(tag => tag[0] === "servesCuisine")).toBe(false);
+  });
+
+  it("should not include servesCuisine tag when cuisine is undefined", () => {
+    const profileWithoutCuisine: BusinessProfile = {
+      ...baseProfile,
+      cuisine: undefined
+    };
+
+    const event = buildProfileEvent(profileWithoutCuisine);
+
+    expect(event.tags.some(tag => tag[0] === "servesCuisine")).toBe(false);
+  });
+
+  it("should place servesCuisine tag after categories", () => {
+    const profileWithCuisine: BusinessProfile = {
+      ...baseProfile,
+      categories: ["test", "shop"],
+      cuisine: "Italian"
+    };
+
+    const event = buildProfileEvent(profileWithCuisine);
+
+    const lastCategoryIndex = event.tags.findLastIndex(
+      tag => tag[0] === "t" && tag[1] !== "production"
+    );
+    const cuisineIndex = event.tags.findIndex(
+      tag => tag[0] === "servesCuisine"
+    );
+
+    expect(lastCategoryIndex).toBeGreaterThan(-1);
+    expect(cuisineIndex).toBeGreaterThan(-1);
+    expect(cuisineIndex).toBeGreaterThan(lastCategoryIndex);
+  });
 });
 
