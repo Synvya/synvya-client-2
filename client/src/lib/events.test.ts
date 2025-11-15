@@ -467,5 +467,38 @@ describe("buildProfileEvent", () => {
       expect(event.tags).toContainEqual(["l", expected]);
     }
   });
+
+  it("should include acceptsReservations False tag when unchecked", () => {
+    const profileWithReservations: BusinessProfile = {
+      ...baseProfile,
+      acceptsReservations: false
+    };
+
+    const event = buildProfileEvent(profileWithReservations);
+
+    expect(event.tags).toContainEqual(["acceptsReservations", "False"]);
+    expect(event.tags.some(tag => tag[0] === "acceptsReservations" && tag[1] === "https://dinedirect.app")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "nip:rp")).toBe(false);
+  });
+
+  it("should include acceptsReservations and nip:rp tags when checked", () => {
+    const profileWithReservations: BusinessProfile = {
+      ...baseProfile,
+      acceptsReservations: true
+    };
+
+    const event = buildProfileEvent(profileWithReservations);
+
+    expect(event.tags).toContainEqual(["acceptsReservations", "https://dinedirect.app"]);
+    expect(event.tags).toContainEqual(["i", "nip:rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
+    expect(event.tags.some(tag => tag[0] === "acceptsReservations" && tag[1] === "False")).toBe(false);
+  });
+
+  it("should not include acceptsReservations tags when undefined", () => {
+    const event = buildProfileEvent(baseProfile);
+
+    expect(event.tags.some(tag => tag[0] === "acceptsReservations")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "nip:rp")).toBe(false);
+  });
 });
 

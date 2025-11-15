@@ -86,6 +86,14 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
     }
   }
 
+  // Add acceptsReservations tags
+  if (profile.acceptsReservations === false) {
+    tags.push(["acceptsReservations", "False"]);
+  } else if (profile.acceptsReservations === true) {
+    tags.push(["acceptsReservations", "https://dinedirect.app"]);
+    tags.push(["i", "nip:rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
+  }
+
   // Add chamber membership tag if chamber is specified
   if (profile.chamber) {
     tags.push(["i", `com.synvya.chamber:${profile.chamber}`, ""]);

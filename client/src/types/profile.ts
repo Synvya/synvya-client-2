@@ -28,6 +28,7 @@ export interface BusinessProfile {
   zip?: string;
   location?: string;
   chamber?: string;
+  acceptsReservations?: boolean;
 }
 
 export interface PublishResult {

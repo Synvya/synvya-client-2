@@ -170,6 +170,12 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       categories.push(tag[1]);
     } else if (tag[0] === "servesCuisine" && typeof tag[1] === "string") {
       patch.cuisine = tag[1];
+    } else if (tag[0] === "acceptsReservations" && typeof tag[1] === "string") {
+      if (tag[1] === "False") {
+        patch.acceptsReservations = false;
+      } else if (tag[1] === "https://dinedirect.app") {
+        patch.acceptsReservations = true;
+      }
     } else if (tag[0] === "i" && typeof tag[1] === "string") {
       if (tag[1].startsWith("phone:")) {
         const phone = tag[1].slice("phone:".length);
@@ -719,6 +725,19 @@ export function BusinessProfileForm(): JSX.Element {
               ))}
             </select>
             <p className="text-xs text-muted-foreground">Required tag that categorizes the business for AI discovery.</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="acceptsReservations"
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300"
+              checked={profile.acceptsReservations ?? false}
+              onChange={(event) => updateField("acceptsReservations", event.target.checked)}
+            />
+            <Label htmlFor="acceptsReservations" className="cursor-pointer">
+              Accepts Reservations
+            </Label>
           </div>
 
           <div className="grid gap-2">
