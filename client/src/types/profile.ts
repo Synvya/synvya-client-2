@@ -18,6 +18,7 @@ export interface BusinessProfile {
   categories: string[];
   cuisine?: string;
   phone?: string;
+  email?: string;
   street?: string;
   city?: string;
   state?: string;
