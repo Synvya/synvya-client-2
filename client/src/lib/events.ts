@@ -33,8 +33,7 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   if (profile.nip05) content.nip05 = profile.nip05;
 
   const tags: string[][] = [
-    ["l", businessTypeToSchemaOrgUrl(profile.businessType)],
-    ["t", "production"]
+    ["l", businessTypeToSchemaOrgUrl(profile.businessType)]
   ];
 
   for (const category of profile.categories) {

@@ -20,7 +20,6 @@ describe("buildProfileEvent", () => {
 
     expect(event.kind).toBe(0);
     expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
-    expect(event.tags).toContainEqual(["t", "production"]);
     expect(event.tags).toContainEqual(["t", "test"]);
     expect(event.tags).toContainEqual(["t", "shop"]);
     
@@ -72,7 +71,6 @@ describe("buildProfileEvent", () => {
 
     // Should include all standard tags
     expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
-    expect(event.tags).toContainEqual(["t", "production"]);
     expect(event.tags).toContainEqual(["i", "telephone:(555) 123-4567", "https://datatracker.ietf.org/doc/html/rfc3966"]);
     expect(event.tags).toContainEqual(["i", "postalAddress:streetAddress:123 Main St", "https://schema.org/streetAddress"]);
     expect(event.tags).toContainEqual(["i", "postalAddress:addressLocality:Seattle", "https://schema.org/addressLocality"]);
@@ -374,7 +372,7 @@ describe("buildProfileEvent", () => {
     let lastCategoryIndex = -1;
     for (let i = event.tags.length - 1; i >= 0; i--) {
       const tag = event.tags[i];
-      if (Array.isArray(tag) && tag[0] === "t" && tag[1] !== "production") {
+      if (Array.isArray(tag) && tag[0] === "t") {
         lastCategoryIndex = i;
         break;
       }
