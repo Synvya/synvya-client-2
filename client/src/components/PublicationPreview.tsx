@@ -65,7 +65,7 @@ export function PublicationPreview({
         <DialogHeader>
           <DialogTitle>Preview Publication</DialogTitle>
           <DialogDescription>
-            {pendingCount === 0
+            {pendingCount === 0 && !hasDeletions
               ? "No new listings to publish. All items are up to date."
               : (
                 <div className="space-y-1">

@@ -115,8 +115,8 @@ async function queryEventIdsByDTags(pubkey, dTags, relays) {
     const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
     
     // Query for all d-tags at once using #d filter
-    const listPromise = nostrPool
-      .list(relays, {
+    const queryPromise = nostrPool
+      .querySync(relays, {
         kinds: [30402],
         authors: [pubkey],
         "#d": dTags
@@ -126,7 +126,7 @@ async function queryEventIdsByDTags(pubkey, dTags, relays) {
         return [];
       });
     
-    const events = await Promise.race([listPromise, timeoutPromise]);
+    const events = await Promise.race([queryPromise, timeoutPromise]);
     
     if (!events || !Array.isArray(events)) {
       console.warn("No events returned from relay query", { pubkey, dTags });
@@ -1120,6 +1120,15 @@ async function performPreview(record, options) {
     }
   }
 
+  if (process.env.DEBUG_SQUARE_SYNC === "true") {
+    console.debug("Preview deletion detection", {
+      previousDTags: Object.keys(previous),
+      currentDTags: Array.from(currentDTags),
+      removedDTags,
+      hasRelays: !!(nostrPool && profileRelays.length)
+    });
+  }
+
   // Query relays for event IDs of removed items to determine deletion count
   if (removedDTags.length > 0 && nostrPool && profileRelays.length) {
     try {
@@ -1130,11 +1139,18 @@ async function performPreview(record, options) {
         const eventId = eventIdsByDTag[dTag];
         if (eventId) {
           eventIdsToDelete.push(eventId);
+        } else {
+          if (process.env.DEBUG_SQUARE_SYNC === "true") {
+            console.debug("No event ID found for removed d-tag", { dTag, pubkey: pubkeyValue });
+          }
         }
       }
 
       if (eventIdsToDelete.length > 0) {
         deletionCount = eventIdsToDelete.length;
+      } else {
+        // Even if we can't find event IDs, count as deletions if we have removed d-tags
+        deletionCount = removedDTags.length;
       }
     } catch (error) {
       console.warn("Failed to query event IDs for removed items in preview", { 
