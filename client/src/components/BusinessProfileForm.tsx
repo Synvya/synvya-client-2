@@ -13,8 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { uploadMedia } from "@/services/upload";
 import type { Event } from "nostr-tools";
-import { CheckCircle2, Image as ImageIcon, UploadCloud } from "lucide-react";
+import { CheckCircle2, Image as ImageIcon, UploadCloud, Clock } from "lucide-react";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
+import { OpeningHoursDialog } from "@/components/OpeningHoursDialog";
+import type { OpeningHoursSpec } from "@/types/profile";
 
 interface FormStatus {
   type: "idle" | "success" | "error";
@@ -139,6 +141,7 @@ function createInitialProfile(): BusinessProfile {
 function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>; categories: string[] } {
   const patch: Partial<BusinessProfile> = {};
   const categories: string[] = [];
+  const openingHours: OpeningHoursSpec[] = [];
   let locationValue: string | undefined;
 
   try {
@@ -175,6 +178,33 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
         patch.acceptsReservations = false;
       } else if (tag[1] === "https://dinedirect.app") {
         patch.acceptsReservations = true;
+      }
+    } else if (tag[0] === "openingHoursSpecification" && typeof tag[1] === "string" && typeof tag[2] === "string") {
+      // Parse day range and time range
+      const dayRange = tag[1];
+      const timeRange = tag[2];
+      const [startTime, endTime] = timeRange.split("-");
+      
+      if (startTime && endTime) {
+        // Parse day range: "Tu-Th" or "Mo"
+        const days: string[] = [];
+        if (dayRange.includes("-")) {
+          const [startDay, endDay] = dayRange.split("-");
+          const dayOrder = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+          const startIndex = dayOrder.indexOf(startDay);
+          const endIndex = dayOrder.indexOf(endDay);
+          if (startIndex >= 0 && endIndex >= 0 && startIndex <= endIndex) {
+            for (let i = startIndex; i <= endIndex; i++) {
+              days.push(dayOrder[i]);
+            }
+          }
+        } else {
+          days.push(dayRange);
+        }
+        
+        if (days.length > 0) {
+          openingHours.push({ days, startTime, endTime });
+        }
       }
     } else if (tag[0] === "i" && typeof tag[1] === "string") {
       if (tag[1].startsWith("phone:")) {
@@ -225,6 +255,10 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
     patch.categories = categories;
   }
 
+  if (openingHours.length > 0) {
+    patch.openingHours = openingHours;
+  }
+
   return { patch, categories };
 }
 
@@ -250,6 +284,7 @@ export function BusinessProfileForm(): JSX.Element {
     banner: null
   });
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [openingHoursDialogOpen, setOpeningHoursDialogOpen] = useState(false);
   const pictureInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const loadingProfileRef = useRef(false);
@@ -761,6 +796,28 @@ export function BusinessProfileForm(): JSX.Element {
             />
             <p className="text-xs text-muted-foreground">Comma separated values.</p>
           </div>
+          <div className="grid gap-2">
+            <Label>Opening Hours</Label>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpeningHoursDialogOpen(true)}
+              className="justify-start"
+            >
+              <Clock className="mr-2 h-4 w-4" />
+              {profile.openingHours && profile.openingHours.length > 0
+                ? profile.openingHours
+                    .map((spec) => {
+                      const dayRange =
+                        spec.days.length === 1
+                          ? spec.days[0]
+                          : `${spec.days[0]}-${spec.days[spec.days.length - 1]}`;
+                      return `${dayRange} ${spec.startTime}-${spec.endTime}`;
+                    })
+                    .join(", ")
+                : "Set opening hours"}
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -884,6 +941,13 @@ export function BusinessProfileForm(): JSX.Element {
           </div>
         )}
       </section>
+
+      <OpeningHoursDialog
+        open={openingHoursDialogOpen}
+        onOpenChange={setOpeningHoursDialogOpen}
+        openingHours={profile.openingHours ?? []}
+        onSave={(hours) => updateField("openingHours", hours)}
+      />
     </form>
   );
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildProfileEvent } from "./events";
-import type { BusinessProfile, BusinessType } from "@/types/profile";
+import type { BusinessProfile, BusinessType, OpeningHoursSpec } from "@/types/profile";
 
 describe("buildProfileEvent", () => {
   const baseProfile: BusinessProfile = {
@@ -499,6 +499,46 @@ describe("buildProfileEvent", () => {
 
     expect(event.tags.some(tag => tag[0] === "acceptsReservations")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "nip:rp")).toBe(false);
+  });
+
+  it("should include openingHoursSpecification tags when opening hours are provided", () => {
+    const openingHours: OpeningHoursSpec[] = [
+      { days: ["Tu", "We", "Th"], startTime: "11:00", endTime: "21:00" },
+      { days: ["Fr", "Sa"], startTime: "11:00", endTime: "00:00" },
+      { days: ["Su"], startTime: "12:00", endTime: "21:00" }
+    ];
+
+    const profileWithHours: BusinessProfile = {
+      ...baseProfile,
+      openingHours
+    };
+
+    const event = buildProfileEvent(profileWithHours);
+
+    expect(event.tags).toContainEqual(["openingHoursSpecification", "Tu-Th", "11:00-21:00"]);
+    expect(event.tags).toContainEqual(["openingHoursSpecification", "Fr-Sa", "11:00-00:00"]);
+    expect(event.tags).toContainEqual(["openingHoursSpecification", "Su", "12:00-21:00"]);
+  });
+
+  it("should not include openingHoursSpecification tags when opening hours are not provided", () => {
+    const event = buildProfileEvent(baseProfile);
+
+    expect(event.tags.some(tag => tag[0] === "openingHoursSpecification")).toBe(false);
+  });
+
+  it("should handle single day opening hours", () => {
+    const openingHours: OpeningHoursSpec[] = [
+      { days: ["Mo"], startTime: "09:00", endTime: "17:00" }
+    ];
+
+    const profileWithHours: BusinessProfile = {
+      ...baseProfile,
+      openingHours
+    };
+
+    const event = buildProfileEvent(profileWithHours);
+
+    expect(event.tags).toContainEqual(["openingHoursSpecification", "Mo", "09:00-17:00"]);
   });
 });
 
