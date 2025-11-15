@@ -23,10 +23,44 @@ interface FormStatus {
 }
 
 const businessTypes: { label: string; value: BusinessType }[] = [
-  { label: "Restaurant", value: "restaurant" }
+  { label: "Bakery", value: "bakery" },
+  { label: "Bar or Pub", value: "barOrPub" },
+  { label: "Brewery", value: "brewery" },
+  { label: "Cafe or Coffee Shop", value: "cafeOrCoffeeShop" },
+  { label: "Distillery", value: "distillery" },
+  { label: "Fast Food Restaurant", value: "fastFoodRestaurant" },
+  { label: "Ice Cream Shop", value: "iceCreamShop" },
+  { label: "Restaurant", value: "restaurant" },
+  { label: "Winery", value: "winery" }
 ];
 
 const allowedBusinessTypes = new Set<BusinessType>(businessTypes.map((item) => item.value));
+
+/**
+ * Maps Schema.org URL to BusinessType (camelCase)
+ * e.g., "https://schema.org/BarOrPub" → "barOrPub"
+ */
+function schemaOrgUrlToBusinessType(url: string): BusinessType | null {
+  if (!url.startsWith("https://schema.org/")) {
+    return null;
+  }
+  const typeName = url.slice("https://schema.org/".length);
+  // Convert PascalCase to camelCase
+  const camelCase = typeName.charAt(0).toLowerCase() + typeName.slice(1);
+  // Map to BusinessType
+  const mapping: Record<string, BusinessType> = {
+    "bakery": "bakery",
+    "barOrPub": "barOrPub",
+    "brewery": "brewery",
+    "cafeOrCoffeeShop": "cafeOrCoffeeShop",
+    "distillery": "distillery",
+    "fastFoodRestaurant": "fastFoodRestaurant",
+    "iceCreamShop": "iceCreamShop",
+    "restaurant": "restaurant",
+    "winery": "winery"
+  };
+  return mapping[camelCase] || null;
+}
 
 const usStates: { label: string; value: string }[] = [
   { label: "Alabama", value: "AL" },
@@ -123,8 +157,13 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
   for (const tag of event.tags) {
     if (!Array.isArray(tag) || !tag.length) continue;
 
-    if (tag[0] === "l" && tag[2] === "com.synvya.merchant" && typeof tag[1] === "string") {
-      if (allowedBusinessTypes.has(tag[1] as BusinessType)) {
+    if (tag[0] === "l" && typeof tag[1] === "string") {
+      // Try new Schema.org format first
+      const businessType = schemaOrgUrlToBusinessType(tag[1]);
+      if (businessType) {
+        patch.businessType = businessType;
+      } else if (tag[2] === "com.synvya.merchant" && allowedBusinessTypes.has(tag[1] as BusinessType)) {
+        // Fallback to old format for backward compatibility
         patch.businessType = tag[1] as BusinessType;
       }
     } else if (tag[0] === "t" && typeof tag[1] === "string" && tag[1] !== "production") {
@@ -643,7 +682,7 @@ export function BusinessProfileForm(): JSX.Element {
             </div>
           </div>
 
-          <div className="hidden grid gap-2">
+          <div className="grid gap-2">
             <Label htmlFor="businessType">Business type</Label>
             <select
               id="businessType"

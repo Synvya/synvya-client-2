@@ -1,10 +1,13 @@
 export type BusinessType =
-  | "retail"
+  | "bakery"
+  | "barOrPub"
+  | "brewery"
+  | "cafeOrCoffeeShop"
+  | "distillery"
+  | "fastFoodRestaurant"
+  | "iceCreamShop"
   | "restaurant"
-  | "service"
-  | "business"
-  | "entertainment"
-  | "other";
+  | "winery";
 
 export interface BusinessProfile {
   name: string;

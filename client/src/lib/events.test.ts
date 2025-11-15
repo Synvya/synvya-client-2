@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildProfileEvent } from "./events";
-import type { BusinessProfile } from "@/types/profile";
+import type { BusinessProfile, BusinessType } from "@/types/profile";
 
 describe("buildProfileEvent", () => {
   const baseProfile: BusinessProfile = {
@@ -11,7 +11,7 @@ describe("buildProfileEvent", () => {
     nip05: "testshop@synvya.com",
     picture: "https://example.com/pic.jpg",
     banner: "https://example.com/banner.jpg",
-    businessType: "retail",
+    businessType: "restaurant",
     categories: ["test", "shop"]
   };
 
@@ -19,8 +19,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(baseProfile);
 
     expect(event.kind).toBe(0);
-    expect(event.tags).toContainEqual(["L", "com.synvya.merchant"]);
-    expect(event.tags).toContainEqual(["l", "retail", "com.synvya.merchant"]);
+    expect(event.tags).toContainEqual(["l", "https://schema.org/Restaurant"]);
     expect(event.tags).toContainEqual(["t", "production"]);
     expect(event.tags).toContainEqual(["t", "test"]);
     expect(event.tags).toContainEqual(["t", "shop"]);
@@ -69,8 +68,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithChamber);
 
     // Should include all standard tags
-    expect(event.tags).toContainEqual(["L", "com.synvya.merchant"]);
-    expect(event.tags).toContainEqual(["l", "retail", "com.synvya.merchant"]);
+    expect(event.tags).toContainEqual(["l", "https://schema.org/Restaurant"]);
     expect(event.tags).toContainEqual(["t", "production"]);
     expect(event.tags).toContainEqual(["i", "phone:(555) 123-4567", ""]);
     expect(event.tags).toContainEqual(["i", "location:123 Main St, Seattle, WA, 98101, USA", ""]);
@@ -367,6 +365,37 @@ describe("buildProfileEvent", () => {
     expect(phoneIndex).toBeGreaterThan(-1);
     expect(emailIndex).toBeGreaterThan(-1);
     expect(emailIndex).toBeGreaterThan(phoneIndex);
+  });
+
+  it("should use Schema.org URL format for business type", () => {
+    const event = buildProfileEvent(baseProfile);
+
+    expect(event.tags).toContainEqual(["l", "https://schema.org/Restaurant"]);
+    expect(event.tags.some(tag => tag[0] === "L" && tag[1] === "com.synvya.merchant")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.merchant")).toBe(false);
+  });
+
+  it("should map all Food Establishment types to Schema.org URLs", () => {
+    const types: Array<{ type: BusinessProfile["businessType"]; expected: string }> = [
+      { type: "bakery", expected: "https://schema.org/Bakery" },
+      { type: "barOrPub", expected: "https://schema.org/BarOrPub" },
+      { type: "brewery", expected: "https://schema.org/Brewery" },
+      { type: "cafeOrCoffeeShop", expected: "https://schema.org/CafeOrCoffeeShop" },
+      { type: "distillery", expected: "https://schema.org/Distillery" },
+      { type: "fastFoodRestaurant", expected: "https://schema.org/FastFoodRestaurant" },
+      { type: "iceCreamShop", expected: "https://schema.org/IceCreamShop" },
+      { type: "restaurant", expected: "https://schema.org/Restaurant" },
+      { type: "winery", expected: "https://schema.org/Winery" }
+    ];
+
+    for (const { type, expected } of types) {
+      const profile: BusinessProfile = {
+        ...baseProfile,
+        businessType: type
+      };
+      const event = buildProfileEvent(profile);
+      expect(event.tags).toContainEqual(["l", expected]);
+    }
   });
 });
 
