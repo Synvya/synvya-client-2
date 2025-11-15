@@ -7,6 +7,8 @@ interface BuildOptions {
   createdAt?: number;
   nsec?: string;
   geohash?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 /**
@@ -54,19 +56,33 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
     tags.push(["i", `email:mailto:${profile.email}`, "https://schema.org/email"]);
   }
 
-  if (profile.location) {
-    const trimmedLocation = profile.location.trim();
-    const locationValue = trimmedLocation.toUpperCase().endsWith("USA")
-      ? trimmedLocation
-      : `${trimmedLocation}${trimmedLocation ? ", " : ""}USA`;
-    tags.push(["i", `location:${locationValue}`, ""]);
+  // Add postal address component tags
+  if (profile.street) {
+    tags.push(["i", `postalAddress:streetAddress:${profile.street}`, "https://schema.org/streetAddress"]);
+  }
+  if (profile.city) {
+    tags.push(["i", `postalAddress:addressLocality:${profile.city}`, "https://schema.org/addressLocality"]);
+  }
+  if (profile.state) {
+    tags.push(["i", `postalAddress:addressRegion:${profile.state}`, "https://schema.org/addressRegion"]);
+  }
+  if (profile.zip) {
+    tags.push(["i", `postalAddress:postalCode:${profile.zip}`, "https://schema.org/postalCode"]);
+  }
+  // Always add country if we have any address components
+  if (profile.street || profile.city || profile.state || profile.zip) {
+    tags.push(["i", "postalAddress:addressCountry:US", "https://schema.org/addressCountry"]);
   }
 
-  // Add geohash tag if provided
+  // Add geo tags if geocoding succeeded
+  if (options.latitude != null && options.longitude != null) {
+    tags.push(["i", `geo:latitude:${options.latitude}`, "https://schema.org/latitude"]);
+    tags.push(["i", `geo:longitude:${options.longitude}`, "https://schema.org/longitude"]);
+  }
   if (options.geohash) {
     const trimmedGeohash = options.geohash.trim();
     if (trimmedGeohash) {
-      tags.push(["g", trimmedGeohash]);
+      tags.push(["i", `geo:${trimmedGeohash}`, "https://geohash.org"]);
     }
   }
 
