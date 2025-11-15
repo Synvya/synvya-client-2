@@ -535,7 +535,21 @@ export function SettingsPage(): JSX.Element {
                 This action will make your product catalog visible to AI assistants. This step can NOT be undone.
                 {previewViewed && previewPendingCount > 0 && (
                   <span className="block mt-2">
-                    You are about to publish {previewPendingCount} listing{previewPendingCount === 1 ? "" : "s"}.
+                    {previewDeletionCount > 0 ? (
+                      <>
+                        You are about to {previewPendingCount - previewDeletionCount > 0 ? "publish" : ""}
+                        {previewPendingCount - previewDeletionCount > 0 && previewDeletionCount > 0 ? " and " : ""}
+                        {previewDeletionCount > 0 ? "delete" : ""} {previewPendingCount} listing{previewPendingCount === 1 ? "" : "s"}
+                        {previewDeletionCount > 0 && previewPendingCount - previewDeletionCount > 0 ? (
+                          <> ({previewPendingCount - previewDeletionCount} to publish, {previewDeletionCount} to delete)</>
+                        ) : previewDeletionCount > 0 ? (
+                          <> ({previewDeletionCount} to delete)</>
+                        ) : null}
+                        .
+                      </>
+                    ) : (
+                      <>You are about to publish {previewPendingCount} listing{previewPendingCount === 1 ? "" : "s"}.</>
+                    )}
                   </span>
                 )}
               </DialogDescription>

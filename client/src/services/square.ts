@@ -21,6 +21,8 @@ export interface SquareEventTemplate {
   created_at: number;
   content: string;
   tags: string[][];
+  _isDeletion?: boolean;
+  _dTag?: string;
 }
 
 export interface SquareSyncResult {
