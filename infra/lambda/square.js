@@ -823,6 +823,76 @@ async function performSync(record, options) {
   const fingerprints = { ...previous };
   const toPublish = [];
 
+  // Build set of current d-tags
+  const currentDTags = new Set();
+  for (const event of events) {
+    const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
+    if (dTag) {
+      currentDTags.add(dTag);
+    }
+  }
+
+  // Detect removed items: d-tags in previous but not in current
+  const removedDTags = [];
+  for (const dTag of Object.keys(previous)) {
+    if (!currentDTags.has(dTag)) {
+      removedDTags.push(dTag);
+    }
+  }
+
+  // Query relays for event IDs of removed items and create deletion events
+  if (removedDTags.length > 0 && nostrPool && profileRelays.length) {
+    try {
+      const eventIdsByDTag = await queryEventIdsByDTags(pubkeyValue, removedDTags, profileRelays);
+      const eventIdsToDelete = [];
+      
+      for (const dTag of removedDTags) {
+        const eventId = eventIdsByDTag[dTag];
+        if (eventId) {
+          eventIdsToDelete.push(eventId);
+        } else {
+          console.warn("Could not find event ID for removed item", { dTag, pubkey: pubkeyValue });
+        }
+      }
+
+      if (eventIdsToDelete.length > 0) {
+        const deletionEvent = buildDeletionEvent(eventIdsToDelete, [30402]);
+        toPublish.push({
+          kind: deletionEvent.kind,
+          created_at: deletionEvent.created_at,
+          content: deletionEvent.content,
+          tags: deletionEvent.tags
+        });
+        
+        // Remove deleted item fingerprints from fingerprints object
+        for (const dTag of removedDTags) {
+          delete fingerprints[dTag];
+        }
+      } else {
+        // No event IDs found, but still remove fingerprints
+        for (const dTag of removedDTags) {
+          delete fingerprints[dTag];
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to query event IDs for removed items", { 
+        removedDTags, 
+        pubkey: pubkeyValue, 
+        error: error?.message || error 
+      });
+      // Still remove fingerprints even if query failed
+      for (const dTag of removedDTags) {
+        delete fingerprints[dTag];
+      }
+    }
+  } else if (removedDTags.length > 0) {
+    // No relays available, but still remove fingerprints
+    for (const dTag of removedDTags) {
+      delete fingerprints[dTag];
+    }
+  }
+
+  // Process current events (new/updated items)
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
     if (!dTag) continue;
