@@ -16,6 +16,7 @@ interface PublicationPreviewProps {
   events: SquareEventTemplate[];
   pendingCount: number;
   totalEvents: number;
+  deletionCount?: number;
 }
 
 function extractTagValue(tags: string[][], tagName: string): string | null {
@@ -52,7 +53,12 @@ export function PublicationPreview({
   events,
   pendingCount,
   totalEvents,
+  deletionCount = 0,
 }: PublicationPreviewProps): JSX.Element {
+  const updateCount = pendingCount - deletionCount;
+  const hasDeletions = deletionCount > 0;
+  const hasUpdates = updateCount > 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -61,7 +67,20 @@ export function PublicationPreview({
           <DialogDescription>
             {pendingCount === 0
               ? "No new listings to publish. All items are up to date."
-              : `Previewing ${pendingCount} of ${totalEvents} listing${pendingCount === 1 ? "" : "s"} ready to publish.`}
+              : (
+                <div className="space-y-1">
+                  {hasUpdates && (
+                    <div>
+                      Previewing {updateCount} listing{updateCount === 1 ? "" : "s"} to {updateCount === 1 ? "update" : "update or create"}.
+                    </div>
+                  )}
+                  {hasDeletions && (
+                    <div className="text-orange-600 dark:text-orange-400">
+                      {deletionCount} listing{deletionCount === 1 ? "" : "s"} will be deleted.
+                    </div>
+                  )}
+                </div>
+              )}
           </DialogDescription>
         </DialogHeader>
 
