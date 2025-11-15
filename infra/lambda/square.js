@@ -103,6 +103,69 @@ async function fetchProfileLocationFromRelays(pubkey) {
   }
 }
 
+async function queryEventIdsByDTags(pubkey, dTags, relays) {
+  if (!nostrPool || !relays || !relays.length || !dTags || !dTags.length || !pubkey) {
+    return {};
+  }
+  
+  const result = {};
+  
+  try {
+    const timeoutMs = Number.parseInt(process.env.EVENT_QUERY_TIMEOUT_MS ?? "5000", 10);
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
+    
+    // Query for all d-tags at once using #d filter
+    const listPromise = nostrPool
+      .list(relays, {
+        kinds: [30402],
+        authors: [pubkey],
+        "#d": dTags
+      })
+      .catch((error) => {
+        console.warn("Failed to query events by d-tags", { pubkey, dTags, error: error?.message || error });
+        return [];
+      });
+    
+    const events = await Promise.race([listPromise, timeoutPromise]);
+    
+    if (!events || !Array.isArray(events)) {
+      console.warn("No events returned from relay query", { pubkey, dTags });
+      return {};
+    }
+    
+    // Build map of d-tag -> event ID
+    // Track created_at to handle multiple events with same d-tag (use most recent)
+    const dTagToEvent = {};
+    for (const event of events) {
+      if (!event || !event.id) continue;
+      const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
+      if (dTag && dTags.includes(dTag)) {
+        // If multiple events have the same d-tag, use the most recent one
+        const existing = dTagToEvent[dTag];
+        if (!existing || (event.created_at > existing.created_at)) {
+          dTagToEvent[dTag] = { id: event.id, created_at: event.created_at || 0 };
+        }
+      }
+    }
+    
+    // Convert to simple d-tag -> event ID map
+    for (const [dTag, eventInfo] of Object.entries(dTagToEvent)) {
+      result[dTag] = eventInfo.id;
+    }
+    
+    return result;
+  } catch (error) {
+    console.warn("Failed to query event IDs by d-tags", { pubkey, dTags, error: error?.message || error });
+    return {};
+  } finally {
+    try {
+      nostrPool?.close(relays);
+    } catch {
+      // ignore
+    }
+  }
+}
+
 function isCompleteAddress(location) {
   if (!location) return false;
   const parts = location
