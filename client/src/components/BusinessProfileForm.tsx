@@ -40,13 +40,13 @@ const allowedBusinessTypes = new Set<BusinessType>(businessTypes.map((item) => i
 
 /**
  * Maps Schema.org URL to BusinessType (camelCase)
- * e.g., "https://schema.org/BarOrPub" → "barOrPub"
+ * e.g., "https://schema.org:BarOrPub" → "barOrPub"
  */
 function schemaOrgUrlToBusinessType(url: string): BusinessType | null {
-  if (!url.startsWith("https://schema.org/")) {
+  if (!url.startsWith("https://schema.org:")) {
     return null;
   }
-  const typeName = url.slice("https://schema.org/".length);
+  const typeName = url.slice("https://schema.org:".length);
   // Convert PascalCase to camelCase
   const camelCase = typeName.charAt(0).toLowerCase() + typeName.slice(1);
   // Map to BusinessType

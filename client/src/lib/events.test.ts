@@ -19,7 +19,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(baseProfile);
 
     expect(event.kind).toBe(0);
-    expect(event.tags).toContainEqual(["l", "https://schema.org/Restaurant"]);
+    expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
     expect(event.tags).toContainEqual(["t", "production"]);
     expect(event.tags).toContainEqual(["t", "test"]);
     expect(event.tags).toContainEqual(["t", "shop"]);
@@ -71,7 +71,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithChamber);
 
     // Should include all standard tags
-    expect(event.tags).toContainEqual(["l", "https://schema.org/Restaurant"]);
+    expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
     expect(event.tags).toContainEqual(["t", "production"]);
     expect(event.tags).toContainEqual(["i", "phone:(555) 123-4567", ""]);
     expect(event.tags).toContainEqual(["i", "postalAddress:streetAddress:123 Main St", "https://schema.org/streetAddress"]);
@@ -440,22 +440,22 @@ describe("buildProfileEvent", () => {
   it("should use Schema.org URL format for business type", () => {
     const event = buildProfileEvent(baseProfile);
 
-    expect(event.tags).toContainEqual(["l", "https://schema.org/Restaurant"]);
+    expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
     expect(event.tags.some(tag => tag[0] === "L" && tag[1] === "com.synvya.merchant")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.merchant")).toBe(false);
   });
 
   it("should map all Food Establishment types to Schema.org URLs", () => {
     const types: Array<{ type: BusinessProfile["businessType"]; expected: string }> = [
-      { type: "bakery", expected: "https://schema.org/Bakery" },
-      { type: "barOrPub", expected: "https://schema.org/BarOrPub" },
-      { type: "brewery", expected: "https://schema.org/Brewery" },
-      { type: "cafeOrCoffeeShop", expected: "https://schema.org/CafeOrCoffeeShop" },
-      { type: "distillery", expected: "https://schema.org/Distillery" },
-      { type: "fastFoodRestaurant", expected: "https://schema.org/FastFoodRestaurant" },
-      { type: "iceCreamShop", expected: "https://schema.org/IceCreamShop" },
-      { type: "restaurant", expected: "https://schema.org/Restaurant" },
-      { type: "winery", expected: "https://schema.org/Winery" }
+      { type: "bakery", expected: "https://schema.org:Bakery" },
+      { type: "barOrPub", expected: "https://schema.org:BarOrPub" },
+      { type: "brewery", expected: "https://schema.org:Brewery" },
+      { type: "cafeOrCoffeeShop", expected: "https://schema.org:CafeOrCoffeeShop" },
+      { type: "distillery", expected: "https://schema.org:Distillery" },
+      { type: "fastFoodRestaurant", expected: "https://schema.org:FastFoodRestaurant" },
+      { type: "iceCreamShop", expected: "https://schema.org:IceCreamShop" },
+      { type: "restaurant", expected: "https://schema.org:Restaurant" },
+      { type: "winery", expected: "https://schema.org:Winery" }
     ];
 
     for (const { type, expected } of types) {

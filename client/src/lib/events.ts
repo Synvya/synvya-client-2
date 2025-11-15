@@ -13,12 +13,12 @@ interface BuildOptions {
 
 /**
  * Maps BusinessType (camelCase) to Schema.org URL format
- * e.g., "barOrPub" → "https://schema.org/BarOrPub"
+ * e.g., "barOrPub" → "https://schema.org:BarOrPub"
  */
 function businessTypeToSchemaOrgUrl(businessType: BusinessType): string {
   // Convert camelCase to PascalCase - just capitalize first letter
   const pascalCase = businessType.charAt(0).toUpperCase() + businessType.slice(1);
-  return `https://schema.org/${pascalCase}`;
+  return `https://schema.org:${pascalCase}`;
 }
 
 export function buildProfileEvent(profile: BusinessProfile, options: BuildOptions = {}): EventTemplate {
