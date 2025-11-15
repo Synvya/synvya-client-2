@@ -264,5 +264,60 @@ describe("buildProfileEvent", () => {
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
+
+  it("should include servesCuisine tag when cuisine is provided", () => {
+    const profileWithCuisine: BusinessProfile = {
+      ...baseProfile,
+      cuisine: "Italian, Seafood"
+    };
+
+    const event = buildProfileEvent(profileWithCuisine);
+
+    expect(event.tags).toContainEqual(["servesCuisine", "Italian, Seafood", "https://schema.org/servesCuisine"]);
+  });
+
+  it("should not include servesCuisine tag when cuisine is not provided", () => {
+    const event = buildProfileEvent(baseProfile);
+
+    expect(event.tags.some(tag => tag[0] === "servesCuisine")).toBe(false);
+  });
+
+  it("should not include servesCuisine tag when cuisine is undefined", () => {
+    const profileWithoutCuisine: BusinessProfile = {
+      ...baseProfile,
+      cuisine: undefined
+    };
+
+    const event = buildProfileEvent(profileWithoutCuisine);
+
+    expect(event.tags.some(tag => tag[0] === "servesCuisine")).toBe(false);
+  });
+
+  it("should place servesCuisine tag after categories", () => {
+    const profileWithCuisine: BusinessProfile = {
+      ...baseProfile,
+      categories: ["test", "shop"],
+      cuisine: "Italian"
+    };
+
+    const event = buildProfileEvent(profileWithCuisine);
+
+    // Find last category index (ES2020 compatible - findLastIndex requires ES2023)
+    let lastCategoryIndex = -1;
+    for (let i = event.tags.length - 1; i >= 0; i--) {
+      const tag = event.tags[i];
+      if (Array.isArray(tag) && tag[0] === "t" && tag[1] !== "production") {
+        lastCategoryIndex = i;
+        break;
+      }
+    }
+    const cuisineIndex = event.tags.findIndex(
+      (tag: string[]) => tag[0] === "servesCuisine"
+    );
+
+    expect(lastCategoryIndex).toBeGreaterThan(-1);
+    expect(cuisineIndex).toBeGreaterThan(-1);
+    expect(cuisineIndex).toBeGreaterThan(lastCategoryIndex);
+  });
 });
 
