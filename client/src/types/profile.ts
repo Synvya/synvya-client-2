@@ -9,6 +9,12 @@ export type BusinessType =
   | "restaurant"
   | "winery";
 
+export interface OpeningHoursSpec {
+  days: string[]; // ["Mo", "Tu", "We", "Th", "Fr"] or ["Sa", "Su"]
+  startTime: string; // "11:00"
+  endTime: string; // "21:00"
+}
+
 export interface BusinessProfile {
   name: string;
   displayName: string;
@@ -29,6 +35,7 @@ export interface BusinessProfile {
   location?: string;
   chamber?: string;
   acceptsReservations?: boolean;
+  openingHours?: OpeningHoursSpec[];
 }
 
 export interface PublishResult {

@@ -1,6 +1,6 @@
 import type { Event, EventTemplate } from "nostr-tools";
 import { finalizeEvent } from "nostr-tools";
-import type { BusinessProfile, BusinessType } from "@/types/profile";
+import type { BusinessProfile, BusinessType, OpeningHoursSpec } from "@/types/profile";
 import { skFromNsec } from "@/lib/nostrKeys";
 
 interface BuildOptions {
@@ -92,6 +92,22 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   } else if (profile.acceptsReservations === true) {
     tags.push(["acceptsReservations", "https://dinedirect.app"]);
     tags.push(["i", "nip:rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
+  }
+
+  // Add opening hours tags
+  if (profile.openingHours && profile.openingHours.length > 0) {
+    for (const spec of profile.openingHours) {
+      if (spec.days.length > 0 && spec.startTime && spec.endTime) {
+        // Format day range: "Tu-Th" or "Mo" for single day
+        const dayRange =
+          spec.days.length === 1
+            ? spec.days[0]
+            : `${spec.days[0]}-${spec.days[spec.days.length - 1]}`;
+        // Format time range: "11:00-21:00"
+        const timeRange = `${spec.startTime}-${spec.endTime}`;
+        tags.push(["openingHoursSpecification", dayRange, timeRange]);
+      }
+    }
   }
 
   // Add chamber membership tag if chamber is specified
