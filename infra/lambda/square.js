@@ -1129,31 +1129,60 @@ async function performPreview(record, options) {
     });
   }
 
-  // Query relays for event IDs of removed items to determine deletion count
+  // Query relays for events being deleted to show in preview
+  const deletionEvents = [];
   if (removedDTags.length > 0 && nostrPool && profileRelays.length) {
     try {
-      const eventIdsByDTag = await queryEventIdsByDTags(pubkeyValue, removedDTags, profileRelays);
-      const eventIdsToDelete = [];
+      // Query for the full events (not just IDs) so we can display them
+      const timeoutMs = Number.parseInt(process.env.EVENT_QUERY_TIMEOUT_MS ?? "5000", 10);
+      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([]), timeoutMs));
       
-      for (const dTag of removedDTags) {
-        const eventId = eventIdsByDTag[dTag];
-        if (eventId) {
-          eventIdsToDelete.push(eventId);
-        } else {
-          if (process.env.DEBUG_SQUARE_SYNC === "true") {
-            console.debug("No event ID found for removed d-tag", { dTag, pubkey: pubkeyValue });
+      const queryPromise = nostrPool
+        .querySync(profileRelays, {
+          kinds: [30402],
+          authors: [pubkeyValue],
+          "#d": removedDTags
+        })
+        .catch((error) => {
+          console.warn("Failed to query events for deletion preview", { pubkey: pubkeyValue, dTags: removedDTags, error: error?.message || error });
+          return [];
+        });
+      
+      const eventsToDelete = await Promise.race([queryPromise, timeoutPromise]);
+      
+      if (eventsToDelete && Array.isArray(eventsToDelete)) {
+        // Build map of d-tag -> most recent event
+        const dTagToEvent = {};
+        for (const event of eventsToDelete) {
+          if (!event || !event.id) continue;
+          const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
+          if (dTag && removedDTags.includes(dTag)) {
+            const existing = dTagToEvent[dTag];
+            if (!existing || (event.created_at > existing.created_at)) {
+              dTagToEvent[dTag] = event;
+            }
           }
         }
-      }
-
-      if (eventIdsToDelete.length > 0) {
-        deletionCount = eventIdsToDelete.length;
+        
+        // Convert to array and mark as deletion events
+        for (const [dTag, event] of Object.entries(dTagToEvent)) {
+          deletionEvents.push({
+            kind: event.kind,
+            created_at: event.created_at,
+            content: event.content,
+            tags: event.tags,
+            _isDeletion: true,
+            _dTag: dTag
+          });
+        }
+        
+        deletionCount = deletionEvents.length;
       } else {
-        // Even if we can't find event IDs, count as deletions if we have removed d-tags
+        // Even if we can't find events, count as deletions if we have removed d-tags
         deletionCount = removedDTags.length;
       }
     } catch (error) {
-      console.warn("Failed to query event IDs for removed items in preview", { 
+      console.warn("Failed to query events for removed items in preview", { 
         removedDTags, 
         pubkey: pubkeyValue, 
         error: error?.message || error 
@@ -1182,11 +1211,14 @@ async function performPreview(record, options) {
     });
   }
 
+  // Combine update events and deletion events for preview
+  const allPreviewEvents = [...toPublish, ...deletionEvents];
+
   return {
     totalEvents: events.length,
     pendingCount: toPublish.length + deletionCount,
     deletionCount,
-    events: toPublish
+    events: allPreviewEvents
   };
 }
 

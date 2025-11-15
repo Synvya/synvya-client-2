@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { MapPin, Tag, DollarSign, Image as ImageIcon } from "lucide-react";
+import { MapPin, Tag, DollarSign, Image as ImageIcon, Trash2 } from "lucide-react";
 
 interface PublicationPreviewProps {
   open: boolean;
@@ -91,6 +91,7 @@ export function PublicationPreview({
             </div>
           ) : (
             events.map((event, index) => {
+              const isDeletion = event._isDeletion === true;
               const title = extractTagValue(event.tags, "title");
               const summary = extractTagValue(event.tags, "summary");
               const location = extractTagValue(event.tags, "location");
@@ -102,8 +103,18 @@ export function PublicationPreview({
               return (
                 <div
                   key={index}
-                  className="rounded-lg border bg-card p-4 space-y-3 shadow-sm"
+                  className={`rounded-lg border p-4 space-y-3 shadow-sm ${
+                    isDeletion
+                      ? "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800"
+                      : "bg-card"
+                  }`}
                 >
+                  {isDeletion && (
+                    <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 font-semibold mb-2">
+                      <Trash2 className="h-4 w-4" />
+                      <span>Will be deleted</span>
+                    </div>
+                  )}
                   {title && (
                     <h3 className="text-lg font-semibold text-foreground">{title}</h3>
                   )}
