@@ -73,7 +73,7 @@ describe("buildProfileEvent", () => {
     // Should include all standard tags
     expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
     expect(event.tags).toContainEqual(["t", "production"]);
-    expect(event.tags).toContainEqual(["i", "phone:(555) 123-4567", ""]);
+    expect(event.tags).toContainEqual(["i", "telephone:(555) 123-4567", "https://datatracker.ietf.org/doc/html/rfc3966"]);
     expect(event.tags).toContainEqual(["i", "postalAddress:streetAddress:123 Main St", "https://schema.org/streetAddress"]);
     expect(event.tags).toContainEqual(["i", "postalAddress:addressLocality:Seattle", "https://schema.org/addressLocality"]);
     expect(event.tags).toContainEqual(["i", "postalAddress:addressRegion:WA", "https://schema.org/addressRegion"]);
@@ -426,7 +426,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithContact);
 
     const phoneIndex = event.tags.findIndex(
-      tag => tag[0] === "i" && tag[1]?.startsWith("phone:")
+      tag => tag[0] === "i" && tag[1]?.startsWith("telephone:")
     );
     const emailIndex = event.tags.findIndex(
       tag => tag[0] === "i" && tag[1]?.startsWith("email:mailto:")

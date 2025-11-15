@@ -49,7 +49,7 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   }
 
   if (profile.phone) {
-    tags.push(["i", `phone:${profile.phone}`, ""]);
+    tags.push(["i", `telephone:${profile.phone}`, "https://datatracker.ietf.org/doc/html/rfc3966"]);
   }
 
   if (profile.email) {

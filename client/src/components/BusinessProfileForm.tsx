@@ -207,7 +207,11 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
         }
       }
     } else if (tag[0] === "i" && typeof tag[1] === "string") {
-      if (tag[1].startsWith("phone:")) {
+      if (tag[1].startsWith("telephone:")) {
+        const phone = tag[1].slice("telephone:".length);
+        if (phone) patch.phone = phone;
+      } else if (tag[1].startsWith("phone:")) {
+        // Backward compatibility: support old "phone:" format
         const phone = tag[1].slice("phone:".length);
         if (phone) patch.phone = phone;
       } else if (tag[1].startsWith("email:mailto:")) {
