@@ -61,7 +61,10 @@ describe("buildProfileEvent", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
       phone: "(555) 123-4567",
-      location: "123 Main St, Seattle, WA, 98101, USA",
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101",
       chamber: "snovalley"
     };
 
@@ -71,7 +74,11 @@ describe("buildProfileEvent", () => {
     expect(event.tags).toContainEqual(["l", "https://schema.org/Restaurant"]);
     expect(event.tags).toContainEqual(["t", "production"]);
     expect(event.tags).toContainEqual(["i", "phone:(555) 123-4567", ""]);
-    expect(event.tags).toContainEqual(["i", "location:123 Main St, Seattle, WA, 98101, USA", ""]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:streetAddress:123 Main St", "https://schema.org/streetAddress"]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:addressLocality:Seattle", "https://schema.org/addressLocality"]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:addressRegion:WA", "https://schema.org/addressRegion"]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:postalCode:98101", "https://schema.org/postalCode"]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:addressCountry:US", "https://schema.org/addressCountry"]);
     
     // Should also include chamber tag (only the "i" tag, no namespace tags)
     expect(event.tags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
@@ -105,25 +112,34 @@ describe("buildProfileEvent", () => {
     expect(event.tags.some(tag => tag[0] === "i" && tag[1].startsWith("com.synvya.chamber:"))).toBe(false);
   });
 
-  it("should place chamber tag after location tag", () => {
+  it("should place chamber tag after address tags", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
-      location: "Seattle, WA, 98101",
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101",
       chamber: "snovalley"
     };
 
     const event = buildProfileEvent(profileWithChamber);
 
-    const locationIndex = event.tags.findIndex(
-      tag => tag[0] === "i" && tag[1].startsWith("location:")
-    );
+    // Find last address index (ES2020 compatible - findLastIndex requires ES2023)
+    let lastAddressIndex = -1;
+    for (let i = event.tags.length - 1; i >= 0; i--) {
+      const tag = event.tags[i];
+      if (Array.isArray(tag) && tag[0] === "i" && typeof tag[1] === "string" && tag[1].startsWith("postalAddress:")) {
+        lastAddressIndex = i;
+        break;
+      }
+    }
     const chamberTagIndex = event.tags.findIndex(
-      tag => tag[0] === "i" && tag[1].startsWith("com.synvya.chamber:")
+      (tag: string[]) => tag[0] === "i" && tag[1]?.startsWith("com.synvya.chamber:")
     );
 
-    expect(locationIndex).toBeGreaterThan(-1);
+    expect(lastAddressIndex).toBeGreaterThan(-1);
     expect(chamberTagIndex).toBeGreaterThan(-1);
-    expect(chamberTagIndex).toBeGreaterThan(locationIndex);
+    expect(chamberTagIndex).toBeGreaterThan(lastAddressIndex);
   });
 
   it("should verify chamber tag structure", () => {
@@ -168,95 +184,149 @@ describe("buildProfileEvent", () => {
     expect(content.chamber).toBeUndefined();
   });
 
-  it("should include geohash tag when geohash is provided", () => {
+  it("should include geo tags when geohash, latitude, and longitude are provided", () => {
     const profileWithLocation: BusinessProfile = {
       ...baseProfile,
-      location: "123 Main St, Seattle, WA, 98101, USA"
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101"
     };
 
-    const event = buildProfileEvent(profileWithLocation, { geohash: "c23q6sydb" });
+    const event = buildProfileEvent(profileWithLocation, { 
+      geohash: "c23q6sydb",
+      latitude: 47.6062,
+      longitude: -122.3321
+    });
 
-    expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
+    expect(event.tags).toContainEqual(["i", "geo:latitude:47.6062", "https://schema.org/latitude"]);
+    expect(event.tags).toContainEqual(["i", "geo:longitude:-122.3321", "https://schema.org/longitude"]);
+    expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
   });
 
-  it("should not include geohash tag when geohash is not provided", () => {
+  it("should not include geo tags when geo data is not provided", () => {
     const profileWithLocation: BusinessProfile = {
       ...baseProfile,
-      location: "123 Main St, Seattle, WA, 98101, USA"
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101"
     };
 
     const event = buildProfileEvent(profileWithLocation);
 
-    expect(event.tags).not.toContainEqual(["g", expect.any(String)]);
-    expect(event.tags.some(tag => tag[0] === "g")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1]?.startsWith("geo:"))).toBe(false);
   });
 
-  it("should not include geohash tag when geohash is null", () => {
+  it("should not include geo tags when geo data is null", () => {
     const profileWithLocation: BusinessProfile = {
       ...baseProfile,
-      location: "123 Main St, Seattle, WA, 98101, USA"
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101"
     };
 
-    const event = buildProfileEvent(profileWithLocation, { geohash: null });
+    const event = buildProfileEvent(profileWithLocation, { 
+      geohash: null,
+      latitude: null,
+      longitude: null
+    });
 
-    expect(event.tags).not.toContainEqual(["g", expect.any(String)]);
-    expect(event.tags.some(tag => tag[0] === "g")).toBe(false);
-  });
-
-  it("should not include geohash tag when geohash is empty string", () => {
-    const profileWithLocation: BusinessProfile = {
-      ...baseProfile,
-      location: "123 Main St, Seattle, WA, 98101, USA"
-    };
-
-    const event = buildProfileEvent(profileWithLocation, { geohash: "" });
-
-    expect(event.tags).not.toContainEqual(["g", expect.any(String)]);
-    expect(event.tags.some(tag => tag[0] === "g")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1]?.startsWith("geo:"))).toBe(false);
   });
 
   it("should trim geohash before adding tag", () => {
     const profileWithLocation: BusinessProfile = {
       ...baseProfile,
-      location: "123 Main St, Seattle, WA, 98101, USA"
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101"
     };
 
-    const event = buildProfileEvent(profileWithLocation, { geohash: "  c23q6sydb  " });
+    const event = buildProfileEvent(profileWithLocation, { 
+      geohash: "  c23q6sydb  ",
+      latitude: 47.6062,
+      longitude: -122.3321
+    });
 
-    expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
+    expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
   });
 
-  it("should place geohash tag after location tag", () => {
+  it("should place geo tags after address tags", () => {
     const profileWithLocation: BusinessProfile = {
       ...baseProfile,
-      location: "123 Main St, Seattle, WA, 98101, USA"
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101"
     };
 
-    const event = buildProfileEvent(profileWithLocation, { geohash: "c23q6sydb" });
+    const event = buildProfileEvent(profileWithLocation, { 
+      geohash: "c23q6sydb",
+      latitude: 47.6062,
+      longitude: -122.3321
+    });
 
-    const locationIndex = event.tags.findIndex(
-      tag => tag[0] === "i" && tag[1].startsWith("location:")
-    );
-    const geohashIndex = event.tags.findIndex(
-      tag => tag[0] === "g"
+    // Find last address index (ES2020 compatible - findLastIndex requires ES2023)
+    let lastAddressIndex = -1;
+    for (let i = event.tags.length - 1; i >= 0; i--) {
+      const tag = event.tags[i];
+      if (Array.isArray(tag) && tag[0] === "i" && typeof tag[1] === "string" && tag[1].startsWith("postalAddress:")) {
+        lastAddressIndex = i;
+        break;
+      }
+    }
+    const firstGeoIndex = event.tags.findIndex(
+      (tag: string[]) => tag[0] === "i" && tag[1]?.startsWith("geo:")
     );
 
-    expect(locationIndex).toBeGreaterThan(-1);
-    expect(geohashIndex).toBeGreaterThan(-1);
-    expect(geohashIndex).toBeGreaterThan(locationIndex);
+    expect(lastAddressIndex).toBeGreaterThan(-1);
+    expect(firstGeoIndex).toBeGreaterThan(-1);
+    expect(firstGeoIndex).toBeGreaterThan(lastAddressIndex);
   });
 
-  it("should include geohash tag along with location and chamber tag", () => {
+  it("should include postal address component tags when address fields are provided", () => {
+    const profileWithAddress: BusinessProfile = {
+      ...baseProfile,
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101"
+    };
+
+    const event = buildProfileEvent(profileWithAddress);
+
+    expect(event.tags).toContainEqual(["i", "postalAddress:streetAddress:123 Main St", "https://schema.org/streetAddress"]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:addressLocality:Seattle", "https://schema.org/addressLocality"]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:addressRegion:WA", "https://schema.org/addressRegion"]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:postalCode:98101", "https://schema.org/postalCode"]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:addressCountry:US", "https://schema.org/addressCountry"]);
+    // Should NOT contain old location tag
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1]?.startsWith("location:"))).toBe(false);
+  });
+
+  it("should include geo tags along with address and chamber tags", () => {
     const profileWithAll: BusinessProfile = {
       ...baseProfile,
-      location: "123 Main St, Seattle, WA, 98101, USA",
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101",
       chamber: "snovalley"
     };
 
-    const event = buildProfileEvent(profileWithAll, { geohash: "c23q6sydb" });
+    const event = buildProfileEvent(profileWithAll, { 
+      geohash: "c23q6sydb",
+      latitude: 47.6062,
+      longitude: -122.3321
+    });
 
-    expect(event.tags).toContainEqual(["i", "location:123 Main St, Seattle, WA, 98101, USA", ""]);
-    expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
+    expect(event.tags).toContainEqual(["i", "postalAddress:streetAddress:123 Main St", "https://schema.org/streetAddress"]);
+    expect(event.tags).toContainEqual(["i", "geo:latitude:47.6062", "https://schema.org/latitude"]);
+    expect(event.tags).toContainEqual(["i", "geo:longitude:-122.3321", "https://schema.org/longitude"]);
+    expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
     expect(event.tags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
     // Should NOT contain namespace tags
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);

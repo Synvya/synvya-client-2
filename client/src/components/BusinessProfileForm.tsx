@@ -177,13 +177,31 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       } else if (tag[1].startsWith("email:mailto:")) {
         const email = tag[1].slice("email:mailto:".length);
         if (email) patch.email = email;
+      } else if (tag[1].startsWith("postalAddress:streetAddress:")) {
+        patch.street = tag[1].slice("postalAddress:streetAddress:".length);
+      } else if (tag[1].startsWith("postalAddress:addressLocality:")) {
+        patch.city = tag[1].slice("postalAddress:addressLocality:".length);
+      } else if (tag[1].startsWith("postalAddress:addressRegion:")) {
+        patch.state = tag[1].slice("postalAddress:addressRegion:".length);
+      } else if (tag[1].startsWith("postalAddress:postalCode:")) {
+        patch.zip = tag[1].slice("postalAddress:postalCode:".length);
       } else if (tag[1].startsWith("location:")) {
+        // Fallback to old format for backward compatibility
         locationValue = tag[1].slice("location:".length);
       }
     }
   }
 
-  if (locationValue) {
+  // Reconstruct location from postal address components if available
+  if (patch.street || patch.city || patch.state || patch.zip) {
+    const locationParts = [patch.street, patch.city, patch.state, patch.zip].filter(
+      (value): value is string => Boolean(value)
+    );
+    if (locationParts.length >= 2) {
+      patch.location = `${locationParts.join(", ")}, USA`;
+    }
+  } else if (locationValue) {
+    // Fallback to old format
     patch.location = locationValue;
     const withoutCountry = locationValue.replace(/,?\s*USA$/i, "").trim();
     const parts = withoutCountry
@@ -350,19 +368,23 @@ export function BusinessProfileForm(): JSX.Element {
       };
       setProfileLocation(fullLocation ?? null);
 
-      // Geocode location to get geohash
+      // Geocode location to get geohash, latitude, and longitude
       let geohash: string | null = null;
+      let latitude: number | null = null;
+      let longitude: number | null = null;
       if (fullLocation) {
         try {
           const geocodeResult = await geocodeLocation(fullLocation);
           geohash = geocodeResult.geohash;
+          latitude = geocodeResult.latitude;
+          longitude = geocodeResult.longitude;
         } catch (error) {
-          console.warn("Failed to geocode location for geohash", error);
-          // Continue without geohash if geocoding fails
+          console.warn("Failed to geocode location", error);
+          // Continue without geo data if geocoding fails
         }
       }
 
-      const template = buildProfileEvent(finalPayload, { geohash });
+      const template = buildProfileEvent(finalPayload, { geohash, latitude, longitude });
       const signed = await signEvent(template);
       await publishToRelays(signed, relays);
 
