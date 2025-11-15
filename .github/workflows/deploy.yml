@@ -58,3 +58,30 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
             --paths "/*"
+
+      - name: Check for Lambda changes
+        id: lambda-changes
+        run: |
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^infra/lambda/"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Package Lambda function
+        if: steps.lambda-changes.outputs.changed == 'true'
+        working-directory: infra/lambda
+        run: |
+          npm ci --production
+          zip -qr ../synvya-square-integration.zip \
+            square.js handler.js package.json package-lock.json node_modules
+
+      - name: Deploy Lambda function
+        if: steps.lambda-changes.outputs.changed == 'true'
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws lambda update-function-code \
+            --region "$AWS_REGION" \
+            --function-name synvya-square-integration \
+            --zip-file fileb://infra/synvya-square-integration.zip
