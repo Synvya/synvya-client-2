@@ -41,6 +41,10 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
     tags.push(["i", `phone:${profile.phone}`, ""]);
   }
 
+  if (profile.email) {
+    tags.push(["i", `email:mailto:${profile.email}`, "https://schema.org/email"]);
+  }
+
   if (profile.location) {
     const trimmedLocation = profile.location.trim();
     const locationValue = trimmedLocation.toUpperCase().endsWith("USA")

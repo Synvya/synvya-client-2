@@ -93,6 +93,7 @@ function createInitialProfile(): BusinessProfile {
     businessType: "restaurant",
     categories: [],
     phone: "",
+    email: "",
     street: "",
     city: "",
     state: "",
@@ -134,6 +135,9 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       if (tag[1].startsWith("phone:")) {
         const phone = tag[1].slice("phone:".length);
         if (phone) patch.phone = phone;
+      } else if (tag[1].startsWith("email:mailto:")) {
+        const email = tag[1].slice("email:mailto:".length);
+        if (email) patch.email = email;
       } else if (tag[1].startsWith("location:")) {
         locationValue = tag[1].slice("location:".length);
       }
@@ -208,6 +212,7 @@ export function BusinessProfileForm(): JSX.Element {
       categories: derivedCategories,
       cuisine: cuisineInput?.trim() || undefined,
       phone: profile.phone?.trim() || undefined,
+      email: profile.email?.trim() || undefined,
       street: profile.street?.trim() || undefined,
       city: profile.city?.trim() || undefined,
       state: profile.state?.trim() || undefined,
@@ -370,6 +375,7 @@ export function BusinessProfileForm(): JSX.Element {
         picture: pictureUrl,
         banner: bannerUrl,
         phone: payload.phone ?? "",
+        email: payload.email ?? "",
         cuisine: payload.cuisine ?? "",
         street: payload.street ?? "",
         city: payload.city ?? "",
@@ -472,6 +478,7 @@ export function BusinessProfileForm(): JSX.Element {
           ...patch,
           categories: patch.categories ?? prev.categories,
           phone: patch.phone ?? prev.phone,
+          email: patch.email ?? prev.email,
           street: patch.street ?? prev.street,
           city: patch.city ?? prev.city,
           state: patch.state ?? prev.state,
@@ -572,6 +579,19 @@ export function BusinessProfileForm(): JSX.Element {
                 onChange={(event) => updateField("phone", event.target.value)}
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="contact@your-restaurant.com"
+                value={profile.email ?? ""}
+                onChange={(event) => updateField("email", event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="street">Street</Label>
               <Input

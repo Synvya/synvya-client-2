@@ -265,6 +265,7 @@ describe("buildProfileEvent", () => {
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
+<<<<<<< HEAD
   it("should include servesCuisine tag when cuisine is provided", () => {
     const profileWithCuisine: BusinessProfile = {
       ...baseProfile,
@@ -318,6 +319,56 @@ describe("buildProfileEvent", () => {
     expect(lastCategoryIndex).toBeGreaterThan(-1);
     expect(cuisineIndex).toBeGreaterThan(-1);
     expect(cuisineIndex).toBeGreaterThan(lastCategoryIndex);
+  });
+
+  it("should include email tag when email is provided", () => {
+    const profileWithEmail: BusinessProfile = {
+      ...baseProfile,
+      email: "contact@example.com"
+    };
+
+    const event = buildProfileEvent(profileWithEmail);
+
+    expect(event.tags).toContainEqual(["i", "email:mailto:contact@example.com", "https://schema.org/email"]);
+  });
+
+  it("should not include email tag when email is not provided", () => {
+    const event = buildProfileEvent(baseProfile);
+
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1]?.startsWith("email:mailto:"))).toBe(false);
+  });
+
+  it("should not include email tag when email is undefined", () => {
+    const profileWithoutEmail: BusinessProfile = {
+      ...baseProfile,
+      email: undefined
+    };
+
+    const event = buildProfileEvent(profileWithoutEmail);
+
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1]?.startsWith("email:mailto:"))).toBe(false);
+  });
+
+  it("should place email tag after phone tag", () => {
+    const profileWithContact: BusinessProfile = {
+      ...baseProfile,
+      phone: "(555) 123-4567",
+      email: "contact@example.com"
+    };
+
+    const event = buildProfileEvent(profileWithContact);
+
+    const phoneIndex = event.tags.findIndex(
+      tag => tag[0] === "i" && tag[1]?.startsWith("phone:")
+    );
+    const emailIndex = event.tags.findIndex(
+      tag => tag[0] === "i" && tag[1]?.startsWith("email:mailto:")
+    );
+
+    expect(phoneIndex).toBeGreaterThan(-1);
+    expect(emailIndex).toBeGreaterThan(-1);
+    expect(emailIndex).toBeGreaterThan(phoneIndex);
+>>>>>>> 4b878c8 (Add email field and update email tag format to Schema.org standard)
   });
 });
 
