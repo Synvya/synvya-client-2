@@ -27,6 +27,7 @@ export interface SquareSyncResult {
   totalEvents: number;
   pendingCount: number;
   events: SquareEventTemplate[];
+  deletionCount?: number;
 }
 
 interface SquareExchangeResponse {
@@ -102,6 +103,7 @@ interface SquarePublishParams {
 
 export interface SquarePreviewResponse extends SquareSyncResult {
   merchantId: string;
+  deletionCount?: number;
 }
 
 export async function exchangeSquareCode(params: SquareExchangeParams): Promise<SquareExchangeResponse> {

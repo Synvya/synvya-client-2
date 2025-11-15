@@ -62,6 +62,7 @@ export function SettingsPage(): JSX.Element {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewPendingCount, setPreviewPendingCount] = useState(0);
   const [previewTotalEvents, setPreviewTotalEvents] = useState(0);
+  const [previewDeletionCount, setPreviewDeletionCount] = useState(0);
 
   const handleReveal = async () => {
     setBusy(true);
@@ -191,6 +192,7 @@ export function SettingsPage(): JSX.Element {
       setPreviewEvents(result.events);
       setPreviewPendingCount(result.pendingCount);
       setPreviewTotalEvents(result.totalEvents);
+      setPreviewDeletionCount(result.deletionCount || 0);
       setPreviewOpen(true);
       setPreviewViewed(true);
     } catch (error) {
@@ -475,6 +477,7 @@ export function SettingsPage(): JSX.Element {
           events={previewEvents || []}
           pendingCount={previewPendingCount}
           totalEvents={previewTotalEvents}
+          deletionCount={previewDeletionCount}
         />
 
         <Dialog open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>

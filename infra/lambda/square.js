@@ -1101,7 +1101,56 @@ async function performPreview(record, options) {
 
   const previous = record.publishedFingerprints || {};
   const toPublish = [];
+  let deletionCount = 0;
 
+  // Build set of current d-tags
+  const currentDTags = new Set();
+  for (const event of events) {
+    const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
+    if (dTag) {
+      currentDTags.add(dTag);
+    }
+  }
+
+  // Detect removed items: d-tags in previous but not in current
+  const removedDTags = [];
+  for (const dTag of Object.keys(previous)) {
+    if (!currentDTags.has(dTag)) {
+      removedDTags.push(dTag);
+    }
+  }
+
+  // Query relays for event IDs of removed items to determine deletion count
+  if (removedDTags.length > 0 && nostrPool && profileRelays.length) {
+    try {
+      const eventIdsByDTag = await queryEventIdsByDTags(pubkeyValue, removedDTags, profileRelays);
+      const eventIdsToDelete = [];
+      
+      for (const dTag of removedDTags) {
+        const eventId = eventIdsByDTag[dTag];
+        if (eventId) {
+          eventIdsToDelete.push(eventId);
+        }
+      }
+
+      if (eventIdsToDelete.length > 0) {
+        deletionCount = eventIdsToDelete.length;
+      }
+    } catch (error) {
+      console.warn("Failed to query event IDs for removed items in preview", { 
+        removedDTags, 
+        pubkey: pubkeyValue, 
+        error: error?.message || error 
+      });
+      // Still count as deletions even if query failed
+      deletionCount = removedDTags.length;
+    }
+  } else if (removedDTags.length > 0) {
+    // No relays available, but still count as deletions
+    deletionCount = removedDTags.length;
+  }
+
+  // Process current events (new/updated items)
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
     if (!dTag) continue;
@@ -1119,7 +1168,8 @@ async function performPreview(record, options) {
 
   return {
     totalEvents: events.length,
-    pendingCount: toPublish.length,
+    pendingCount: toPublish.length + deletionCount,
+    deletionCount,
     events: toPublish
   };
 }
@@ -1145,6 +1195,7 @@ async function handlePreview(event, requestOrigin = null) {
     merchantId: record.merchantId,
     pendingCount: result.pendingCount,
     totalEvents: result.totalEvents,
+    deletionCount: result.deletionCount,
     events: result.events
   }, {}, requestOrigin);
 }
