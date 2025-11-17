@@ -65,7 +65,8 @@ jobs:
           # Check if the before commit exists
           if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
             # Check all commits in the push range for lambda changes
-            if git log --name-only --pretty=format: ${{ github.event.before }}..${{ github.sha }} | grep -q "^infra/lambda/"; then
+            # Use --diff-filter to only show modified/added files, then filter for lambda directory
+            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/" | grep -q "^infra/lambda/"; then
               echo "changed=true" >> $GITHUB_OUTPUT
             else
               echo "changed=false" >> $GITHUB_OUTPUT
