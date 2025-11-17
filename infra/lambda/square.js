@@ -64,6 +64,28 @@ function extractLocationFromKind0(event) {
   return null;
 }
 
+function extractNameFromKind0(event) {
+  if (!event) return null;
+  if (event.content) {
+    try {
+      const parsed = JSON.parse(event.content);
+      // Priority: display_name > name > handle
+      if (typeof parsed?.display_name === "string" && parsed.display_name.trim()) {
+        return parsed.display_name.trim();
+      }
+      if (typeof parsed?.name === "string" && parsed.name.trim()) {
+        return parsed.name.trim();
+      }
+      if (typeof parsed?.handle === "string" && parsed.handle.trim()) {
+        return parsed.handle.trim();
+      }
+    } catch (error) {
+      console.warn("Failed to parse kind 0 content for name", error);
+    }
+  }
+  return null;
+}
+
 async function fetchProfileLocationFromRelays(pubkey) {
   if (!nostrPool || !profileRelays.length) {
     return null;
@@ -89,6 +111,42 @@ async function fetchProfileLocationFromRelays(pubkey) {
     if (!derived) {
       console.warn("Kind 0 profile missing location tag", { pubkey, event });
     }
+    return derived;
+  } catch (error) {
+    console.warn("Failed to load kind 0 profile from relays", { pubkey, error: error?.message || error });
+    return null;
+  }
+  finally {
+    try {
+      nostrPool?.close(profileRelays);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+async function fetchProfileNameFromRelays(pubkey) {
+  if (!nostrPool || !profileRelays.length) {
+    return null;
+  }
+  try {
+    const timeoutMs = Number.parseInt(process.env.PROFILE_FETCH_TIMEOUT_MS ?? "2000", 10);
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
+    const getPromise = nostrPool
+      .get(profileRelays, {
+        kinds: [0],
+        authors: [pubkey]
+      })
+      .catch((error) => {
+        console.warn("Failed to fetch kind 0 profile", { pubkey, error: error?.message || error });
+        return null;
+      });
+    const event = await Promise.race([getPromise, timeoutPromise]);
+    if (!event) {
+      console.warn("No kind 0 profile found on configured relays", { pubkey, relays: profileRelays });
+      return null;
+    }
+    const derived = extractNameFromKind0(event);
     return derived;
   } catch (error) {
     console.warn("Failed to load kind 0 profile from relays", { pubkey, error: error?.message || error });
@@ -401,7 +459,7 @@ async function geocodeLocation(location) {
   }
 }
 
-function buildEvents(catalog, profileLocation, profileGeoHash) {
+function buildEvents(catalog, profileLocation, profileGeoHash, businessName = null) {
   const catById = new Map((catalog.categories || []).map((c) => [c.id, c.name]));
   const imgById = new Map((catalog.images || []).map((i) => [i.id, i.url]));
   const locationTagValue =
@@ -840,7 +898,10 @@ async function performSync(record, options) {
     profileGeoHash = null;
   }
 
-  const events = buildEvents(catalog, profileLocation, profileGeoHash);
+  // Fetch business name from kind:0 profile
+  const businessName = await fetchProfileNameFromRelays(pubkeyValue);
+
+  const events = buildEvents(catalog, profileLocation, profileGeoHash, businessName);
 
   const previous = record.publishedFingerprints || {};
   const fingerprints = { ...previous };
@@ -1120,7 +1181,10 @@ async function performPreview(record, options) {
     }
   }
 
-  const events = buildEvents(catalog, profileLocation, profileGeoHash);
+  // Fetch business name from kind:0 profile
+  const businessName = await fetchProfileNameFromRelays(pubkeyValue);
+
+  const events = buildEvents(catalog, profileLocation, profileGeoHash, businessName);
 
   const previous = record.publishedFingerprints || {};
   const toPublish = [];
