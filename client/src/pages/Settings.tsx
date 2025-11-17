@@ -230,9 +230,9 @@ export function SettingsPage(): JSX.Element {
         return;
       }
 
-      // Separate deletion events (kind 5) from regular events (kind 30402)
+      // Separate deletion events (kind 5) from regular events (kind 30402 products and kind 30405 collections)
       const deletionEvents = events.filter((e) => e.kind === 5);
-      const updateEvents = events.filter((e) => e.kind === 30402);
+      const updateEvents = events.filter((e) => e.kind === 30402 || e.kind === 30405);
 
       const updateSuccesses: string[] = [];
       const updateFailures: string[] = [];
