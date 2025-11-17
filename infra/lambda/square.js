@@ -1586,10 +1586,31 @@ async function handleExchange(event, requestOrigin = null) {
   ]);
 
   const locations =
-    locationsResp.locations?.map((loc) => ({
-      id: loc.id,
-      name: loc.name || loc.address?.address_line_1 || "Location"
-    })) || [];
+    locationsResp.locations?.map((loc) => {
+      const address = loc.address || {};
+      // Build full address string for matching
+      const addressParts = [
+        address.address_line_1,
+        address.locality,
+        address.administrative_district_level_1,
+        address.postal_code,
+        address.country
+      ].filter(Boolean);
+      const fullAddress = addressParts.join(", ");
+      
+      return {
+        id: loc.id,
+        name: loc.name || address.address_line_1 || "Location",
+        address: {
+          address_line_1: address.address_line_1 || null,
+          locality: address.locality || null,
+          administrative_district_level_1: address.administrative_district_level_1 || null,
+          postal_code: address.postal_code || null,
+          country: address.country || null
+        },
+        fullAddress: fullAddress || null
+      };
+    }) || [];
 
   const merchant = merchantResp.merchant || {};
   const merchantName =
