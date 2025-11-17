@@ -984,8 +984,10 @@ async function fetchNormalizedCatalog(record) {
 }
 
 async function performSync(record, options) {
+  console.log("=== performSync START ===");
   const refreshed = await refreshAccessToken(record);
   const catalog = await fetchNormalizedCatalog(refreshed);
+  console.log("Catalog fetched", JSON.stringify({ itemsCount: catalog.items?.length || 0, categoriesCount: catalog.categories?.length || 0 }, null, 2));
   const requestedLocationRaw = options?.profileLocation;
   const hasRequestedLocation =
     typeof requestedLocationRaw === "string" && requestedLocationRaw.trim().length > 0;
@@ -1329,8 +1331,10 @@ async function handleExchange(event, requestOrigin = null) {
 }
 
 async function performPreview(record, options) {
+  console.log("=== performPreview START ===");
   const refreshed = await refreshAccessToken(record);
   const catalog = await fetchNormalizedCatalog(refreshed);
+  console.log("Catalog fetched (preview)", JSON.stringify({ itemsCount: catalog.items?.length || 0, categoriesCount: catalog.categories?.length || 0 }, null, 2));
   const requestedLocationRaw = options?.profileLocation;
   const hasRequestedLocation =
     typeof requestedLocationRaw === "string" && requestedLocationRaw.trim().length > 0;
