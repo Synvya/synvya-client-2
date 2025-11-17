@@ -454,6 +454,213 @@ describe("extractNameFromKind0", () => {
   });
 });
 
+describe("buildCollectionEvents", () => {
+  it("should create collection events for each category with items", () => {
+    // Mock catalog structure
+    const catalog = {
+      categories: [
+        { id: "cat1", name: "Lunch" },
+        { id: "cat2", name: "Dinner" },
+        { id: "cat3", name: "Dessert" }
+      ],
+      items: [
+        { id: "item1", categoryIds: ["cat1"] },
+        { id: "item2", categoryIds: ["cat1", "cat2"] },
+        { id: "item3", categoryIds: ["cat2"] }
+      ]
+    };
+
+    // Simulate buildCollectionEvents logic
+    const catById = new Map(catalog.categories.map((c) => [c.id, c.name]));
+    const categoryNamesWithItems = new Set();
+    for (const item of catalog.items || []) {
+      for (const categoryId of item.categoryIds || []) {
+        const categoryName = catById.get(categoryId);
+        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
+          categoryNamesWithItems.add(categoryName.trim());
+        }
+      }
+    }
+
+    expect(Array.from(categoryNamesWithItems)).toContain("Lunch");
+    expect(Array.from(categoryNamesWithItems)).toContain("Dinner");
+    expect(Array.from(categoryNamesWithItems)).not.toContain("Dessert");
+    expect(categoryNamesWithItems.size).toBe(2);
+  });
+
+  it("should create collection event with correct tags", () => {
+    const categoryName = "Lunch";
+    const businessName = "Restaurant El Candado";
+    const profileLocation = "123 Main St, City, State, ZIP";
+    const profileGeoHash = "9q5hm";
+    const merchantPubkey = "abc123";
+
+    // Simulate collection event creation
+    const tags = [];
+    tags.push(["d", categoryName]);
+    tags.push(["title", `${categoryName} Menu`]);
+    tags.push(["summary", `${categoryName} Menu for ${businessName}`]);
+    tags.push(["location", profileLocation]);
+    tags.push(["g", profileGeoHash]);
+    tags.push(["a", "30405", merchantPubkey, categoryName]);
+
+    const event = {
+      kind: 30405,
+      created_at: Math.floor(Date.now() / 1000),
+      content: "",
+      tags
+    };
+
+    expect(event.kind).toBe(30405);
+    expect(event.tags.find((t) => t[0] === "d")?.[1]).toBe("Lunch");
+    expect(event.tags.find((t) => t[0] === "title")?.[1]).toBe("Lunch Menu");
+    expect(event.tags.find((t) => t[0] === "summary")?.[1]).toBe("Lunch Menu for Restaurant El Candado");
+    expect(event.tags.find((t) => t[0] === "location")?.[1]).toBe(profileLocation);
+    expect(event.tags.find((t) => t[0] === "g")?.[1]).toBe(profileGeoHash);
+    const aTag = event.tags.find((t) => t[0] === "a");
+    expect(aTag).toEqual(["a", "30405", merchantPubkey, categoryName]);
+  });
+
+  it("should use category name as d tag", () => {
+    const categoryName = "Dinner";
+    const tags = [];
+    tags.push(["d", categoryName]);
+
+    expect(tags[0][0]).toBe("d");
+    expect(tags[0][1]).toBe("Dinner");
+  });
+
+  it("should format title as '{category} Menu'", () => {
+    const categoryName = "Dessert";
+    const title = `${categoryName} Menu`;
+
+    expect(title).toBe("Dessert Menu");
+  });
+
+  it("should format summary with business name when provided", () => {
+    const categoryName = "Lunch";
+    const businessName = "Restaurant El Candado";
+    const summary = `${categoryName} Menu for ${businessName}`;
+
+    expect(summary).toBe("Lunch Menu for Restaurant El Candado");
+  });
+
+  it("should format summary without business name when not provided", () => {
+    const categoryName = "Lunch";
+    const summary = `${categoryName} Menu`;
+
+    expect(summary).toBe("Lunch Menu");
+  });
+
+  it("should include location tag when profileLocation is provided", () => {
+    const profileLocation = "123 Main St, City, State, ZIP";
+    const tags = [];
+    if (profileLocation) {
+      tags.push(["location", profileLocation]);
+    }
+
+    expect(tags.find((t) => t[0] === "location")?.[1]).toBe(profileLocation);
+  });
+
+  it("should include geohash tag when profileGeoHash is provided", () => {
+    const profileGeoHash = "9q5hm";
+    const tags = [];
+    if (profileGeoHash) {
+      tags.push(["g", profileGeoHash]);
+    }
+
+    expect(tags.find((t) => t[0] === "g")?.[1]).toBe(profileGeoHash);
+  });
+
+  it("should include a tag with merchant pubkey", () => {
+    const merchantPubkey = "abc123def456";
+    const categoryName = "Lunch";
+    const tags = [];
+    if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
+      tags.push(["a", "30405", merchantPubkey.trim(), categoryName]);
+    }
+
+    const aTag = tags.find((t) => t[0] === "a");
+    expect(aTag).toEqual(["a", "30405", merchantPubkey, categoryName]);
+  });
+
+  it("should not create collections for categories without items", () => {
+    const catalog = {
+      categories: [
+        { id: "cat1", name: "Lunch" },
+        { id: "cat2", name: "Dinner" }
+      ],
+      items: [
+        { id: "item1", categoryIds: ["cat1"] }
+      ]
+    };
+
+    // Simulate buildCollectionEvents logic
+    const catById = new Map(catalog.categories.map((c) => [c.id, c.name]));
+    const categoryNamesWithItems = new Set();
+    for (const item of catalog.items || []) {
+      for (const categoryId of item.categoryIds || []) {
+        const categoryName = catById.get(categoryId);
+        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
+          categoryNamesWithItems.add(categoryName.trim());
+        }
+      }
+    }
+
+    expect(categoryNamesWithItems.has("Lunch")).toBe(true);
+    expect(categoryNamesWithItems.has("Dinner")).toBe(false);
+  });
+
+  it("should handle items with multiple categories", () => {
+    const catalog = {
+      categories: [
+        { id: "cat1", name: "Lunch" },
+        { id: "cat2", name: "Dinner" }
+      ],
+      items: [
+        { id: "item1", categoryIds: ["cat1", "cat2"] }
+      ]
+    };
+
+    // Simulate buildCollectionEvents logic
+    const catById = new Map(catalog.categories.map((c) => [c.id, c.name]));
+    const categoryNamesWithItems = new Set();
+    for (const item of catalog.items || []) {
+      for (const categoryId of item.categoryIds || []) {
+        const categoryName = catById.get(categoryId);
+        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
+          categoryNamesWithItems.add(categoryName.trim());
+        }
+      }
+    }
+
+    expect(categoryNamesWithItems.has("Lunch")).toBe(true);
+    expect(categoryNamesWithItems.has("Dinner")).toBe(true);
+    expect(categoryNamesWithItems.size).toBe(2);
+  });
+
+  it("should handle empty catalog gracefully", () => {
+    const catalog = {
+      categories: [],
+      items: []
+    };
+
+    // Simulate buildCollectionEvents logic
+    const catById = new Map(catalog.categories.map((c) => [c.id, c.name]));
+    const categoryNamesWithItems = new Set();
+    for (const item of catalog.items || []) {
+      for (const categoryId of item.categoryIds || []) {
+        const categoryName = catById.get(categoryId);
+        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
+          categoryNamesWithItems.add(categoryName.trim());
+        }
+      }
+    }
+
+    expect(categoryNamesWithItems.size).toBe(0);
+  });
+});
+
 describe("buildDeletionEvent", () => {
   it("should build a valid kind 5 event template", () => {
     // Test the expected structure

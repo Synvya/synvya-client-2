@@ -547,6 +547,62 @@ SKU: ${variation.sku || "N/A"}`.trim();
   return events;
 }
 
+function buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, merchantPubkey) {
+  const catById = new Map((catalog.categories || []).map((c) => [c.id, c.name]));
+  const locationTagValue =
+    typeof profileLocation === "string" && profileLocation.trim() ? profileLocation.trim() : null;
+  const geohashTagValue =
+    typeof profileGeoHash === "string" && profileGeoHash.trim() ? profileGeoHash.trim() : null;
+
+  // Collect unique category names that have items
+  const categoryNamesWithItems = new Set();
+  for (const item of catalog.items || []) {
+    for (const categoryId of item.categoryIds || []) {
+      const categoryName = catById.get(categoryId);
+      if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
+        categoryNamesWithItems.add(categoryName.trim());
+      }
+    }
+  }
+
+  const collectionEvents = [];
+  const createdAt = Math.floor(Date.now() / 1000);
+
+  for (const categoryName of categoryNamesWithItems) {
+    const tags = [];
+    tags.push(["d", categoryName]);
+    tags.push(["title", `${categoryName} Menu`]);
+    
+    if (businessName && typeof businessName === "string" && businessName.trim()) {
+      tags.push(["summary", `${categoryName} Menu for ${businessName}`]);
+    } else {
+      tags.push(["summary", `${categoryName} Menu`]);
+    }
+
+    if (locationTagValue) {
+      tags.push(["location", locationTagValue]);
+    }
+
+    if (geohashTagValue) {
+      tags.push(["g", geohashTagValue]);
+    }
+
+    // Add 'a' tag referencing this collection: ["a", "30405", "<pubkey>", "<d-tag>"]
+    if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
+      tags.push(["a", "30405", merchantPubkey.trim(), categoryName]);
+    }
+
+    collectionEvents.push({
+      kind: 30405,
+      created_at: createdAt,
+      content: "",
+      tags
+    });
+  }
+
+  return collectionEvents;
+}
+
 function buildDeletionEvent(eventIds, eventKinds) {
   if (!eventIds || !Array.isArray(eventIds) || eventIds.length === 0) {
     throw new Error("eventIds must be a non-empty array");
