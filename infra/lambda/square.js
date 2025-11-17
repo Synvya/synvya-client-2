@@ -93,7 +93,7 @@ async function fetchProfileLocationFromRelays(pubkey) {
     return null;
   }
   try {
-    const timeoutMs = Number.parseInt(process.env.PROFILE_FETCH_TIMEOUT_MS ?? "2000", 10);
+    const timeoutMs = Number.parseInt(process.env.PROFILE_FETCH_TIMEOUT_MS ?? "5000", 10);
     const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
     const getPromise = nostrPool
       .get(profileRelays, {
@@ -118,49 +118,79 @@ async function fetchProfileLocationFromRelays(pubkey) {
     console.warn("Failed to load kind 0 profile from relays", { pubkey, error: error?.message || error });
     return null;
   }
-  finally {
-    try {
-      nostrPool?.close(profileRelays);
-    } catch {
-      // ignore
-    }
-  }
+  // Don't close the pool here - it's shared and might be used by other functions
 }
 
 async function fetchProfileNameFromRelays(pubkey) {
   if (!nostrPool || !profileRelays.length) {
+    console.log("fetchProfileNameFromRelays: missing pool or relays", {
+      hasPool: !!nostrPool,
+      relayCount: profileRelays?.length || 0
+    });
     return null;
   }
   try {
-    const timeoutMs = Number.parseInt(process.env.PROFILE_FETCH_TIMEOUT_MS ?? "2000", 10);
-    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
+    const timeoutMs = Number.parseInt(process.env.PROFILE_FETCH_TIMEOUT_MS ?? "5000", 10);
+    console.log("fetchProfileNameFromRelays: starting query", {
+      pubkey,
+      relays: profileRelays,
+      timeoutMs
+    });
+    
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => {
+      console.warn("fetchProfileNameFromRelays: timeout", { pubkey, timeoutMs });
+      resolve(null);
+    }, timeoutMs));
+    
     const getPromise = nostrPool
       .get(profileRelays, {
         kinds: [0],
         authors: [pubkey]
       })
+      .then((event) => {
+        console.log("fetchProfileNameFromRelays: got event", {
+          pubkey,
+          hasEvent: !!event,
+          eventId: event?.id?.substring(0, 16) + "...",
+          eventKind: event?.kind
+        });
+        return event;
+      })
       .catch((error) => {
-        console.warn("Failed to fetch kind 0 profile", { pubkey, error: error?.message || error });
+        console.warn("fetchProfileNameFromRelays: query error", { 
+          pubkey, 
+          error: error?.message || error,
+          errorStack: error instanceof Error ? error.stack : undefined
+        });
         return null;
       });
+    
     const event = await Promise.race([getPromise, timeoutPromise]);
     if (!event) {
-      console.warn("No kind 0 profile found on configured relays", { pubkey, relays: profileRelays });
+      console.warn("fetchProfileNameFromRelays: no event found", { 
+        pubkey, 
+        relays: profileRelays,
+        timedOut: true
+      });
       return null;
     }
+    
     const derived = extractNameFromKind0(event);
+    console.log("fetchProfileNameFromRelays: extracted name", {
+      pubkey,
+      derived,
+      eventContent: event?.content ? JSON.parse(event.content) : null
+    });
     return derived;
   } catch (error) {
-    console.warn("Failed to load kind 0 profile from relays", { pubkey, error: error?.message || error });
+    console.warn("fetchProfileNameFromRelays: exception", { 
+      pubkey, 
+      error: error?.message || error,
+      errorStack: error instanceof Error ? error.stack : undefined
+    });
     return null;
   }
-  finally {
-    try {
-      nostrPool?.close(profileRelays);
-    } catch {
-      // ignore
-    }
-  }
+  // Don't close the pool here - it's shared and might be used by other functions
 }
 
 async function queryEventIdsByDTags(pubkey, dTags, relays) {
