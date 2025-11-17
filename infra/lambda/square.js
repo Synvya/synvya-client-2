@@ -1157,34 +1157,59 @@ async function performSync(record, options) {
   
   // Verify collections exist on relays
   const existingCollectionDTags = new Set();
-  if (collectionDTagsToVerify.length > 0 && nostrPool && profileRelays.length) {
-    try {
-      const timeoutMs = Number.parseInt(process.env.EVENT_QUERY_TIMEOUT_MS ?? "5000", 10);
-      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([]), timeoutMs));
-      
-      const queryPromise = nostrPool
-        .querySync(profileRelays, {
-          kinds: [30405],
-          authors: [pubkeyValue],
-          "#d": collectionDTagsToVerify
-        })
-        .catch((error) => {
-          console.warn("Failed to verify collections on relays", { pubkey: pubkeyValue, dTags: collectionDTagsToVerify, error: error?.message || error });
-          return [];
-        });
-      
-      const existingEvents = await Promise.race([queryPromise, timeoutPromise]);
-      
-      if (existingEvents && Array.isArray(existingEvents)) {
-        for (const event of existingEvents) {
-          const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
-          if (dTag && collectionDTagsToVerify.includes(dTag)) {
-            existingCollectionDTags.add(dTag);
+  if (collectionDTagsToVerify.length > 0) {
+    console.log("Verifying collections on relays", JSON.stringify({ 
+      collectionDTagsToVerify, 
+      hasNostrPool: !!nostrPool, 
+      profileRelaysCount: profileRelays?.length || 0 
+    }, null, 2));
+    
+    if (nostrPool && profileRelays.length) {
+      try {
+        const timeoutMs = Number.parseInt(process.env.EVENT_QUERY_TIMEOUT_MS ?? "5000", 10);
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([]), timeoutMs));
+        
+        const queryPromise = nostrPool
+          .querySync(profileRelays, {
+            kinds: [30405],
+            authors: [pubkeyValue],
+            "#d": collectionDTagsToVerify
+          })
+          .catch((error) => {
+            console.warn("Failed to verify collections on relays", { pubkey: pubkeyValue, dTags: collectionDTagsToVerify, error: error?.message || error });
+            return [];
+          });
+        
+        const existingEvents = await Promise.race([queryPromise, timeoutPromise]);
+        
+        console.log("Collection verification results", JSON.stringify({
+          collectionDTagsToVerify,
+          existingEventsCount: existingEvents?.length || 0,
+          foundDTags: []
+        }, null, 2));
+        
+        if (existingEvents && Array.isArray(existingEvents)) {
+          for (const event of existingEvents) {
+            const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
+            if (dTag && collectionDTagsToVerify.includes(dTag)) {
+              existingCollectionDTags.add(dTag);
+            }
           }
+          console.log("Collections found on relays", JSON.stringify({ 
+            foundDTags: Array.from(existingCollectionDTags),
+            missingDTags: collectionDTagsToVerify.filter(d => !existingCollectionDTags.has(d))
+          }, null, 2));
+        } else {
+          console.log("No collections found on relays, all will be published", { collectionDTagsToVerify });
         }
+      } catch (error) {
+        console.warn("Error verifying collections on relays", { error: error?.message || error });
       }
-    } catch (error) {
-      console.warn("Error verifying collections on relays", { error: error?.message || error });
+    } else {
+      console.log("Cannot verify collections - no nostrPool or relays", { 
+        hasNostrPool: !!nostrPool, 
+        profileRelaysCount: profileRelays?.length || 0 
+      });
     }
   }
   
