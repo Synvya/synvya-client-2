@@ -609,6 +609,33 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
     }
   }
 
+  // Always log collection building info (not just in debug mode)
+  console.log("buildCollectionEvents", {
+    totalCategories: catalog.categories?.length || 0,
+    totalItems: catalog.items?.length || 0,
+    categoryNamesWithItems: Array.from(categoryNamesWithItems),
+    categoryMap: Array.from(catById.entries()).map(([id, name]) => ({ id, name })),
+    sampleItem: catalog.items?.[0] ? {
+      id: catalog.items[0].id,
+      name: catalog.items[0].name,
+      categoryIds: catalog.items[0].categoryIds
+    } : null
+  });
+  
+  if (process.env.DEBUG_SQUARE_SYNC === "true") {
+    console.debug("buildCollectionEvents (detailed)", {
+      totalCategories: catalog.categories?.length || 0,
+      totalItems: catalog.items?.length || 0,
+      categoryNamesWithItems: Array.from(categoryNamesWithItems),
+      categoryMap: Array.from(catById.entries()).map(([id, name]) => ({ id, name })),
+      sampleItem: catalog.items?.[0] ? {
+        id: catalog.items[0].id,
+        name: catalog.items[0].name,
+        categoryIds: catalog.items[0].categoryIds
+      } : null
+    });
+  }
+
   const collectionEvents = [];
   const createdAt = Math.floor(Date.now() / 1000);
 
@@ -1004,6 +1031,30 @@ async function performSync(record, options) {
   // Build product events and collection events
   const productEvents = buildEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
   const collectionEvents = buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
+  
+  // Always log collection events info (not just in debug mode)
+  console.log("Collection events created", {
+    productEventsCount: productEvents.length,
+    collectionEventsCount: collectionEvents.length,
+    collectionDTags: collectionEvents.map((e) => {
+      const dTag = e.tags.find((t) => Array.isArray(t) && t[0] === "d")?.[1];
+      return dTag;
+    }),
+    totalItems: catalog.items?.length || 0,
+    totalCategories: catalog.categories?.length || 0
+  });
+  
+  if (process.env.DEBUG_SQUARE_SYNC === "true") {
+    console.debug("Event building summary (performSync)", {
+      productEventsCount: productEvents.length,
+      collectionEventsCount: collectionEvents.length,
+      collectionDTags: collectionEvents.map((e) => {
+        const dTag = e.tags.find((t) => Array.isArray(t) && t[0] === "d")?.[1];
+        return dTag;
+      })
+    });
+  }
+  
   const events = [...productEvents, ...collectionEvents];
 
   const previous = record.publishedFingerprints || {};
@@ -1081,12 +1132,18 @@ async function performSync(record, options) {
     }
   }
 
-  // Process current events (new/updated items)
+  // Process current events (new/updated items and collections)
+  let skippedCollections = 0;
+  let publishedCollections = 0;
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
     if (!dTag) continue;
     const fingerprint = computeFingerprint(event);
+    const isCollection = event.kind === 30405;
     if (previous[dTag] && previous[dTag] === fingerprint) {
+      if (isCollection) {
+        skippedCollections++;
+      }
       continue;
     }
     toPublish.push({
@@ -1095,7 +1152,28 @@ async function performSync(record, options) {
       content: event.content,
       tags: event.tags
     });
+    if (isCollection) {
+      publishedCollections++;
+    }
     fingerprints[dTag] = fingerprint;
+  }
+  
+  // Always log publishing summary (not just in debug mode)
+  console.log("Publishing summary", {
+    totalToPublish: toPublish.length,
+    publishedCollections,
+    skippedCollections,
+    collectionEventsInInput: collectionEvents.length,
+    collectionKinds: toPublish.filter((e) => e.kind === 30405).length
+  });
+  
+  if (process.env.DEBUG_SQUARE_SYNC === "true") {
+    console.debug("Publishing summary (detailed)", {
+      totalToPublish: toPublish.length,
+      publishedCollections,
+      skippedCollections,
+      collectionEventsInInput: collectionEvents.length
+    });
   }
 
   const expressionValues = {
