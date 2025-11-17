@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { MapPin, Tag, DollarSign, Image as ImageIcon, Trash2 } from "lucide-react";
+import { MapPin, Tag, DollarSign, Image as ImageIcon, Trash2, Package, UtensilsCrossed } from "lucide-react";
 
 interface PublicationPreviewProps {
   open: boolean;
@@ -71,12 +71,12 @@ export function PublicationPreview({
                 <div className="space-y-1">
                   {hasUpdates && (
                     <div>
-                      Previewing {updateCount} listing{updateCount === 1 ? "" : "s"} to {updateCount === 1 ? "update" : "update or create"}.
+                      Previewing {updateCount} item{updateCount === 1 ? "" : "s"} (products and collections) to {updateCount === 1 ? "update" : "update or create"}.
                     </div>
                   )}
                   {hasDeletions && (
                     <div className="text-orange-600 dark:text-orange-400">
-                      {deletionCount} listing{deletionCount === 1 ? "" : "s"} will be deleted.
+                      {deletionCount} item{deletionCount === 1 ? "" : "s"} will be deleted.
                     </div>
                   )}
                 </div>
@@ -87,18 +87,30 @@ export function PublicationPreview({
         <div className="flex-1 overflow-y-auto pr-2 space-y-6">
           {events.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No listings to preview.</p>
+              <p>No items to preview.</p>
             </div>
           ) : (
             events.map((event, index) => {
               const isDeletion = event._isDeletion === true;
+              const isCollection = event.kind === 30405;
+              const isProduct = event.kind === 30402;
               const title = extractTagValue(event.tags, "title");
               const summary = extractTagValue(event.tags, "summary");
               const location = extractTagValue(event.tags, "location");
               const images = extractTagValues(event.tags, "image");
               const priceTag = event.tags.find((t) => Array.isArray(t) && t[0] === "price");
               const price = priceTag ? formatPrice(priceTag) : null;
-              const categories = extractTagValues(event.tags, "t");
+              
+              // Extract collection references (a tags for kind 30405)
+              const collectionRefs = event.tags
+                .filter((t) => Array.isArray(t) && t[0] === "a" && t[1] === "30405" && t[3])
+                .map((t) => t[3] as string);
+              
+              // Extract suitableForDiet tags
+              const suitableForDiet = extractTagValues(event.tags, "suitableForDiet");
+              
+              // Extract t tags (ingredients and dietary preferences)
+              const tTags = extractTagValues(event.tags, "t");
 
               return (
                 <div
@@ -106,6 +118,8 @@ export function PublicationPreview({
                   className={`rounded-lg border p-4 space-y-3 shadow-sm ${
                     isDeletion
                       ? "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800"
+                      : isCollection
+                      ? "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800"
                       : "bg-card"
                   }`}
                 >
@@ -113,6 +127,12 @@ export function PublicationPreview({
                     <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 font-semibold mb-2">
                       <Trash2 className="h-4 w-4" />
                       <span>Will be deleted</span>
+                    </div>
+                  )}
+                  {isCollection && !isDeletion && (
+                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-semibold mb-2">
+                      <Package className="h-4 w-4" />
+                      <span>Collection</span>
                     </div>
                   )}
                   {title && (
@@ -170,16 +190,50 @@ export function PublicationPreview({
                       </div>
                     )}
 
-                    {categories.length > 0 && (
+                    {collectionRefs.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Package className="h-4 w-4" />
+                        <span className="text-xs">Part of:</span>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {collectionRefs.map((collectionName, refIndex) => (
+                            <span
+                              key={refIndex}
+                              className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium"
+                            >
+                              {collectionName} Menu
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {suitableForDiet.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <UtensilsCrossed className="h-4 w-4" />
+                        <span className="text-xs">Dietary:</span>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {suitableForDiet.map((diet, dietIndex) => (
+                            <span
+                              key={dietIndex}
+                              className="px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium"
+                            >
+                              {diet.replace(/_/g, " ")}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {tTags.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Tag className="h-4 w-4" />
                         <div className="flex gap-1.5 flex-wrap">
-                          {categories.map((cat, catIndex) => (
+                          {tTags.map((tag, tagIndex) => (
                             <span
-                              key={catIndex}
+                              key={tagIndex}
                               className="px-2 py-0.5 rounded-md bg-muted text-xs"
                             >
-                              {cat}
+                              {tag.replace(/_/g, " ")}
                             </span>
                           ))}
                         </div>
