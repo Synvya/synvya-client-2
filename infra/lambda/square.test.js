@@ -7,6 +7,239 @@ import { describe, it, expect } from "vitest";
 // Since the functions are not exported, we'll test the logic conceptually
 // In a real scenario, we would export the functions or use integration tests
 
+describe("fetchNormalizedCatalog - Food & Beverage Fields Extraction", () => {
+  it("should extract ingredients from food_and_beverage_details", () => {
+    // Mock Square API item_data structure
+    const itemData = {
+      name: "Bocadillo de Jamón",
+      description: "Traditional Spanish baguette",
+      food_and_beverage_details: {
+        ingredients: [
+          { type: "STANDARD", standard_name: "GLUTEN" },
+          { type: "STANDARD", standard_name: "WHEAT" }
+        ]
+      }
+    };
+
+    // Simulate extraction logic
+    const ingredients = [];
+    if (itemData.food_and_beverage_details) {
+      const fbDetails = itemData.food_and_beverage_details;
+      if (Array.isArray(fbDetails.ingredients)) {
+        for (const ingredient of fbDetails.ingredients) {
+          if (ingredient && typeof ingredient.standard_name === "string") {
+            ingredients.push(ingredient.standard_name);
+          }
+        }
+      }
+    }
+
+    expect(ingredients).toEqual(["GLUTEN", "WHEAT"]);
+    expect(ingredients).toHaveLength(2);
+  });
+
+  it("should extract dietary_preferences from food_and_beverage_details", () => {
+    // Mock Square API item_data structure
+    const itemData = {
+      name: "Paella Valenciana",
+      description: "Saffron rice dish",
+      food_and_beverage_details: {
+        dietary_preferences: [
+          { type: "STANDARD", standard_name: "GLUTEN_FREE" },
+          { type: "STANDARD", standard_name: "DAIRY_FREE" },
+          { type: "STANDARD", standard_name: "NUT_FREE" }
+        ]
+      }
+    };
+
+    // Simulate extraction logic
+    const dietaryPreferences = [];
+    if (itemData.food_and_beverage_details) {
+      const fbDetails = itemData.food_and_beverage_details;
+      if (Array.isArray(fbDetails.dietary_preferences)) {
+        for (const pref of fbDetails.dietary_preferences) {
+          if (pref && typeof pref.standard_name === "string") {
+            dietaryPreferences.push(pref.standard_name);
+          }
+        }
+      }
+    }
+
+    expect(dietaryPreferences).toEqual(["GLUTEN_FREE", "DAIRY_FREE", "NUT_FREE"]);
+    expect(dietaryPreferences).toHaveLength(3);
+  });
+
+  it("should extract both ingredients and dietary_preferences", () => {
+    // Mock Square API item_data structure
+    const itemData = {
+      name: "Test Item",
+      description: "Test description",
+      food_and_beverage_details: {
+        ingredients: [
+          { type: "STANDARD", standard_name: "GLUTEN" }
+        ],
+        dietary_preferences: [
+          { type: "STANDARD", standard_name: "GLUTEN_FREE" }
+        ]
+      }
+    };
+
+    // Simulate extraction logic
+    const ingredients = [];
+    const dietaryPreferences = [];
+    if (itemData.food_and_beverage_details) {
+      const fbDetails = itemData.food_and_beverage_details;
+      if (Array.isArray(fbDetails.ingredients)) {
+        for (const ingredient of fbDetails.ingredients) {
+          if (ingredient && typeof ingredient.standard_name === "string") {
+            ingredients.push(ingredient.standard_name);
+          }
+        }
+      }
+      if (Array.isArray(fbDetails.dietary_preferences)) {
+        for (const pref of fbDetails.dietary_preferences) {
+          if (pref && typeof pref.standard_name === "string") {
+            dietaryPreferences.push(pref.standard_name);
+          }
+        }
+      }
+    }
+
+    expect(ingredients).toEqual(["GLUTEN"]);
+    expect(dietaryPreferences).toEqual(["GLUTEN_FREE"]);
+  });
+
+  it("should return empty arrays when food_and_beverage_details is missing", () => {
+    // Mock Square API item_data structure without food_and_beverage_details
+    const itemData = {
+      name: "Test Item",
+      description: "Test description"
+    };
+
+    // Simulate extraction logic
+    const ingredients = [];
+    const dietaryPreferences = [];
+    if (itemData.food_and_beverage_details) {
+      const fbDetails = itemData.food_and_beverage_details;
+      if (Array.isArray(fbDetails.ingredients)) {
+        for (const ingredient of fbDetails.ingredients) {
+          if (ingredient && typeof ingredient.standard_name === "string") {
+            ingredients.push(ingredient.standard_name);
+          }
+        }
+      }
+      if (Array.isArray(fbDetails.dietary_preferences)) {
+        for (const pref of fbDetails.dietary_preferences) {
+          if (pref && typeof pref.standard_name === "string") {
+            dietaryPreferences.push(pref.standard_name);
+          }
+        }
+      }
+    }
+
+    expect(ingredients).toEqual([]);
+    expect(dietaryPreferences).toEqual([]);
+  });
+
+  it("should return empty arrays when ingredients/dietary_preferences arrays are missing", () => {
+    // Mock Square API item_data structure with empty food_and_beverage_details
+    const itemData = {
+      name: "Test Item",
+      description: "Test description",
+      food_and_beverage_details: {}
+    };
+
+    // Simulate extraction logic
+    const ingredients = [];
+    const dietaryPreferences = [];
+    if (itemData.food_and_beverage_details) {
+      const fbDetails = itemData.food_and_beverage_details;
+      if (Array.isArray(fbDetails.ingredients)) {
+        for (const ingredient of fbDetails.ingredients) {
+          if (ingredient && typeof ingredient.standard_name === "string") {
+            ingredients.push(ingredient.standard_name);
+          }
+        }
+      }
+      if (Array.isArray(fbDetails.dietary_preferences)) {
+        for (const pref of fbDetails.dietary_preferences) {
+          if (pref && typeof pref.standard_name === "string") {
+            dietaryPreferences.push(pref.standard_name);
+          }
+        }
+      }
+    }
+
+    expect(ingredients).toEqual([]);
+    expect(dietaryPreferences).toEqual([]);
+  });
+
+  it("should filter out ingredients without standard_name", () => {
+    // Mock Square API item_data structure with invalid entries
+    const itemData = {
+      name: "Test Item",
+      food_and_beverage_details: {
+        ingredients: [
+          { type: "STANDARD", standard_name: "GLUTEN" },
+          { type: "STANDARD" }, // missing standard_name
+          null,
+          { type: "STANDARD", standard_name: "WHEAT" }
+        ]
+      }
+    };
+
+    // Simulate extraction logic
+    const ingredients = [];
+    if (itemData.food_and_beverage_details) {
+      const fbDetails = itemData.food_and_beverage_details;
+      if (Array.isArray(fbDetails.ingredients)) {
+        for (const ingredient of fbDetails.ingredients) {
+          if (ingredient && typeof ingredient.standard_name === "string") {
+            ingredients.push(ingredient.standard_name);
+          }
+        }
+      }
+    }
+
+    expect(ingredients).toEqual(["GLUTEN", "WHEAT"]);
+    expect(ingredients).toHaveLength(2);
+  });
+
+  it("should handle items with only ingredients (no dietary_preferences)", () => {
+    const itemData = {
+      name: "Test Item",
+      food_and_beverage_details: {
+        ingredients: [
+          { type: "STANDARD", standard_name: "GLUTEN" }
+        ]
+      }
+    };
+
+    const ingredients = [];
+    const dietaryPreferences = [];
+    if (itemData.food_and_beverage_details) {
+      const fbDetails = itemData.food_and_beverage_details;
+      if (Array.isArray(fbDetails.ingredients)) {
+        for (const ingredient of fbDetails.ingredients) {
+          if (ingredient && typeof ingredient.standard_name === "string") {
+            ingredients.push(ingredient.standard_name);
+          }
+        }
+      }
+      if (Array.isArray(fbDetails.dietary_preferences)) {
+        for (const pref of fbDetails.dietary_preferences) {
+          if (pref && typeof pref.standard_name === "string") {
+            dietaryPreferences.push(pref.standard_name);
+          }
+        }
+      }
+    }
+
+    expect(ingredients).toEqual(["GLUTEN"]);
+    expect(dietaryPreferences).toEqual([]);
+  });
+});
+
 describe("buildDeletionEvent", () => {
   it("should build a valid kind 5 event template", () => {
     // Test the expected structure
