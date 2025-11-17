@@ -172,15 +172,17 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       }
     } else if (tag[0] === "t" && typeof tag[1] === "string" && tag[1] !== "production") {
       categories.push(tag[1]);
-    } else if (tag[0] === "servesCuisine" && typeof tag[1] === "string") {
+    } else if (tag[0] === "schema.org:servesCuisine" && typeof tag[1] === "string") {
       patch.cuisine = tag[1];
-    } else if (tag[0] === "acceptsReservations" && typeof tag[1] === "string") {
+    } else if (tag[0] === "schema.org:acceptsReservations" && typeof tag[1] === "string") {
       if (tag[1] === "False") {
         patch.acceptsReservations = false;
       } else if (tag[1] === "https://dinedirect.app") {
         patch.acceptsReservations = true;
       }
-    } else if (tag[0] === "openingHoursSpecification" && typeof tag[1] === "string" && typeof tag[2] === "string") {
+    } else if (tag[0] === "i" && typeof tag[1] === "string" && tag[1] === "rp") {
+      patch.acceptsReservations = true;
+    } else if (tag[0] === "schema.org:OpeningHoursSpecification" && typeof tag[1] === "string" && typeof tag[2] === "string") {
       // Parse day range and time range
       const dayRange = tag[1];
       const timeRange = tag[2];
@@ -208,25 +210,48 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
         }
       }
     } else if (tag[0] === "i" && typeof tag[1] === "string") {
-      if (tag[1].startsWith("telephone:")) {
+      if (tag[1].startsWith("schema.org:telephone:")) {
+        const phone = tag[1].slice("schema.org:telephone:".length);
+        if (phone) patch.phone = phone;
+      } else if (tag[1].startsWith("telephone:")) {
+        // Backward compatibility: support old "telephone:" format
         const phone = tag[1].slice("telephone:".length);
         if (phone) patch.phone = phone;
       } else if (tag[1].startsWith("phone:")) {
         // Backward compatibility: support old "phone:" format
         const phone = tag[1].slice("phone:".length);
         if (phone) patch.phone = phone;
+      } else if (tag[1].startsWith("schema.org:email:mailto:")) {
+        const email = tag[1].slice("schema.org:email:mailto:".length);
+        if (email) patch.email = email;
       } else if (tag[1].startsWith("email:mailto:")) {
+        // Backward compatibility: support old "email:mailto:" format
         const email = tag[1].slice("email:mailto:".length);
         if (email) patch.email = email;
+      } else if (tag[1].startsWith("schema.org:PostalAddress:streetAddress:")) {
+        patch.street = tag[1].slice("schema.org:PostalAddress:streetAddress:".length);
       } else if (tag[1].startsWith("postalAddress:streetAddress:")) {
+        // Backward compatibility: support old "postalAddress:" format
         patch.street = tag[1].slice("postalAddress:streetAddress:".length);
+      } else if (tag[1].startsWith("schema.org:PostalAddress:addressLocality:")) {
+        patch.city = tag[1].slice("schema.org:PostalAddress:addressLocality:".length);
       } else if (tag[1].startsWith("postalAddress:addressLocality:")) {
+        // Backward compatibility: support old "postalAddress:" format
         patch.city = tag[1].slice("postalAddress:addressLocality:".length);
+      } else if (tag[1].startsWith("schema.org:PostalAddress:addressRegion:")) {
+        patch.state = tag[1].slice("schema.org:PostalAddress:addressRegion:".length);
       } else if (tag[1].startsWith("postalAddress:addressRegion:")) {
+        // Backward compatibility: support old "postalAddress:" format
         patch.state = tag[1].slice("postalAddress:addressRegion:".length);
+      } else if (tag[1].startsWith("schema.org:PostalAddress:postalCode:")) {
+        patch.zip = tag[1].slice("schema.org:PostalAddress:postalCode:".length);
       } else if (tag[1].startsWith("postalAddress:postalCode:")) {
+        // Backward compatibility: support old "postalAddress:" format
         patch.zip = tag[1].slice("postalAddress:postalCode:".length);
+      } else if (tag[1].startsWith("schema.org:PostalAddress:addressCountry:")) {
+        patch.country = tag[1].slice("schema.org:PostalAddress:addressCountry:".length);
       } else if (tag[1].startsWith("postalAddress:addressCountry:")) {
+        // Backward compatibility: support old "postalAddress:" format
         patch.country = tag[1].slice("postalAddress:addressCountry:".length);
       } else if (tag[1].startsWith("location:")) {
         // Fallback to old format for backward compatibility

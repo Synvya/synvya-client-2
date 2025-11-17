@@ -98,55 +98,68 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   }
 
   if (profile.cuisine) {
-    tags.push(["servesCuisine", profile.cuisine, "https://schema.org/servesCuisine"]);
+    tags.push(["schema.org:servesCuisine", profile.cuisine, "https://schema.org/servesCuisine"]);
   }
 
   if (profile.phone) {
     const formattedPhone = formatPhoneWithCountryCode(profile.phone, profile.country);
-    tags.push(["i", `telephone:${formattedPhone}`, "https://datatracker.ietf.org/doc/html/rfc3966"]);
+    tags.push(["i", `schema.org:telephone:${formattedPhone}`, "https://datatracker.ietf.org/doc/html/rfc3966"]);
   }
 
   if (profile.email) {
-    tags.push(["i", `email:mailto:${profile.email}`, "https://schema.org/email"]);
+    tags.push(["i", `schema.org:email:mailto:${profile.email}`, "https://schema.org/email"]);
+    tags.push(["k", "schema.org:email"]);
   }
 
   // Add postal address component tags
   if (profile.street) {
-    tags.push(["i", `postalAddress:streetAddress:${profile.street}`, "https://schema.org/streetAddress"]);
+    tags.push(["i", `schema.org:PostalAddress:streetAddress:${profile.street}`, "https://schema.org/streetAddress"]);
+    tags.push(["k", "schema.org:PostalAddress:streetAddress"]);
   }
   if (profile.city) {
-    tags.push(["i", `postalAddress:addressLocality:${profile.city}`, "https://schema.org/addressLocality"]);
+    tags.push(["i", `schema.org:PostalAddress:addressLocality:${profile.city}`, "https://schema.org/addressLocality"]);
+    tags.push(["k", "schema.org:PostalAddress:addressLocality"]);
   }
   if (profile.state) {
-    tags.push(["i", `postalAddress:addressRegion:${profile.state}`, "https://schema.org/addressRegion"]);
+    tags.push(["i", `schema.org:PostalAddress:addressRegion:${profile.state}`, "https://schema.org/addressRegion"]);
+    tags.push(["k", "schema.org:PostalAddress:addressRegion"]);
   }
   if (profile.zip) {
-    tags.push(["i", `postalAddress:postalCode:${profile.zip}`, "https://schema.org/postalCode"]);
+    tags.push(["i", `schema.org:PostalAddress:postalCode:${profile.zip}`, "https://schema.org/postalCode"]);
+    tags.push(["k", "schema.org:PostalAddress:postalCode"]);
   }
   // Always add country if we have any address components
   if (profile.street || profile.city || profile.state || profile.zip) {
     const country = profile.country || "US"; // Default to US if not specified
-    tags.push(["i", `postalAddress:addressCountry:${country}`, "https://schema.org/addressCountry"]);
+    tags.push(["i", `schema.org:PostalAddress:addressCountry:${country}`, "https://schema.org/addressCountry"]);
+    tags.push(["k", "schema.org:PostalAddress:addressCountry"]);
   }
 
   // Add geo tags if geocoding succeeded
+  let hasGeoTag = false;
   if (options.latitude != null && options.longitude != null) {
     tags.push(["i", `geo:latitude:${options.latitude}`, "https://schema.org/latitude"]);
     tags.push(["i", `geo:longitude:${options.longitude}`, "https://schema.org/longitude"]);
+    hasGeoTag = true;
   }
   if (options.geohash) {
     const trimmedGeohash = options.geohash.trim();
     if (trimmedGeohash) {
       tags.push(["i", `geo:${trimmedGeohash}`, "https://geohash.org"]);
+      hasGeoTag = true;
     }
+  }
+  if (hasGeoTag) {
+    tags.push(["k", "geo"]);
   }
 
   // Add acceptsReservations tags
   if (profile.acceptsReservations === false) {
-    tags.push(["acceptsReservations", "False"]);
+    tags.push(["schema.org:acceptsReservations", "False"]);
   } else if (profile.acceptsReservations === true) {
-    tags.push(["acceptsReservations", "https://dinedirect.app"]);
-    tags.push(["i", "nip:rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
+    tags.push(["schema.org:acceptsReservations", "https://dinedirect.app"]);
+    tags.push(["i", "rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
+    tags.push(["k", "nip"]);
   }
 
   // Add opening hours tags
@@ -160,7 +173,7 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
             : `${spec.days[0]}-${spec.days[spec.days.length - 1]}`;
         // Format time range: "11:00-21:00"
         const timeRange = `${spec.startTime}-${spec.endTime}`;
-        tags.push(["openingHoursSpecification", dayRange, timeRange]);
+        tags.push(["schema.org:OpeningHoursSpecification", dayRange, timeRange]);
       }
     }
   }
