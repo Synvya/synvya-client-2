@@ -62,9 +62,10 @@ jobs:
       - name: Check for Lambda changes
         id: lambda-changes
         run: |
-          # Check if the before commit exists, if not, check if current commit has lambda changes
+          # Check if the before commit exists
           if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
-            if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^infra/lambda/"; then
+            # Check all commits in the push range for lambda changes
+            if git log --name-only --pretty=format: ${{ github.event.before }}..${{ github.sha }} | grep -q "^infra/lambda/"; then
               echo "changed=true" >> $GITHUB_OUTPUT
             else
               echo "changed=false" >> $GITHUB_OUTPUT
