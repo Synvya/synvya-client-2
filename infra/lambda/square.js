@@ -1142,18 +1142,37 @@ async function performSync(record, options) {
   const collectionEventsMap = new Map();
   
   // First pass: identify collections that match fingerprints
+  console.log("First pass: checking collections for fingerprint matches", JSON.stringify({
+    totalEvents: events.length,
+    previousFingerprints: Object.keys(previous).length
+  }, null, 2));
+  
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
     if (!dTag) continue;
     const fingerprint = computeFingerprint(event);
     const isCollection = event.kind === 30405;
     
-    if (isCollection && previous[dTag] && previous[dTag] === fingerprint) {
-      // Collection matches fingerprint - need to verify it exists on relays
-      collectionDTagsToVerify.push(dTag);
-      collectionEventsMap.set(dTag, event);
+    if (isCollection) {
+      const hasPreviousFingerprint = previous[dTag] !== undefined;
+      const fingerprintMatches = previous[dTag] === fingerprint;
+      if (hasPreviousFingerprint && fingerprintMatches) {
+        // Collection matches fingerprint - need to verify it exists on relays
+        console.log("Collection matches fingerprint, will verify", { dTag, fingerprint: fingerprint.substring(0, 8) + "..." });
+        collectionDTagsToVerify.push(dTag);
+        collectionEventsMap.set(dTag, event);
+      } else if (hasPreviousFingerprint && !fingerprintMatches) {
+        console.log("Collection fingerprint changed, will publish", { dTag, oldFp: previous[dTag]?.substring(0, 8) + "...", newFp: fingerprint.substring(0, 8) + "..." });
+      } else {
+        console.log("Collection has no previous fingerprint, will publish", { dTag });
+      }
     }
   }
+  
+  console.log("First pass complete", JSON.stringify({
+    collectionDTagsToVerify: collectionDTagsToVerify.length,
+    dTags: collectionDTagsToVerify
+  }, null, 2));
   
   // Verify collections exist on relays
   const existingCollectionDTags = new Set();
