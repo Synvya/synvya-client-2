@@ -261,13 +261,36 @@ export function SettingsPage(): JSX.Element {
       // Handle update/create events
       for (const template of updateEvents) {
         try {
+          const dTag = template.tags.find((tag) => tag[0] === "d")?.[1];
+          const isCollection = template.kind === 30405;
+          console.log(`Publishing ${isCollection ? "collection" : "product"} event`, { 
+            kind: template.kind, 
+            dTag 
+          });
+          
           const signed = await signEvent(template);
           validateEvent(signed);
+          console.log(`Event signed and validated`, { 
+            kind: signed.kind, 
+            id: signed.id.substring(0, 16) + "...",
+            dTag 
+          });
+          
           await publishToRelays(signed, relays);
+          console.log(`Event published successfully`, { 
+            kind: signed.kind, 
+            id: signed.id.substring(0, 16) + "...",
+            dTag 
+          });
           updateSuccesses.push(signed.id);
         } catch (error) {
-          console.error("Failed to publish catalog listing", error);
           const dTag = template.tags.find((tag) => tag[0] === "d")?.[1];
+          const isCollection = template.kind === 30405;
+          console.error(`Failed to publish ${isCollection ? "collection" : "product"} event`, { 
+            kind: template.kind, 
+            dTag, 
+            error: error instanceof Error ? error.message : String(error) 
+          });
           if (dTag) {
             updateFailures.push(dTag);
           }
