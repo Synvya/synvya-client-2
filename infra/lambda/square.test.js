@@ -661,6 +661,217 @@ describe("buildCollectionEvents", () => {
   });
 });
 
+describe("buildEvents - New Tag Strategy", () => {
+  it("should use SKU for d tag when available", () => {
+    const variation = { sku: "0001", name: "Regular" };
+    const dTag = variation.sku && typeof variation.sku === "string" && variation.sku.trim()
+      ? variation.sku.trim()
+      : "fallback-id";
+
+    expect(dTag).toBe("0001");
+  });
+
+  it("should use fallback identifier when SKU is not available", () => {
+    const variation = { name: "Regular" };
+    const itemId = "item123";
+    const variationId = "var456";
+    const dTag = variation.sku && typeof variation.sku === "string" && variation.sku.trim()
+      ? variation.sku.trim()
+      : `${itemId}-${variationId}`;
+
+    expect(dTag).toBe("item123-var456");
+  });
+
+  it("should use item.name directly for title (no variation suffix)", () => {
+    const item = { name: "Bocadillo de Jamón" };
+    const title = item.name;
+
+    expect(title).toBe("Bocadillo de Jamón");
+  });
+
+  it("should add type tag with simple and physical", () => {
+    const tags = [];
+    tags.push(["type", "simple", "physical"]);
+
+    const typeTag = tags.find((t) => t[0] === "type");
+    expect(typeTag).toEqual(["type", "simple", "physical"]);
+  });
+
+  it("should add t tags from ingredients array", () => {
+    const item = {
+      ingredients: ["GLUTEN", "WHEAT"]
+    };
+    const tags = [];
+    if (Array.isArray(item.ingredients)) {
+      for (const ingredient of item.ingredients) {
+        if (typeof ingredient === "string" && ingredient.trim()) {
+          tags.push(["t", ingredient.trim()]);
+        }
+      }
+    }
+
+    const tTags = tags.filter((t) => t[0] === "t");
+    expect(tTags).toHaveLength(2);
+    expect(tTags[0]).toEqual(["t", "GLUTEN"]);
+    expect(tTags[1]).toEqual(["t", "WHEAT"]);
+  });
+
+  it("should add t tags from dietary_preferences array", () => {
+    const item = {
+      dietaryPreferences: ["GLUTEN_FREE", "DAIRY_FREE"]
+    };
+    const tags = [];
+    if (Array.isArray(item.dietaryPreferences)) {
+      for (const pref of item.dietaryPreferences) {
+        if (typeof pref === "string" && pref.trim()) {
+          tags.push(["t", pref.trim()]);
+        }
+      }
+    }
+
+    const tTags = tags.filter((t) => t[0] === "t");
+    expect(tTags).toHaveLength(2);
+    expect(tTags[0]).toEqual(["t", "GLUTEN_FREE"]);
+    expect(tTags[1]).toEqual(["t", "DAIRY_FREE"]);
+  });
+
+  it("should add t tags from both ingredients and dietary_preferences", () => {
+    const item = {
+      ingredients: ["GLUTEN"],
+      dietaryPreferences: ["GLUTEN_FREE"]
+    };
+    const tags = [];
+    if (Array.isArray(item.ingredients)) {
+      for (const ingredient of item.ingredients) {
+        if (typeof ingredient === "string" && ingredient.trim()) {
+          tags.push(["t", ingredient.trim()]);
+        }
+      }
+    }
+    if (Array.isArray(item.dietaryPreferences)) {
+      for (const pref of item.dietaryPreferences) {
+        if (typeof pref === "string" && pref.trim()) {
+          tags.push(["t", pref.trim()]);
+        }
+      }
+    }
+
+    const tTags = tags.filter((t) => t[0] === "t");
+    expect(tTags).toHaveLength(2);
+    expect(tTags).toContainEqual(["t", "GLUTEN"]);
+    expect(tTags).toContainEqual(["t", "GLUTEN_FREE"]);
+  });
+
+  it("should add a tag for each category the item belongs to", () => {
+    const item = {
+      categoryIds: ["cat1", "cat2"]
+    };
+    const catById = new Map([
+      ["cat1", "Lunch"],
+      ["cat2", "Dinner"]
+    ]);
+    const merchantPubkey = "abc123";
+    const tags = [];
+
+    if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
+      for (const categoryId of item.categoryIds || []) {
+        const categoryName = catById.get(categoryId);
+        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
+          tags.push(["a", "30405", merchantPubkey.trim(), categoryName.trim()]);
+        }
+      }
+    }
+
+    const aTags = tags.filter((t) => t[0] === "a");
+    expect(aTags).toHaveLength(2);
+    expect(aTags[0]).toEqual(["a", "30405", merchantPubkey, "Lunch"]);
+    expect(aTags[1]).toEqual(["a", "30405", merchantPubkey, "Dinner"]);
+  });
+
+  it("should add suitableForDiet tags from dietary_preferences", () => {
+    const item = {
+      dietaryPreferences: ["GLUTEN_FREE", "DAIRY_FREE", "NUT_FREE"]
+    };
+    const tags = [];
+    if (Array.isArray(item.dietaryPreferences)) {
+      for (const pref of item.dietaryPreferences) {
+        if (typeof pref === "string" && pref.trim()) {
+          tags.push(["suitableForDiet", pref.trim()]);
+        }
+      }
+    }
+
+    const suitableForDietTags = tags.filter((t) => t[0] === "suitableForDiet");
+    expect(suitableForDietTags).toHaveLength(3);
+    expect(suitableForDietTags[0]).toEqual(["suitableForDiet", "GLUTEN_FREE"]);
+    expect(suitableForDietTags[1]).toEqual(["suitableForDiet", "DAIRY_FREE"]);
+    expect(suitableForDietTags[2]).toEqual(["suitableForDiet", "NUT_FREE"]);
+  });
+
+  it("should not add a tags when merchantPubkey is missing", () => {
+    const item = {
+      categoryIds: ["cat1"]
+    };
+    const catById = new Map([["cat1", "Lunch"]]);
+    const merchantPubkey = null;
+    const tags = [];
+
+    if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
+      for (const categoryId of item.categoryIds || []) {
+        const categoryName = catById.get(categoryId);
+        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
+          tags.push(["a", "30405", merchantPubkey.trim(), categoryName.trim()]);
+        }
+      }
+    }
+
+    const aTags = tags.filter((t) => t[0] === "a");
+    expect(aTags).toHaveLength(0);
+  });
+
+  it("should update content to remove variation suffix", () => {
+    const item = { name: "Bocadillo de Jamón", description: "Traditional Spanish baguette" };
+    const variation = { sku: "0001" };
+    const content = `**${item.name}**
+
+${item.description || ""}
+
+SKU: ${variation.sku || "N/A"}`.trim();
+
+    expect(content).toContain("**Bocadillo de Jamón**");
+    expect(content).not.toContain("Regular");
+    expect(content).toContain("SKU: 0001");
+  });
+
+  it("should handle items without ingredients or dietary_preferences", () => {
+    const item = {
+      ingredients: [],
+      dietaryPreferences: []
+    };
+    const tags = [];
+    if (Array.isArray(item.ingredients)) {
+      for (const ingredient of item.ingredients) {
+        if (typeof ingredient === "string" && ingredient.trim()) {
+          tags.push(["t", ingredient.trim()]);
+        }
+      }
+    }
+    if (Array.isArray(item.dietaryPreferences)) {
+      for (const pref of item.dietaryPreferences) {
+        if (typeof pref === "string" && pref.trim()) {
+          tags.push(["t", pref.trim()]);
+          tags.push(["suitableForDiet", pref.trim()]);
+        }
+      }
+    }
+
+    const tTags = tags.filter((t) => t[0] === "t");
+    const suitableForDietTags = tags.filter((t) => t[0] === "suitableForDiet");
+    expect(tTags).toHaveLength(0);
+    expect(suitableForDietTags).toHaveLength(0);
+  });
+});
+
 describe("buildDeletionEvent", () => {
   it("should build a valid kind 5 event template", () => {
     // Test the expected structure

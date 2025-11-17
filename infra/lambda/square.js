@@ -459,7 +459,7 @@ async function geocodeLocation(location) {
   }
 }
 
-function buildEvents(catalog, profileLocation, profileGeoHash, businessName = null) {
+function buildEvents(catalog, profileLocation, profileGeoHash, businessName = null, merchantPubkey = null) {
   const catById = new Map((catalog.categories || []).map((c) => [c.id, c.name]));
   const imgById = new Map((catalog.images || []).map((i) => [i.id, i.url]));
   const locationTagValue =
@@ -475,33 +475,53 @@ function buildEvents(catalog, profileLocation, profileGeoHash, businessName = nu
         : [{ id: "default", name: "Default", price_money: null }];
 
     for (const variation of variations) {
-      const titleSuffix = variation.name || "Default";
-      const content = `**${item.name} – ${titleSuffix}**
+      // Content: remove variation suffix, keep SKU display
+      const content = `**${item.name}**
 
 ${item.description || ""}
 
 SKU: ${variation.sku || "N/A"}`.trim();
 
       const tags = [];
-      tags.push(["d", slug(item.id, variation.id)]);
-      tags.push(["title", `${item.name} (${titleSuffix})`]);
+      
+      // d: use SKU if available, otherwise create identifier
+      const dTag = variation.sku && typeof variation.sku === "string" && variation.sku.trim()
+        ? variation.sku.trim()
+        : slug(item.id, variation.id);
+      tags.push(["d", dTag]);
+      
+      // title: use item.name directly (no variation suffix)
+      tags.push(["title", item.name]);
+      
+      // summary: from item.description
       if (item.description) {
         const summary =
           item.description.length > 140 ? `${item.description.slice(0, 140)}…` : item.description;
         tags.push(["summary", summary]);
       }
-      if (locationTagValue) {
-        tags.push(["location", locationTagValue]);
-      }
-      if (geohashTagValue) {
-        tags.push(["g", geohashTagValue]);
-      }
+      
+      // type: fixed to ["simple", "physical"]
+      tags.push(["type", "simple", "physical"]);
+      
+      // image: reuse existing approach
       for (const imageId of item.imageIds || []) {
         const url = imgById.get(imageId);
         if (url) {
           tags.push(["image", url, ""]);
         }
       }
+      
+      // location: use the full address from kind:0
+      if (locationTagValue) {
+        tags.push(["location", locationTagValue]);
+      }
+      
+      // g: use the geohash from kind:0
+      if (geohashTagValue) {
+        tags.push(["g", geohashTagValue]);
+      }
+      
+      // price: from variation.price_money
       if (variation.price_money?.amount && variation.price_money.currency) {
         tags.push([
           "price",
@@ -510,19 +530,43 @@ SKU: ${variation.sku || "N/A"}`.trim();
         ]);
       }
 
-      const createdAt = Math.floor(Date.now() / 1000);
-      tags.push(["published_at", String(createdAt)]);
-
-      const categoryNames = new Set();
-      for (const cid of item.categoryIds || []) {
-        const name = catById.get(cid)?.trim();
-        if (name) {
-          categoryNames.add(name.toLowerCase());
+      // t: use contents of ingredients and dietary_preferences fields
+      if (Array.isArray(item.ingredients)) {
+        for (const ingredient of item.ingredients) {
+          if (typeof ingredient === "string" && ingredient.trim()) {
+            tags.push(["t", ingredient.trim()]);
+          }
         }
       }
-     for (const name of categoryNames) {
-       tags.push(["t", name]);
-     }
+      if (Array.isArray(item.dietaryPreferences)) {
+        for (const pref of item.dietaryPreferences) {
+          if (typeof pref === "string" && pref.trim()) {
+            tags.push(["t", pref.trim()]);
+          }
+        }
+      }
+
+      // a: reference to collection(s) - one per category
+      if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
+        for (const categoryId of item.categoryIds || []) {
+          const categoryName = catById.get(categoryId);
+          if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
+            tags.push(["a", "30405", merchantPubkey.trim(), categoryName.trim()]);
+          }
+        }
+      }
+
+      // suitableForDiet: use contents of dietary_preferences field
+      if (Array.isArray(item.dietaryPreferences)) {
+        for (const pref of item.dietaryPreferences) {
+          if (typeof pref === "string" && pref.trim()) {
+            tags.push(["suitableForDiet", pref.trim()]);
+          }
+        }
+      }
+
+      const createdAt = Math.floor(Date.now() / 1000);
+      tags.push(["published_at", String(createdAt)]);
 
       if (process.env.DEBUG_SQUARE_SYNC === "true") {
         console.debug(
@@ -530,7 +574,7 @@ SKU: ${variation.sku || "N/A"}`.trim();
           JSON.stringify({
             itemId: item.id,
             variationId: variation.id,
-            categories: Array.from(categoryNames),
+            dTag,
             tags
           })
         );
@@ -957,7 +1001,7 @@ async function performSync(record, options) {
   // Fetch business name from kind:0 profile
   const businessName = await fetchProfileNameFromRelays(pubkeyValue);
 
-  const events = buildEvents(catalog, profileLocation, profileGeoHash, businessName);
+  const events = buildEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
 
   const previous = record.publishedFingerprints || {};
   const fingerprints = { ...previous };
@@ -1240,7 +1284,7 @@ async function performPreview(record, options) {
   // Fetch business name from kind:0 profile
   const businessName = await fetchProfileNameFromRelays(pubkeyValue);
 
-  const events = buildEvents(catalog, profileLocation, profileGeoHash, businessName);
+  const events = buildEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
 
   const previous = record.publishedFingerprints || {};
   const toPublish = [];
