@@ -649,12 +649,37 @@ SKU: ${variation.sku || "N/A"}`.trim();
   return events;
 }
 
+function normalizeAddressComponent(component) {
+  if (!component) return "";
+  return component
+    .trim()
+    .toLowerCase()
+    .replace(/\b(street|st)\b/gi, "st")
+    .replace(/\b(avenue|ave)\b/gi, "ave")
+    .replace(/\b(road|rd)\b/gi, "rd")
+    .replace(/\b(boulevard|blvd)\b/gi, "blvd")
+    .replace(/\b(drive|dr)\b/gi, "dr")
+    .replace(/\b(usa|united states)\b/gi, "us")
+    .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ");
+}
+
 function findLocationNameByAddress(catalog, profileLocation) {
   if (!profileLocation || !catalog.locations || !Array.isArray(catalog.locations)) {
+    console.log("findLocationNameByAddress: missing inputs", {
+      hasProfileLocation: !!profileLocation,
+      hasLocations: !!(catalog.locations && Array.isArray(catalog.locations)),
+      locationsCount: catalog.locations?.length || 0
+    });
     return null;
   }
   
-  const normalizedProfileLocation = profileLocation.trim().toLowerCase();
+  const normalizedProfileLocation = normalizeAddressComponent(profileLocation);
+  console.log("findLocationNameByAddress: searching", {
+    profileLocation: profileLocation.trim(),
+    normalizedProfileLocation,
+    locationsCount: catalog.locations.length
+  });
   
   // Try to match location by comparing address components
   // Match by checking if key address components (street, city, state, zip) appear in profileLocation
@@ -663,16 +688,13 @@ function findLocationNameByAddress(catalog, profileLocation) {
       continue;
     }
     
-    // If we have a fullAddress, try exact match first
-    if (location.fullAddress) {
-      const normalizedLocationAddress = location.fullAddress.trim().toLowerCase();
-      if (normalizedProfileLocation.includes(normalizedLocationAddress) || 
-          normalizedLocationAddress.includes(normalizedProfileLocation)) {
-        return location.name.trim();
-      }
-    }
+    console.log("findLocationNameByAddress: checking location", {
+      name: location.name,
+      fullAddress: location.fullAddress,
+      address: location.address
+    });
     
-    // Try matching by address components
+    // Try matching by address components (more reliable than full address match)
     if (location.address) {
       const addr = location.address;
       const components = [
@@ -680,19 +702,54 @@ function findLocationNameByAddress(catalog, profileLocation) {
         addr.locality,
         addr.administrative_district_level_1,
         addr.postal_code
-      ].filter(Boolean).map(c => c.trim().toLowerCase());
+      ].filter(Boolean);
       
-      // Check if all components appear in profileLocation
-      const allMatch = components.length > 0 && components.every(comp => 
-        normalizedProfileLocation.includes(comp)
-      );
+      if (components.length >= 2) {
+        // Normalize and check if components match
+        const normalizedComponents = components.map(c => normalizeAddressComponent(c));
+        const matchCount = normalizedComponents.filter(comp => 
+          normalizedProfileLocation.includes(comp)
+        ).length;
+        
+        // Require at least 3 out of 4 components to match (or all if we have fewer)
+        const requiredMatches = Math.min(3, components.length);
+        const allMatch = matchCount >= requiredMatches;
+        
+        console.log("findLocationNameByAddress: component matching", {
+          locationName: location.name,
+          components,
+          normalizedComponents,
+          matchCount,
+          requiredMatches,
+          allMatch
+        });
+        
+        if (allMatch) {
+          console.log("findLocationNameByAddress: MATCH FOUND", { locationName: location.name });
+          return location.name.trim();
+        }
+      }
+    }
+    
+    // If we have a fullAddress, try fuzzy match as fallback
+    if (location.fullAddress) {
+      const normalizedLocationAddress = normalizeAddressComponent(location.fullAddress);
+      // Check if key parts match (at least 3 words in common)
+      const locationWords = normalizedLocationAddress.split(/\s+/).filter(w => w.length > 2);
+      const profileWords = normalizedProfileLocation.split(/\s+/).filter(w => w.length > 2);
+      const commonWords = locationWords.filter(w => profileWords.includes(w));
       
-      if (allMatch) {
+      if (commonWords.length >= 3) {
+        console.log("findLocationNameByAddress: fuzzy match found", {
+          locationName: location.name,
+          commonWords
+        });
         return location.name.trim();
       }
     }
   }
   
+  console.log("findLocationNameByAddress: no match found, using fallback");
   // Fallback: if no match found, use first location's name
   if (catalog.locations.length > 0 && catalog.locations[0].name) {
     return catalog.locations[0].name.trim();
