@@ -1135,19 +1135,83 @@ async function performSync(record, options) {
   }
 
   // Process current events (new/updated items and collections)
+  // For collections, verify they actually exist on relays before skipping
   let skippedCollections = 0;
   let publishedCollections = 0;
+  const collectionDTagsToVerify = [];
+  const collectionEventsMap = new Map();
+  
+  // First pass: identify collections that match fingerprints
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
     if (!dTag) continue;
     const fingerprint = computeFingerprint(event);
     const isCollection = event.kind === 30405;
+    
+    if (isCollection && previous[dTag] && previous[dTag] === fingerprint) {
+      // Collection matches fingerprint - need to verify it exists on relays
+      collectionDTagsToVerify.push(dTag);
+      collectionEventsMap.set(dTag, event);
+    }
+  }
+  
+  // Verify collections exist on relays
+  const existingCollectionDTags = new Set();
+  if (collectionDTagsToVerify.length > 0 && nostrPool && profileRelays.length) {
+    try {
+      const timeoutMs = Number.parseInt(process.env.EVENT_QUERY_TIMEOUT_MS ?? "5000", 10);
+      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([]), timeoutMs));
+      
+      const queryPromise = nostrPool
+        .querySync(profileRelays, {
+          kinds: [30405],
+          authors: [pubkeyValue],
+          "#d": collectionDTagsToVerify
+        })
+        .catch((error) => {
+          console.warn("Failed to verify collections on relays", { pubkey: pubkeyValue, dTags: collectionDTagsToVerify, error: error?.message || error });
+          return [];
+        });
+      
+      const existingEvents = await Promise.race([queryPromise, timeoutPromise]);
+      
+      if (existingEvents && Array.isArray(existingEvents)) {
+        for (const event of existingEvents) {
+          const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
+          if (dTag && collectionDTagsToVerify.includes(dTag)) {
+            existingCollectionDTags.add(dTag);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Error verifying collections on relays", { error: error?.message || error });
+    }
+  }
+  
+  // Second pass: process all events
+  for (const event of events) {
+    const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
+    if (!dTag) continue;
+    const fingerprint = computeFingerprint(event);
+    const isCollection = event.kind === 30405;
+    
+    // Skip if fingerprint matches AND (not a collection OR collection exists on relays)
     if (previous[dTag] && previous[dTag] === fingerprint) {
       if (isCollection) {
-        skippedCollections++;
+        if (existingCollectionDTags.has(dTag)) {
+          skippedCollections++;
+          fingerprints[dTag] = fingerprint; // Keep the fingerprint
+          continue;
+        } else {
+          // Collection fingerprint matches but doesn't exist on relays - publish it
+          console.log("Collection fingerprint matches but not found on relays, will publish", { dTag });
+        }
+      } else {
+        // Product with matching fingerprint - skip it
+        continue;
       }
-      continue;
     }
+    
     toPublish.push({
       kind: event.kind,
       created_at: event.created_at,
