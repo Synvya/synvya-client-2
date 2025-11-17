@@ -610,7 +610,7 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
   }
 
   // Always log collection building info (not just in debug mode)
-  console.log("buildCollectionEvents", {
+  console.log("buildCollectionEvents", JSON.stringify({
     totalCategories: catalog.categories?.length || 0,
     totalItems: catalog.items?.length || 0,
     categoryNamesWithItems: Array.from(categoryNamesWithItems),
@@ -620,7 +620,7 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
       name: catalog.items[0].name,
       categoryIds: catalog.items[0].categoryIds
     } : null
-  });
+  }, null, 2));
   
   if (process.env.DEBUG_SQUARE_SYNC === "true") {
     console.debug("buildCollectionEvents (detailed)", {
@@ -984,8 +984,10 @@ async function fetchNormalizedCatalog(record) {
 }
 
 async function performSync(record, options) {
+  console.log("=== performSync START ===");
   const refreshed = await refreshAccessToken(record);
   const catalog = await fetchNormalizedCatalog(refreshed);
+  console.log("Catalog fetched", JSON.stringify({ itemsCount: catalog.items?.length || 0, categoriesCount: catalog.categories?.length || 0 }, null, 2));
   const requestedLocationRaw = options?.profileLocation;
   const hasRequestedLocation =
     typeof requestedLocationRaw === "string" && requestedLocationRaw.trim().length > 0;
@@ -1033,7 +1035,7 @@ async function performSync(record, options) {
   const collectionEvents = buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
   
   // Always log collection events info (not just in debug mode)
-  console.log("Collection events created", {
+  console.log("Collection events created", JSON.stringify({
     productEventsCount: productEvents.length,
     collectionEventsCount: collectionEvents.length,
     collectionDTags: collectionEvents.map((e) => {
@@ -1042,7 +1044,7 @@ async function performSync(record, options) {
     }),
     totalItems: catalog.items?.length || 0,
     totalCategories: catalog.categories?.length || 0
-  });
+  }, null, 2));
   
   if (process.env.DEBUG_SQUARE_SYNC === "true") {
     console.debug("Event building summary (performSync)", {
@@ -1159,13 +1161,13 @@ async function performSync(record, options) {
   }
   
   // Always log publishing summary (not just in debug mode)
-  console.log("Publishing summary", {
+  console.log("Publishing summary", JSON.stringify({
     totalToPublish: toPublish.length,
     publishedCollections,
     skippedCollections,
     collectionEventsInInput: collectionEvents.length,
     collectionKinds: toPublish.filter((e) => e.kind === 30405).length
-  });
+  }, null, 2));
   
   if (process.env.DEBUG_SQUARE_SYNC === "true") {
     console.debug("Publishing summary (detailed)", {
@@ -1329,8 +1331,10 @@ async function handleExchange(event, requestOrigin = null) {
 }
 
 async function performPreview(record, options) {
+  console.log("=== performPreview START ===");
   const refreshed = await refreshAccessToken(record);
   const catalog = await fetchNormalizedCatalog(refreshed);
+  console.log("Catalog fetched (preview)", JSON.stringify({ itemsCount: catalog.items?.length || 0, categoriesCount: catalog.categories?.length || 0 }, null, 2));
   const requestedLocationRaw = options?.profileLocation;
   const hasRequestedLocation =
     typeof requestedLocationRaw === "string" && requestedLocationRaw.trim().length > 0;
@@ -1366,10 +1370,24 @@ async function performPreview(record, options) {
 
   // Fetch business name from kind:0 profile
   const businessName = await fetchProfileNameFromRelays(pubkeyValue);
+  console.log("Business name fetched (preview)", JSON.stringify({ businessName }, null, 2));
 
   // Build product events and collection events
   const productEvents = buildEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
   const collectionEvents = buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
+  
+  // Always log collection events info (not just in debug mode)
+  console.log("Collection events created (preview)", JSON.stringify({
+    productEventsCount: productEvents.length,
+    collectionEventsCount: collectionEvents.length,
+    collectionDTags: collectionEvents.map((e) => {
+      const dTag = e.tags.find((t) => Array.isArray(t) && t[0] === "d")?.[1];
+      return dTag;
+    }),
+    totalItems: catalog.items?.length || 0,
+    totalCategories: catalog.categories?.length || 0
+  }, null, 2));
+  
   const events = [...productEvents, ...collectionEvents];
 
   const previous = record.publishedFingerprints || {};
