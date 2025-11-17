@@ -745,13 +745,36 @@ async function fetchNormalizedCatalog(record) {
 
     const collectedCategoryIds = Array.from(categoryIds);
 
+    // Extract ingredients and dietary_preferences from food_and_beverage_details
+    const ingredients = [];
+    const dietaryPreferences = [];
+    if (data.food_and_beverage_details) {
+      const fbDetails = data.food_and_beverage_details;
+      if (Array.isArray(fbDetails.ingredients)) {
+        for (const ingredient of fbDetails.ingredients) {
+          if (ingredient && typeof ingredient.standard_name === "string") {
+            ingredients.push(ingredient.standard_name);
+          }
+        }
+      }
+      if (Array.isArray(fbDetails.dietary_preferences)) {
+        for (const pref of fbDetails.dietary_preferences) {
+          if (pref && typeof pref.standard_name === "string") {
+            dietaryPreferences.push(pref.standard_name);
+          }
+        }
+      }
+    }
+
     items.push({
       id: object.id,
       name: data.name || "Untitled Item",
       description: data.description || "",
       categoryIds: collectedCategoryIds,
       imageIds: Array.isArray(data.image_ids) ? data.image_ids : [],
-      variations
+      variations,
+      ingredients,
+      dietaryPreferences
     });
 
     if (process.env.DEBUG_SQUARE_SYNC === "true") {
