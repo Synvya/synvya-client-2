@@ -62,10 +62,20 @@ jobs:
       - name: Check for Lambda changes
         id: lambda-changes
         run: |
-          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^infra/lambda/"; then
-            echo "changed=true" >> $GITHUB_OUTPUT
+          # Check if the before commit exists, if not, check if current commit has lambda changes
+          if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
+            if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^infra/lambda/"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "changed=false" >> $GITHUB_OUTPUT
+            # Before commit doesn't exist (force push/rebase), check if current commit has lambda files
+            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: Package Lambda function
