@@ -4,6 +4,7 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@
 import WebSocket from "ws";
 import { SimplePool } from "nostr-tools";
 // Minor touch to trigger deploy workflow
+// Second minor touch to ensure deploy trigger
 
 if (typeof globalThis.WebSocket === "undefined") {
   globalThis.WebSocket = WebSocket;
