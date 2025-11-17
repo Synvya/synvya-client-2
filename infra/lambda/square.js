@@ -1370,10 +1370,24 @@ async function performPreview(record, options) {
 
   // Fetch business name from kind:0 profile
   const businessName = await fetchProfileNameFromRelays(pubkeyValue);
+  console.log("Business name fetched (preview)", JSON.stringify({ businessName }, null, 2));
 
   // Build product events and collection events
   const productEvents = buildEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
   const collectionEvents = buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
+  
+  // Always log collection events info (not just in debug mode)
+  console.log("Collection events created (preview)", JSON.stringify({
+    productEventsCount: productEvents.length,
+    collectionEventsCount: collectionEvents.length,
+    collectionDTags: collectionEvents.map((e) => {
+      const dTag = e.tags.find((t) => Array.isArray(t) && t[0] === "d")?.[1];
+      return dTag;
+    }),
+    totalItems: catalog.items?.length || 0,
+    totalCategories: catalog.categories?.length || 0
+  }, null, 2));
+  
   const events = [...productEvents, ...collectionEvents];
 
   const previous = record.publishedFingerprints || {};
