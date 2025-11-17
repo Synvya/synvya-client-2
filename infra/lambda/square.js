@@ -3,6 +3,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import WebSocket from "ws";
 import { SimplePool } from "nostr-tools";
+// Minor touch to trigger deploy workflow
 
 if (typeof globalThis.WebSocket === "undefined") {
   globalThis.WebSocket = WebSocket;
