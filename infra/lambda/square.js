@@ -1541,21 +1541,26 @@ async function handlePreview(event, requestOrigin = null) {
 }
 
 async function handlePublish(event, requestOrigin = null) {
+  console.log("=== handlePublish START ===");
   if (event.requestContext.http.method !== "POST") {
     return jsonResponse(405, { error: "Method not allowed" }, {}, requestOrigin);
   }
   const body = parseJson(event.body);
   const { pubkey } = body;
+  console.log("handlePublish - pubkey:", pubkey);
   if (!pubkey) {
     return jsonResponse(400, { error: "pubkey is required" }, {}, requestOrigin);
   }
   const rawProfileLocation =
     typeof body.profileLocation === "string" ? body.profileLocation.trim() : null;
   const profileLocation = rawProfileLocation && rawProfileLocation.length ? rawProfileLocation : null;
+  console.log("handlePublish - profileLocation:", profileLocation);
   const record = await loadConnection(pubkey);
   if (!record) {
+    console.log("handlePublish - connection not found for pubkey:", pubkey);
     return jsonResponse(404, { error: "Square connection not found" }, {}, requestOrigin);
   }
+  console.log("handlePublish - connection found, calling performSync");
   const result = await performSync({ ...record, pubkey }, { profileLocation });
   return jsonResponse(200, {
     merchantId: record.merchantId,
