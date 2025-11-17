@@ -610,7 +610,7 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
   }
 
   // Always log collection building info (not just in debug mode)
-  console.log("buildCollectionEvents", {
+  console.log("buildCollectionEvents", JSON.stringify({
     totalCategories: catalog.categories?.length || 0,
     totalItems: catalog.items?.length || 0,
     categoryNamesWithItems: Array.from(categoryNamesWithItems),
@@ -620,7 +620,7 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
       name: catalog.items[0].name,
       categoryIds: catalog.items[0].categoryIds
     } : null
-  });
+  }, null, 2));
   
   if (process.env.DEBUG_SQUARE_SYNC === "true") {
     console.debug("buildCollectionEvents (detailed)", {
@@ -1033,7 +1033,7 @@ async function performSync(record, options) {
   const collectionEvents = buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
   
   // Always log collection events info (not just in debug mode)
-  console.log("Collection events created", {
+  console.log("Collection events created", JSON.stringify({
     productEventsCount: productEvents.length,
     collectionEventsCount: collectionEvents.length,
     collectionDTags: collectionEvents.map((e) => {
@@ -1042,7 +1042,7 @@ async function performSync(record, options) {
     }),
     totalItems: catalog.items?.length || 0,
     totalCategories: catalog.categories?.length || 0
-  });
+  }, null, 2));
   
   if (process.env.DEBUG_SQUARE_SYNC === "true") {
     console.debug("Event building summary (performSync)", {
@@ -1159,13 +1159,13 @@ async function performSync(record, options) {
   }
   
   // Always log publishing summary (not just in debug mode)
-  console.log("Publishing summary", {
+  console.log("Publishing summary", JSON.stringify({
     totalToPublish: toPublish.length,
     publishedCollections,
     skippedCollections,
     collectionEventsInInput: collectionEvents.length,
     collectionKinds: toPublish.filter((e) => e.kind === 30405).length
-  });
+  }, null, 2));
   
   if (process.env.DEBUG_SQUARE_SYNC === "true") {
     console.debug("Publishing summary (detailed)", {
