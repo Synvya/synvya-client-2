@@ -138,8 +138,10 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   // Add geo tags if geocoding succeeded
   let hasGeoTag = false;
   if (options.latitude != null && options.longitude != null) {
-    tags.push(["i", `geo:latitude:${options.latitude}`, "https://schema.org/latitude"]);
-    tags.push(["i", `geo:longitude:${options.longitude}`, "https://schema.org/longitude"]);
+    tags.push(["i", `schema.org:GeoCoordinates:latitude:${options.latitude}`, "https://schema.org/latitude"]);
+    tags.push(["k", "schema.org:GeoCoordinates:latitude"]);
+    tags.push(["i", `schema.org:GeoCoordinates:longitude:${options.longitude}`, "https://schema.org/longitude"]);
+    tags.push(["k", "schema.org:GeoCoordinates:longitude"]);
     hasGeoTag = true;
   }
   if (options.geohash) {

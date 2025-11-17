@@ -4,7 +4,7 @@ import { useRelays } from "@/state/useRelays";
 import { useChamber } from "@/state/useChamber";
 import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { buildProfileEvent } from "@/lib/events";
-import { publishToRelays } from "@/lib/relayPool";
+import { publishToRelays, getPool } from "@/lib/relayPool";
 import { geocodeLocation } from "@/lib/geocode";
 import { buildDmRelayEvent } from "@/lib/handlerEvents";
 import { Button } from "@/components/ui/button";

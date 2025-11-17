@@ -203,8 +203,10 @@ describe("buildProfileEvent", () => {
       longitude: -122.3321
     });
 
-    expect(event.tags).toContainEqual(["i", "geo:latitude:47.6062", "https://schema.org/latitude"]);
-    expect(event.tags).toContainEqual(["i", "geo:longitude:-122.3321", "https://schema.org/longitude"]);
+    expect(event.tags).toContainEqual(["i", "schema.org:GeoCoordinates:latitude:47.6062", "https://schema.org/latitude"]);
+    expect(event.tags).toContainEqual(["k", "schema.org:GeoCoordinates:latitude"]);
+    expect(event.tags).toContainEqual(["i", "schema.org:GeoCoordinates:longitude:-122.3321", "https://schema.org/longitude"]);
+    expect(event.tags).toContainEqual(["k", "schema.org:GeoCoordinates:longitude"]);
     expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
     expect(event.tags).toContainEqual(["k", "geo"]);
   });
@@ -258,6 +260,10 @@ describe("buildProfileEvent", () => {
       longitude: -122.3321
     });
 
+    expect(event.tags).toContainEqual(["i", "schema.org:GeoCoordinates:latitude:47.6062", "https://schema.org/latitude"]);
+    expect(event.tags).toContainEqual(["k", "schema.org:GeoCoordinates:latitude"]);
+    expect(event.tags).toContainEqual(["i", "schema.org:GeoCoordinates:longitude:-122.3321", "https://schema.org/longitude"]);
+    expect(event.tags).toContainEqual(["k", "schema.org:GeoCoordinates:longitude"]);
     expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
     expect(event.tags).toContainEqual(["k", "geo"]);
   });
@@ -287,7 +293,7 @@ describe("buildProfileEvent", () => {
       }
     }
     const firstGeoIndex = event.tags.findIndex(
-      (tag: string[]) => tag[0] === "i" && tag[1]?.startsWith("geo:")
+      (tag: string[]) => tag[0] === "i" && (tag[1]?.startsWith("schema.org:GeoCoordinates:") || tag[1]?.startsWith("geo:"))
     );
 
     expect(lastAddressIndex).toBeGreaterThan(-1);
@@ -339,8 +345,10 @@ describe("buildProfileEvent", () => {
 
     expect(event.tags).toContainEqual(["i", "schema.org:PostalAddress:streetAddress:123 Main St", "https://schema.org/streetAddress"]);
     expect(event.tags).toContainEqual(["k", "schema.org:PostalAddress:streetAddress"]);
-    expect(event.tags).toContainEqual(["i", "geo:latitude:47.6062", "https://schema.org/latitude"]);
-    expect(event.tags).toContainEqual(["i", "geo:longitude:-122.3321", "https://schema.org/longitude"]);
+    expect(event.tags).toContainEqual(["i", "schema.org:GeoCoordinates:latitude:47.6062", "https://schema.org/latitude"]);
+    expect(event.tags).toContainEqual(["k", "schema.org:GeoCoordinates:latitude"]);
+    expect(event.tags).toContainEqual(["i", "schema.org:GeoCoordinates:longitude:-122.3321", "https://schema.org/longitude"]);
+    expect(event.tags).toContainEqual(["k", "schema.org:GeoCoordinates:longitude"]);
     expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
     expect(event.tags).toContainEqual(["k", "geo"]);
     expect(event.tags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
