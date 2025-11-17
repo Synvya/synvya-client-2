@@ -595,7 +595,8 @@ export function BusinessProfileForm(): JSX.Element {
               placeholder="Tell customers about your business"
               value={profile.about}
               onChange={(event) => updateField("about", event.target.value)}
-              rows={4}
+              rows={10}
+              className="whitespace-pre-wrap font-mono text-sm"
             />
           </div>
 
