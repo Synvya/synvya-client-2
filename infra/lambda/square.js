@@ -649,12 +649,69 @@ SKU: ${variation.sku || "N/A"}`.trim();
   return events;
 }
 
+function findLocationNameByAddress(catalog, profileLocation) {
+  if (!profileLocation || !catalog.locations || !Array.isArray(catalog.locations)) {
+    return null;
+  }
+  
+  const normalizedProfileLocation = profileLocation.trim().toLowerCase();
+  
+  // Try to match location by comparing address components
+  // Match by checking if key address components (street, city, state, zip) appear in profileLocation
+  for (const location of catalog.locations) {
+    if (!location.name || typeof location.name !== "string") {
+      continue;
+    }
+    
+    // If we have a fullAddress, try exact match first
+    if (location.fullAddress) {
+      const normalizedLocationAddress = location.fullAddress.trim().toLowerCase();
+      if (normalizedProfileLocation.includes(normalizedLocationAddress) || 
+          normalizedLocationAddress.includes(normalizedProfileLocation)) {
+        return location.name.trim();
+      }
+    }
+    
+    // Try matching by address components
+    if (location.address) {
+      const addr = location.address;
+      const components = [
+        addr.address_line_1,
+        addr.locality,
+        addr.administrative_district_level_1,
+        addr.postal_code
+      ].filter(Boolean).map(c => c.trim().toLowerCase());
+      
+      // Check if all components appear in profileLocation
+      const allMatch = components.length > 0 && components.every(comp => 
+        normalizedProfileLocation.includes(comp)
+      );
+      
+      if (allMatch) {
+        return location.name.trim();
+      }
+    }
+  }
+  
+  // Fallback: if no match found, use first location's name
+  if (catalog.locations.length > 0 && catalog.locations[0].name) {
+    return catalog.locations[0].name.trim();
+  }
+  
+  return null;
+}
+
 function buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, merchantPubkey) {
   const catById = new Map((catalog.categories || []).map((c) => [c.id, c.name]));
   const locationTagValue =
     typeof profileLocation === "string" && profileLocation.trim() ? profileLocation.trim() : null;
   const geohashTagValue =
     typeof profileGeoHash === "string" && profileGeoHash.trim() ? profileGeoHash.trim() : null;
+
+  // Find location name from Square locations
+  const locationName = findLocationNameByAddress(catalog, profileLocation);
+  // Use location name if available, otherwise fall back to business name
+  const displayName = locationName || businessName;
 
   // Collect unique category names that have items
   const categoryNamesWithItems = new Set();
@@ -702,8 +759,8 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
     tags.push(["d", categoryName]);
     tags.push(["title", `${categoryName} Menu`]);
     
-    if (businessName && typeof businessName === "string" && businessName.trim()) {
-      tags.push(["summary", `${categoryName} Menu for ${businessName}`]);
+    if (displayName && typeof displayName === "string" && displayName.trim()) {
+      tags.push(["summary", `${categoryName} Menu for ${displayName}`]);
     } else {
       tags.push(["summary", `${categoryName} Menu`]);
     }
@@ -867,10 +924,31 @@ async function fetchNormalizedCatalog(record) {
   const locationsResponse = await fetchSquare("/v2/locations", { accessToken });
   const fetchedLocations =
     locationsResponse.locations?.filter((loc) => typeof loc?.id === "string" && loc.id) || [];
-  const normalizedLocations = fetchedLocations.map((loc) => ({
-    id: loc.id,
-    name: loc.name || loc.address?.address_line_1 || "Location"
-  }));
+  const normalizedLocations = fetchedLocations.map((loc) => {
+    const address = loc.address || {};
+    // Build full address string for matching
+    const addressParts = [
+      address.address_line_1,
+      address.locality,
+      address.administrative_district_level_1,
+      address.postal_code,
+      address.country
+    ].filter(Boolean);
+    const fullAddress = addressParts.join(", ");
+    
+    return {
+      id: loc.id,
+      name: loc.name || address.address_line_1 || "Location",
+      address: {
+        address_line_1: address.address_line_1 || null,
+        locality: address.locality || null,
+        administrative_district_level_1: address.administrative_district_level_1 || null,
+        postal_code: address.postal_code || null,
+        country: address.country || null
+      },
+      fullAddress: fullAddress || null
+    };
+  });
   const locations =
     normalizedLocations.length > 0
       ? normalizedLocations
