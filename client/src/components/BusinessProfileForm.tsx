@@ -4,9 +4,9 @@ import { useRelays } from "@/state/useRelays";
 import { useChamber } from "@/state/useChamber";
 import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { buildProfileEvent } from "@/lib/events";
-import { publishToRelays, getPool } from "@/lib/relayPool";
+import { publishToRelays } from "@/lib/relayPool";
 import { geocodeLocation } from "@/lib/geocode";
-import { buildHandlerInfo, buildHandlerRecommendation, buildDeletionEvent, buildDmRelayEvent, SYNVYA_HANDLER_D_IDENTIFIER } from "@/lib/handlerEvents";
+import { buildDmRelayEvent } from "@/lib/handlerEvents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -361,64 +361,6 @@ export function BusinessProfileForm(): JSX.Element {
     try {
       setPublishing(true);
 
-      // Check if changing FROM restaurant TO another type - delete handler events
-      const wasRestaurant = originalBusinessTypeRef.current === "restaurant";
-      const isStillRestaurant = payload.businessType === "restaurant";
-      
-      if (wasRestaurant && !isStillRestaurant && pubkey) {
-        try {
-          const pool = getPool();
-          
-          // Query for existing handler events
-          const [handlerInfo, recommendation9901, recommendation9902] = await Promise.all([
-            pool.get(relays, {
-              kinds: [31990],
-              authors: [pubkey],
-              "#d": [SYNVYA_HANDLER_D_IDENTIFIER]
-            }),
-            pool.get(relays, {
-              kinds: [31989],
-              authors: [pubkey],
-              "#d": ["9901"]
-            }),
-            pool.get(relays, {
-              kinds: [31989],
-              authors: [pubkey],
-              "#d": ["9902"]
-            })
-          ]);
-          
-          // Collect event IDs to delete
-          const eventIdsToDelete: string[] = [];
-          const kindsToDelete: number[] = [];
-          
-          if (handlerInfo) {
-            eventIdsToDelete.push(handlerInfo.id);
-            if (!kindsToDelete.includes(31990)) kindsToDelete.push(31990);
-          }
-          if (recommendation9901) {
-            eventIdsToDelete.push(recommendation9901.id);
-            if (!kindsToDelete.includes(31989)) kindsToDelete.push(31989);
-          }
-          if (recommendation9902) {
-            eventIdsToDelete.push(recommendation9902.id);
-            if (!kindsToDelete.includes(31989)) kindsToDelete.push(31989);
-          }
-          
-          // Publish deletion event if any handler events were found
-          if (eventIdsToDelete.length > 0) {
-            const deletionTemplate = buildDeletionEvent(eventIdsToDelete, kindsToDelete);
-            const deletionEvent = await signEvent(deletionTemplate);
-            await publishToRelays(deletionEvent, relays);
-            console.log(`Deleted ${eventIdsToDelete.length} handler event(s)`);
-          } else {
-            console.log("No handler events found to delete");
-          }
-        } catch (error) {
-          console.warn("Failed to delete handler events:", error);
-          // Don't fail the whole operation if deletion fails
-        }
-      }
 
       if (pendingFiles.picture) {
         pictureUrl = await uploadMedia(pendingFiles.picture, "picture");
@@ -461,46 +403,16 @@ export function BusinessProfileForm(): JSX.Element {
       const signed = await signEvent(template);
       await publishToRelays(signed, relays);
 
-      // If this is a restaurant, publish NIP-89 handler events and NIP-17 DM relay event
-      let handlerEventsPublished = false;
+      // If this is a restaurant, publish NIP-17 DM relay event
       if (finalPayload.businessType === "restaurant" && pubkey) {
         try {
-          const firstRelay = relays[0] || "wss://relay.damus.io";
-          
-          // Build and sign all handler events (1 handler info + 4 recommendations)
-          const handlerInfoTemplate = buildHandlerInfo(pubkey);
-          const handlerInfo = await signEvent(handlerInfoTemplate);
-          
-          const recommendation9901Template = buildHandlerRecommendation(pubkey, "9901", firstRelay);
-          const recommendation9901 = await signEvent(recommendation9901Template);
-          
-          const recommendation9902Template = buildHandlerRecommendation(pubkey, "9902", firstRelay);
-          const recommendation9902 = await signEvent(recommendation9902Template);
-          
-          const recommendation9903Template = buildHandlerRecommendation(pubkey, "9903", firstRelay);
-          const recommendation9903 = await signEvent(recommendation9903Template);
-          
-          const recommendation9904Template = buildHandlerRecommendation(pubkey, "9904", firstRelay);
-          const recommendation9904 = await signEvent(recommendation9904Template);
-          
           // Build and sign DM relay event (kind 10050) as per NIP-17
           const dmRelayTemplate = buildDmRelayEvent(relays);
           const dmRelayEvent = await signEvent(dmRelayTemplate);
-          
-          // Publish all events in parallel (1 handler info + 4 recommendations + 1 DM relay)
-          await Promise.all([
-            publishToRelays(handlerInfo, relays),
-            publishToRelays(recommendation9901, relays),
-            publishToRelays(recommendation9902, relays),
-            publishToRelays(recommendation9903, relays),
-            publishToRelays(recommendation9904, relays),
-            publishToRelays(dmRelayEvent, relays)
-          ]);
-          
-          handlerEventsPublished = true;
+          await publishToRelays(dmRelayEvent, relays);
         } catch (error) {
-          console.warn("Failed to publish handler events:", error);
-          // Don't fail the whole operation if handler events fail
+          console.warn("Failed to publish DM relay event:", error);
+          // Don't fail the whole operation if DM relay event fails
         }
       }
 
@@ -531,10 +443,7 @@ export function BusinessProfileForm(): JSX.Element {
         return { picture: null, banner: null };
       });
 
-      const successMessage = handlerEventsPublished
-        ? "Profile published with reservation support enabled"
-        : "Profile published to relays";
-      setStatus({ type: "success", message: successMessage, eventId: signed.id });
+      setStatus({ type: "success", message: "Profile published to relays", eventId: signed.id });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish profile";
       setStatus({ type: "error", message });
