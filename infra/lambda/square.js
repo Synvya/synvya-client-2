@@ -1541,21 +1541,26 @@ async function handlePreview(event, requestOrigin = null) {
 }
 
 async function handlePublish(event, requestOrigin = null) {
+  console.log("=== handlePublish START ===");
   if (event.requestContext.http.method !== "POST") {
     return jsonResponse(405, { error: "Method not allowed" }, {}, requestOrigin);
   }
   const body = parseJson(event.body);
   const { pubkey } = body;
+  console.log("handlePublish - pubkey:", pubkey);
   if (!pubkey) {
     return jsonResponse(400, { error: "pubkey is required" }, {}, requestOrigin);
   }
   const rawProfileLocation =
     typeof body.profileLocation === "string" ? body.profileLocation.trim() : null;
   const profileLocation = rawProfileLocation && rawProfileLocation.length ? rawProfileLocation : null;
+  console.log("handlePublish - profileLocation:", profileLocation);
   const record = await loadConnection(pubkey);
   if (!record) {
+    console.log("handlePublish - connection not found for pubkey:", pubkey);
     return jsonResponse(404, { error: "Square connection not found" }, {}, requestOrigin);
   }
+  console.log("handlePublish - connection found, calling performSync");
   const result = await performSync({ ...record, pubkey }, { profileLocation });
   return jsonResponse(200, {
     merchantId: record.merchantId,
@@ -1566,6 +1571,11 @@ async function handlePublish(event, requestOrigin = null) {
 }
 
 export const handler = withErrorHandling(async (event) => {
+  console.log("=== Lambda handler called ===", JSON.stringify({
+    path: event.requestContext?.http?.path,
+    method: event.requestContext?.http?.method,
+    timestamp: new Date().toISOString()
+  }, null, 2));
   const requestOrigin = event.headers?.["origin"] || event.headers?.["Origin"] || null;
   if (event.requestContext?.http?.method === "OPTIONS") {
     return jsonResponse(200, { ok: true }, {}, requestOrigin);
@@ -1578,9 +1588,11 @@ export const handler = withErrorHandling(async (event) => {
     return handleExchange(event, requestOrigin);
   }
   if (path.endsWith("/square/preview")) {
+    console.log("=== Routing to handlePreview ===");
     return handlePreview(event, requestOrigin);
   }
   if (path.endsWith("/square/publish")) {
+    console.log("=== Routing to handlePublish ===");
     return handlePublish(event, requestOrigin);
   }
   return jsonResponse(404, { error: "Not found" }, {}, requestOrigin);
