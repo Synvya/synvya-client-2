@@ -23,6 +23,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Needed so git log can see the before commit when detecting Lambda changes
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
