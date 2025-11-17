@@ -1177,6 +1177,8 @@ async function performSync(record, options) {
   }, null, 2));
   
   // Verify collections exist on relays
+  // If verification can't run or fails, existingCollectionDTags stays empty,
+  // which means collections will be published (safe default)
   const existingCollectionDTags = new Set();
   if (collectionDTagsToVerify.length > 0) {
     console.log("Verifying collections on relays", JSON.stringify({ 
@@ -1185,7 +1187,7 @@ async function performSync(record, options) {
       profileRelaysCount: profileRelays?.length || 0 
     }, null, 2));
     
-    if (nostrPool && profileRelays.length) {
+    if (nostrPool && profileRelays && profileRelays.length > 0) {
       try {
         const timeoutMs = Number.parseInt(process.env.EVENT_QUERY_TIMEOUT_MS ?? "5000", 10);
         const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([]), timeoutMs));
@@ -1197,8 +1199,12 @@ async function performSync(record, options) {
             "#d": collectionDTagsToVerify
           })
           .catch((error) => {
-            console.warn("Failed to verify collections on relays", { pubkey: pubkeyValue, dTags: collectionDTagsToVerify, error: error?.message || error });
-            return [];
+            console.warn("Failed to verify collections on relays - will publish them", { 
+              pubkey: pubkeyValue, 
+              dTags: collectionDTagsToVerify, 
+              error: error?.message || error 
+            });
+            return []; // Return empty array so collections will be published
           });
         
         const existingEvents = await Promise.race([queryPromise, timeoutPromise]);
@@ -1209,7 +1215,7 @@ async function performSync(record, options) {
           foundDTags: []
         }, null, 2));
         
-        if (existingEvents && Array.isArray(existingEvents)) {
+        if (existingEvents && Array.isArray(existingEvents) && existingEvents.length > 0) {
           for (const event of existingEvents) {
             const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
             if (dTag && collectionDTagsToVerify.includes(dTag)) {
@@ -1221,17 +1227,31 @@ async function performSync(record, options) {
             missingDTags: collectionDTagsToVerify.filter(d => !existingCollectionDTags.has(d))
           }, null, 2));
         } else {
-          console.log("No collections found on relays, all will be published", { collectionDTagsToVerify });
+          console.log("No collections found on relays (or query returned empty), all will be published", { 
+            collectionDTagsToVerify,
+            existingEventsWasArray: Array.isArray(existingEvents),
+            existingEventsLength: existingEvents?.length || 0
+          });
         }
       } catch (error) {
-        console.warn("Error verifying collections on relays", { error: error?.message || error });
+        console.warn("Error verifying collections on relays - will publish them", { 
+          error: error?.message || error,
+          collectionDTagsToVerify 
+        });
+        // existingCollectionDTags stays empty, so collections will be published
       }
     } else {
-      console.log("Cannot verify collections - no nostrPool or relays", { 
+      console.log("Cannot verify collections - no nostrPool or relays, will publish them", { 
         hasNostrPool: !!nostrPool, 
-        profileRelaysCount: profileRelays?.length || 0 
+        profileRelaysCount: profileRelays?.length || 0,
+        collectionDTagsToVerify
       });
+      // existingCollectionDTags stays empty, so collections will be published
     }
+  } else {
+    console.log("No collections to verify (none had matching fingerprints)", {
+      totalCollections: events.filter(e => e.kind === 30405).length
+    });
   }
   
   // Second pass: process all events
@@ -1241,21 +1261,32 @@ async function performSync(record, options) {
     const fingerprint = computeFingerprint(event);
     const isCollection = event.kind === 30405;
     
-    // Skip if fingerprint matches AND (not a collection OR collection exists on relays)
+    // For collections: always verify they exist on relays if fingerprint matches
+    // For products: skip if fingerprint matches (they don't need verification)
     if (previous[dTag] && previous[dTag] === fingerprint) {
       if (isCollection) {
+        // Collection with matching fingerprint - only skip if we verified it exists on relays
         if (existingCollectionDTags.has(dTag)) {
+          console.log("Collection exists on relays, skipping", { dTag });
           skippedCollections++;
           fingerprints[dTag] = fingerprint; // Keep the fingerprint
           continue;
         } else {
           // Collection fingerprint matches but doesn't exist on relays - publish it
-          console.log("Collection fingerprint matches but not found on relays, will publish", { dTag });
+          console.log("Collection fingerprint matches but NOT found on relays, will publish", { 
+            dTag, 
+            wasInVerificationList: collectionDTagsToVerify.includes(dTag),
+            existingCollectionDTagsSize: existingCollectionDTags.size
+          });
+          // Fall through to publish
         }
       } else {
-        // Product with matching fingerprint - skip it
+        // Product with matching fingerprint - skip it (no verification needed)
         continue;
       }
+    } else if (isCollection) {
+      // Collection without previous fingerprint - always publish
+      console.log("Collection has no previous fingerprint, will publish", { dTag });
     }
     
     toPublish.push({
