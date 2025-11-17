@@ -1329,11 +1329,14 @@ async function performSync(record, options) {
   // Second pass: process all events
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
-    if (!dTag) continue;
+    if (!dTag) {
+      console.log("Event has no d-tag, skipping", { kind: event.kind });
+      continue;
+    }
     const fingerprint = computeFingerprint(event);
     const isCollection = event.kind === 30405;
     
-    // For collections: always verify they exist on relays if fingerprint matches
+    // For collections: ALWAYS verify they exist on relays before skipping
     // For products: skip if fingerprint matches (they don't need verification)
     if (previous[dTag] && previous[dTag] === fingerprint) {
       if (isCollection) {
@@ -1344,13 +1347,14 @@ async function performSync(record, options) {
           fingerprints[dTag] = fingerprint; // Keep the fingerprint
           continue;
         } else {
-          // Collection fingerprint matches but doesn't exist on relays - publish it
-          console.log("Collection fingerprint matches but NOT found on relays, will publish", { 
+          // Collection fingerprint matches but doesn't exist on relays - MUST publish it
+          console.log("Collection fingerprint matches but NOT found on relays, MUST publish", { 
             dTag, 
             wasInVerificationList: collectionDTagsToVerify.includes(dTag),
-            existingCollectionDTagsSize: existingCollectionDTags.size
+            existingCollectionDTagsSize: existingCollectionDTags.size,
+            existingCollectionDTags: Array.from(existingCollectionDTags)
           });
-          // Fall through to publish
+          // Fall through to publish - DO NOT SKIP
         }
       } else {
         // Product with matching fingerprint - skip it (no verification needed)
@@ -1358,8 +1362,17 @@ async function performSync(record, options) {
       }
     } else if (isCollection) {
       // Collection without previous fingerprint - always publish
-      console.log("Collection has no previous fingerprint, will publish", { dTag });
+      console.log("Collection has no previous fingerprint, will publish", { dTag, fingerprint: fingerprint.substring(0, 8) + "..." });
     }
+    
+    // Add to publish list
+    console.log("Adding event to publish list", { 
+      kind: event.kind, 
+      dTag, 
+      isCollection,
+      hasPreviousFingerprint: !!previous[dTag],
+      fingerprintMatches: previous[dTag] === fingerprint
+    });
     
     toPublish.push({
       kind: event.kind,
@@ -1369,6 +1382,7 @@ async function performSync(record, options) {
     });
     if (isCollection) {
       publishedCollections++;
+      console.log("Collection added to publish list", { dTag, publishedCollections });
     }
     fingerprints[dTag] = fingerprint;
   }
