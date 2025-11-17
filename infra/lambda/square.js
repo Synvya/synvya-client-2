@@ -1088,19 +1088,35 @@ async function performSync(record, options) {
       // Query for both product events (kind 30402) and collection events (kind 30405)
       const eventIdsByDTag = await queryEventIdsByDTags(pubkeyValue, removedDTags, profileRelays);
       const eventIdsToDelete = [];
+      const eventKindsToDelete = new Set(); // Track which kinds actually have events to delete
+      
+      // Also query for the actual events to determine their kinds
+      const eventsByDTag = await queryEventsByDTags(pubkeyValue, removedDTags, profileRelays);
       
       for (const dTag of removedDTags) {
         const eventId = eventIdsByDTag[dTag];
         if (eventId) {
           eventIdsToDelete.push(eventId);
+          // Determine the kind from the actual event
+          const event = eventsByDTag[dTag];
+          if (event && event.kind) {
+            eventKindsToDelete.add(event.kind);
+          }
         } else {
           console.warn("Could not find event ID for removed item/collection", { dTag, pubkey: pubkeyValue });
         }
       }
 
       if (eventIdsToDelete.length > 0) {
-        // Include both product events (30402) and collection events (30405) in deletion
-        const deletionEvent = buildDeletionEvent(eventIdsToDelete, [30402, 30405]);
+        // Only include kinds that actually have events to delete
+        const kindsArray = Array.from(eventKindsToDelete);
+        console.log("Creating deletion event", JSON.stringify({
+          eventIdsCount: eventIdsToDelete.length,
+          kindsToDelete: kindsArray,
+          removedDTags
+        }, null, 2));
+        
+        const deletionEvent = buildDeletionEvent(eventIdsToDelete, kindsArray);
         toPublish.push({
           kind: deletionEvent.kind,
           created_at: deletionEvent.created_at,
