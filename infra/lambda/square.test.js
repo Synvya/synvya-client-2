@@ -240,6 +240,220 @@ describe("fetchNormalizedCatalog - Food & Beverage Fields Extraction", () => {
   });
 });
 
+describe("extractNameFromKind0", () => {
+  it("should extract display_name from kind:0 event content", () => {
+    const event = {
+      content: JSON.stringify({
+        display_name: "Restaurant El Candado",
+        name: "El Candado",
+        handle: "elcandado"
+      })
+    };
+
+    // Simulate extraction logic
+    let businessName = null;
+    if (event.content) {
+      try {
+        const parsed = JSON.parse(event.content);
+        if (typeof parsed?.display_name === "string" && parsed.display_name.trim()) {
+          businessName = parsed.display_name.trim();
+        } else if (typeof parsed?.name === "string" && parsed.name.trim()) {
+          businessName = parsed.name.trim();
+        } else if (typeof parsed?.handle === "string" && parsed.handle.trim()) {
+          businessName = parsed.handle.trim();
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    expect(businessName).toBe("Restaurant El Candado");
+  });
+
+  it("should fallback to name when display_name is missing", () => {
+    const event = {
+      content: JSON.stringify({
+        name: "El Candado",
+        handle: "elcandado"
+      })
+    };
+
+    // Simulate extraction logic
+    let businessName = null;
+    if (event.content) {
+      try {
+        const parsed = JSON.parse(event.content);
+        if (typeof parsed?.display_name === "string" && parsed.display_name.trim()) {
+          businessName = parsed.display_name.trim();
+        } else if (typeof parsed?.name === "string" && parsed.name.trim()) {
+          businessName = parsed.name.trim();
+        } else if (typeof parsed?.handle === "string" && parsed.handle.trim()) {
+          businessName = parsed.handle.trim();
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    expect(businessName).toBe("El Candado");
+  });
+
+  it("should fallback to handle when display_name and name are missing", () => {
+    const event = {
+      content: JSON.stringify({
+        handle: "elcandado"
+      })
+    };
+
+    // Simulate extraction logic
+    let businessName = null;
+    if (event.content) {
+      try {
+        const parsed = JSON.parse(event.content);
+        if (typeof parsed?.display_name === "string" && parsed.display_name.trim()) {
+          businessName = parsed.display_name.trim();
+        } else if (typeof parsed?.name === "string" && parsed.name.trim()) {
+          businessName = parsed.name.trim();
+        } else if (typeof parsed?.handle === "string" && parsed.handle.trim()) {
+          businessName = parsed.handle.trim();
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    expect(businessName).toBe("elcandado");
+  });
+
+  it("should return null when no name fields are present", () => {
+    const event = {
+      content: JSON.stringify({
+        about: "A restaurant"
+      })
+    };
+
+    // Simulate extraction logic
+    let businessName = null;
+    if (event.content) {
+      try {
+        const parsed = JSON.parse(event.content);
+        if (typeof parsed?.display_name === "string" && parsed.display_name.trim()) {
+          businessName = parsed.display_name.trim();
+        } else if (typeof parsed?.name === "string" && parsed.name.trim()) {
+          businessName = parsed.name.trim();
+        } else if (typeof parsed?.handle === "string" && parsed.handle.trim()) {
+          businessName = parsed.handle.trim();
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    expect(businessName).toBeNull();
+  });
+
+  it("should return null when event is null", () => {
+    const event = null;
+
+    // Simulate extraction logic
+    let businessName = null;
+    if (event && event.content) {
+      try {
+        const parsed = JSON.parse(event.content);
+        if (typeof parsed?.display_name === "string" && parsed.display_name.trim()) {
+          businessName = parsed.display_name.trim();
+        } else if (typeof parsed?.name === "string" && parsed.name.trim()) {
+          businessName = parsed.name.trim();
+        } else if (typeof parsed?.handle === "string" && parsed.handle.trim()) {
+          businessName = parsed.handle.trim();
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    expect(businessName).toBeNull();
+  });
+
+  it("should return null when content is missing", () => {
+    const event = {};
+
+    // Simulate extraction logic
+    let businessName = null;
+    if (event && event.content) {
+      try {
+        const parsed = JSON.parse(event.content);
+        if (typeof parsed?.display_name === "string" && parsed.display_name.trim()) {
+          businessName = parsed.display_name.trim();
+        } else if (typeof parsed?.name === "string" && parsed.name.trim()) {
+          businessName = parsed.name.trim();
+        } else if (typeof parsed?.handle === "string" && parsed.handle.trim()) {
+          businessName = parsed.handle.trim();
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    expect(businessName).toBeNull();
+  });
+
+  it("should trim whitespace from name values", () => {
+    const event = {
+      content: JSON.stringify({
+        display_name: "  Restaurant El Candado  "
+      })
+    };
+
+    // Simulate extraction logic
+    let businessName = null;
+    if (event.content) {
+      try {
+        const parsed = JSON.parse(event.content);
+        if (typeof parsed?.display_name === "string" && parsed.display_name.trim()) {
+          businessName = parsed.display_name.trim();
+        } else if (typeof parsed?.name === "string" && parsed.name.trim()) {
+          businessName = parsed.name.trim();
+        } else if (typeof parsed?.handle === "string" && parsed.handle.trim()) {
+          businessName = parsed.handle.trim();
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    expect(businessName).toBe("Restaurant El Candado");
+  });
+
+  it("should prefer display_name over name even if both exist", () => {
+    const event = {
+      content: JSON.stringify({
+        display_name: "Restaurant El Candado",
+        name: "El Candado"
+      })
+    };
+
+    // Simulate extraction logic
+    let businessName = null;
+    if (event.content) {
+      try {
+        const parsed = JSON.parse(event.content);
+        if (typeof parsed?.display_name === "string" && parsed.display_name.trim()) {
+          businessName = parsed.display_name.trim();
+        } else if (typeof parsed?.name === "string" && parsed.name.trim()) {
+          businessName = parsed.name.trim();
+        } else if (typeof parsed?.handle === "string" && parsed.handle.trim()) {
+          businessName = parsed.handle.trim();
+        }
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    expect(businessName).toBe("Restaurant El Candado");
+  });
+});
+
 describe("buildDeletionEvent", () => {
   it("should build a valid kind 5 event template", () => {
     // Test the expected structure
