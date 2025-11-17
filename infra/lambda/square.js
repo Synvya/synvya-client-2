@@ -172,10 +172,10 @@ async function queryEventIdsByDTags(pubkey, dTags, relays) {
     const timeoutMs = Number.parseInt(process.env.EVENT_QUERY_TIMEOUT_MS ?? "5000", 10);
     const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
     
-    // Query for all d-tags at once using #d filter
+    // Query for all d-tags at once using #d filter (both products and collections)
     const queryPromise = nostrPool
       .querySync(relays, {
-        kinds: [30402],
+        kinds: [30402, 30405],
         authors: [pubkey],
         "#d": dTags
       })
@@ -1001,13 +1001,16 @@ async function performSync(record, options) {
   // Fetch business name from kind:0 profile
   const businessName = await fetchProfileNameFromRelays(pubkeyValue);
 
-  const events = buildEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
+  // Build product events and collection events
+  const productEvents = buildEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
+  const collectionEvents = buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
+  const events = [...productEvents, ...collectionEvents];
 
   const previous = record.publishedFingerprints || {};
   const fingerprints = { ...previous };
   const toPublish = [];
 
-  // Build set of current d-tags
+  // Build set of current d-tags (for both products and collections)
   const currentDTags = new Set();
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
@@ -1016,7 +1019,7 @@ async function performSync(record, options) {
     }
   }
 
-  // Detect removed items: d-tags in previous but not in current
+  // Detect removed items/collections: d-tags in previous but not in current
   const removedDTags = [];
   for (const dTag of Object.keys(previous)) {
     if (!currentDTags.has(dTag)) {
@@ -1024,9 +1027,10 @@ async function performSync(record, options) {
     }
   }
 
-  // Query relays for event IDs of removed items and create deletion events
+  // Query relays for event IDs of removed items/collections and create deletion events
   if (removedDTags.length > 0 && nostrPool && profileRelays.length) {
     try {
+      // Query for both product events (kind 30402) and collection events (kind 30405)
       const eventIdsByDTag = await queryEventIdsByDTags(pubkeyValue, removedDTags, profileRelays);
       const eventIdsToDelete = [];
       
@@ -1035,12 +1039,13 @@ async function performSync(record, options) {
         if (eventId) {
           eventIdsToDelete.push(eventId);
         } else {
-          console.warn("Could not find event ID for removed item", { dTag, pubkey: pubkeyValue });
+          console.warn("Could not find event ID for removed item/collection", { dTag, pubkey: pubkeyValue });
         }
       }
 
       if (eventIdsToDelete.length > 0) {
-        const deletionEvent = buildDeletionEvent(eventIdsToDelete, [30402]);
+        // Include both product events (30402) and collection events (30405) in deletion
+        const deletionEvent = buildDeletionEvent(eventIdsToDelete, [30402, 30405]);
         toPublish.push({
           kind: deletionEvent.kind,
           created_at: deletionEvent.created_at,
@@ -1059,7 +1064,7 @@ async function performSync(record, options) {
         }
       }
     } catch (error) {
-      console.warn("Failed to query event IDs for removed items", { 
+      console.warn("Failed to query event IDs for removed items/collections", { 
         removedDTags, 
         pubkey: pubkeyValue, 
         error: error?.message || error 
@@ -1284,13 +1289,16 @@ async function performPreview(record, options) {
   // Fetch business name from kind:0 profile
   const businessName = await fetchProfileNameFromRelays(pubkeyValue);
 
-  const events = buildEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
+  // Build product events and collection events
+  const productEvents = buildEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
+  const collectionEvents = buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, pubkeyValue);
+  const events = [...productEvents, ...collectionEvents];
 
   const previous = record.publishedFingerprints || {};
   const toPublish = [];
   let deletionCount = 0;
 
-  // Build set of current d-tags
+  // Build set of current d-tags (for both products and collections)
   const currentDTags = new Set();
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
@@ -1299,7 +1307,7 @@ async function performPreview(record, options) {
     }
   }
 
-  // Detect removed items: d-tags in previous but not in current
+  // Detect removed items/collections: d-tags in previous but not in current
   const removedDTags = [];
   for (const dTag of Object.keys(previous)) {
     if (!currentDTags.has(dTag)) {
@@ -1324,9 +1332,10 @@ async function performPreview(record, options) {
       const timeoutMs = Number.parseInt(process.env.EVENT_QUERY_TIMEOUT_MS ?? "5000", 10);
       const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([]), timeoutMs));
       
+      // Query for both product events (30402) and collection events (30405)
       const queryPromise = nostrPool
         .querySync(profileRelays, {
-          kinds: [30402],
+          kinds: [30402, 30405],
           authors: [pubkeyValue],
           "#d": removedDTags
         })
@@ -1369,7 +1378,7 @@ async function performPreview(record, options) {
         deletionCount = removedDTags.length;
       }
     } catch (error) {
-      console.warn("Failed to query events for removed items in preview", { 
+      console.warn("Failed to query events for removed items/collections in preview", { 
         removedDTags, 
         pubkey: pubkeyValue, 
         error: error?.message || error 
@@ -1382,7 +1391,7 @@ async function performPreview(record, options) {
     deletionCount = removedDTags.length;
   }
 
-  // Process current events (new/updated items)
+  // Process current events (new/updated items and collections)
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
     if (!dTag) continue;
