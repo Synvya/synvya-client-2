@@ -800,22 +800,48 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
   // Use location name if available, otherwise fall back to business name
   const displayName = locationName || businessName;
 
-  // Collect unique category names that have items
-  const categoryNamesWithItems = new Set();
+  // Build map of category name -> list of product d-tags
+  // Each product variation gets its own d-tag
+  const categoryToProductDTags = new Map();
+  
   for (const item of catalog.items || []) {
-    for (const categoryId of item.categoryIds || []) {
-      const categoryName = catById.get(categoryId);
-      if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
-        categoryNamesWithItems.add(categoryName.trim());
+    const variations =
+      item.variations && item.variations.length
+        ? item.variations
+        : [{ id: "default", name: "Default", sku: null }];
+    
+    for (const variation of variations) {
+      // Compute d-tag same way as in buildEvents
+      const productDTag = variation.sku && typeof variation.sku === "string" && variation.sku.trim()
+        ? variation.sku.trim()
+        : slug(item.id, variation.id);
+      
+      // Add this product d-tag to all categories this item belongs to
+      for (const categoryId of item.categoryIds || []) {
+        const categoryName = catById.get(categoryId);
+        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
+          const trimmedCategoryName = categoryName.trim();
+          if (!categoryToProductDTags.has(trimmedCategoryName)) {
+            categoryToProductDTags.set(trimmedCategoryName, []);
+          }
+          categoryToProductDTags.get(trimmedCategoryName).push(productDTag);
+        }
       }
     }
   }
+
+  // Collect unique category names that have items
+  const categoryNamesWithItems = Array.from(categoryToProductDTags.keys());
 
   // Always log collection building info (not just in debug mode)
   console.log("buildCollectionEvents", JSON.stringify({
     totalCategories: catalog.categories?.length || 0,
     totalItems: catalog.items?.length || 0,
-    categoryNamesWithItems: Array.from(categoryNamesWithItems),
+    categoryNamesWithItems,
+    categoryToProductCount: Array.from(categoryToProductDTags.entries()).map(([name, dTags]) => ({
+      categoryName: name,
+      productCount: dTags.length
+    })),
     categoryMap: Array.from(catById.entries()).map(([id, name]) => ({ id, name })),
     sampleItem: catalog.items?.[0] ? {
       id: catalog.items[0].id,
@@ -828,13 +854,8 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
     console.debug("buildCollectionEvents (detailed)", {
       totalCategories: catalog.categories?.length || 0,
       totalItems: catalog.items?.length || 0,
-      categoryNamesWithItems: Array.from(categoryNamesWithItems),
-      categoryMap: Array.from(catById.entries()).map(([id, name]) => ({ id, name })),
-      sampleItem: catalog.items?.[0] ? {
-        id: catalog.items[0].id,
-        name: catalog.items[0].name,
-        categoryIds: catalog.items[0].categoryIds
-      } : null
+      categoryNamesWithItems,
+      categoryToProductDTags: Object.fromEntries(categoryToProductDTags)
     });
   }
 
@@ -860,9 +881,13 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
       tags.push(["g", geohashTagValue]);
     }
 
-    // Add 'a' tag referencing this collection: ["a", "30405", "<pubkey>", "<d-tag>"]
+    // Add 'a' tags referencing all products in this collection
+    // Format: ["a", "30402", "<pubkey>", "<product-d-tag>"]
     if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
-      tags.push(["a", "30405", merchantPubkey.trim(), categoryName]);
+      const productDTags = categoryToProductDTags.get(categoryName) || [];
+      for (const productDTag of productDTags) {
+        tags.push(["a", "30402", merchantPubkey.trim(), productDTag]);
+      }
     }
 
     collectionEvents.push({
