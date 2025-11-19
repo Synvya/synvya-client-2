@@ -21,7 +21,6 @@ import {
   parseReservationModificationResponse,
 } from "@/lib/reservationEvents";
 import { wrapEvent, unwrapEvent, createRumor } from "@/lib/nip59";
-import { buildHandlerInfo, buildHandlerRecommendation } from "@/lib/handlerEvents";
 import type {
   ReservationRequest,
   ReservationResponse,
@@ -322,43 +321,6 @@ describe("Reservation Flow Integration Tests", () => {
 
       expect(modRequestToRecipient.kind).toBe(9903);
       expect(modRequestToSelf.kind).toBe(9903);
-    });
-  });
-
-  describe("NIP-89 Handler Discovery", () => {
-    it("should advertise support for all 4 kinds in handler info", () => {
-      const handlerInfo = buildHandlerInfo(restaurantPublicKey);
-
-      expect(handlerInfo.kind).toBe(31990);
-
-      const kTags = handlerInfo.tags.filter((tag) => tag[0] === "k");
-      expect(kTags).toHaveLength(4);
-
-      const kinds = kTags.map((tag) => tag[1]);
-      expect(kinds).toContain("9901");
-      expect(kinds).toContain("9902");
-      expect(kinds).toContain("9903");
-      expect(kinds).toContain("9904");
-    });
-
-    it("should publish handler recommendations for all 4 kinds", () => {
-      const relayUrl = "wss://relay.damus.io";
-
-      const rec9901 = buildHandlerRecommendation(restaurantPublicKey, "9901", relayUrl);
-      const rec9902 = buildHandlerRecommendation(restaurantPublicKey, "9902", relayUrl);
-      const rec9903 = buildHandlerRecommendation(restaurantPublicKey, "9903", relayUrl);
-      const rec9904 = buildHandlerRecommendation(restaurantPublicKey, "9904", relayUrl);
-
-      expect(rec9901.kind).toBe(31989);
-      expect(rec9902.kind).toBe(31989);
-      expect(rec9903.kind).toBe(31989);
-      expect(rec9904.kind).toBe(31989);
-
-      // Verify d tags match event kinds
-      expect(rec9901.tags.find((t) => t[0] === "d")?.[1]).toBe("9901");
-      expect(rec9902.tags.find((t) => t[0] === "d")?.[1]).toBe("9902");
-      expect(rec9903.tags.find((t) => t[0] === "d")?.[1]).toBe("9903");
-      expect(rec9904.tags.find((t) => t[0] === "d")?.[1]).toBe("9904");
     });
   });
 

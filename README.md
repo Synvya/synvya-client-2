@@ -16,10 +16,7 @@ Synvya’s merchant-facing web client for onboarding, profile management, and Sq
 - Kind 0 business profile publishing with business type tags
 - NIP-96/NIP-98 media uploads via nostr.build
 
-### Restaurant Reservations (NIP-89 Discovery)
-- **Handler Discovery**: Restaurants with `businessType: "restaurant"` automatically publish NIP-89 handler events
-  - Kind 31990: Handler info declaring support for reservation events (9901, 9902, 9903, 9904)
-  - Kind 31989: Handler recommendations for AI agents to discover reservation-capable restaurants
+### Restaurant Reservations
 - **4-Message Protocol**: Complete reservation negotiation flow
   - Kind 9901: Initial reservation request
   - Kind 9902: Reservation response (confirmed/declined/cancelled)
