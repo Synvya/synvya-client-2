@@ -563,12 +563,10 @@ function buildEvents(catalog, profileLocation, profileGeoHash, businessName = nu
         : [{ id: "default", name: "Default", price_money: null }];
 
     for (const variation of variations) {
-      // Content: remove variation suffix, keep SKU display
+      // Content: item name and description only
       const content = `**${item.name}**
 
-${item.description || ""}
-
-SKU: ${variation.sku || "N/A"}`.trim();
+${item.description || ""}`.trim();
 
       const tags = [];
       

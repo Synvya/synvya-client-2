@@ -834,13 +834,11 @@ describe("buildEvents - New Tag Strategy", () => {
     const variation = { sku: "0001" };
     const content = `**${item.name}**
 
-${item.description || ""}
-
-SKU: ${variation.sku || "N/A"}`.trim();
+${item.description || ""}`.trim();
 
     expect(content).toContain("**Bocadillo de Jamón**");
     expect(content).not.toContain("Regular");
-    expect(content).toContain("SKU: 0001");
+    expect(content).not.toContain("SKU: 0001");
   });
 
   it("should handle items without ingredients or dietary_preferences", () => {
