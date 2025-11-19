@@ -182,31 +182,40 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       }
     } else if (tag[0] === "i" && typeof tag[1] === "string" && tag[1] === "rp") {
       patch.acceptsReservations = true;
-    } else if (tag[0] === "schema.org:OpeningHoursSpecification" && typeof tag[1] === "string" && typeof tag[2] === "string") {
-      // Parse day range and time range
-      const dayRange = tag[1];
-      const timeRange = tag[2];
-      const [startTime, endTime] = timeRange.split("-");
+    } else if (tag[0] === "schema.org:openingHours" && typeof tag[1] === "string") {
+      // Parse comma-separated opening hours string: "Tu-Th 11:00-21:00, Fr-Sa 11:00-00:00, Su 12:00-21:00"
+      const hoursString = tag[1];
+      const hoursParts = hoursString.split(",").map(part => part.trim()).filter(Boolean);
       
-      if (startTime && endTime) {
-        // Parse day range: "Tu-Th" or "Mo"
-        const days: string[] = [];
-        if (dayRange.includes("-")) {
-          const [startDay, endDay] = dayRange.split("-");
-          const dayOrder = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-          const startIndex = dayOrder.indexOf(startDay);
-          const endIndex = dayOrder.indexOf(endDay);
-          if (startIndex >= 0 && endIndex >= 0 && startIndex <= endIndex) {
-            for (let i = startIndex; i <= endIndex; i++) {
-              days.push(dayOrder[i]);
-            }
-          }
-        } else {
-          days.push(dayRange);
-        }
+      for (const part of hoursParts) {
+        // Split by space to separate day range from time range
+        const spaceIndex = part.indexOf(" ");
+        if (spaceIndex === -1) continue;
         
-        if (days.length > 0) {
-          openingHours.push({ days, startTime, endTime });
+        const dayRange = part.slice(0, spaceIndex).trim();
+        const timeRange = part.slice(spaceIndex + 1).trim();
+        const [startTime, endTime] = timeRange.split("-");
+        
+        if (startTime && endTime) {
+          // Parse day range: "Tu-Th" or "Mo"
+          const days: string[] = [];
+          if (dayRange.includes("-")) {
+            const [startDay, endDay] = dayRange.split("-");
+            const dayOrder = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+            const startIndex = dayOrder.indexOf(startDay);
+            const endIndex = dayOrder.indexOf(endDay);
+            if (startIndex >= 0 && endIndex >= 0 && startIndex <= endIndex) {
+              for (let i = startIndex; i <= endIndex; i++) {
+                days.push(dayOrder[i]);
+              }
+            }
+          } else {
+            days.push(dayRange);
+          }
+          
+          if (days.length > 0) {
+            openingHours.push({ days, startTime, endTime });
+          }
         }
       }
     } else if (tag[0] === "i" && typeof tag[1] === "string") {

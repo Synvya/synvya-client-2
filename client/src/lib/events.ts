@@ -164,8 +164,9 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
     tags.push(["k", "nip"]);
   }
 
-  // Add opening hours tags
+  // Add opening hours tag
   if (profile.openingHours && profile.openingHours.length > 0) {
+    const hoursParts: string[] = [];
     for (const spec of profile.openingHours) {
       if (spec.days.length > 0 && spec.startTime && spec.endTime) {
         // Format day range: "Tu-Th" or "Mo" for single day
@@ -175,8 +176,11 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
             : `${spec.days[0]}-${spec.days[spec.days.length - 1]}`;
         // Format time range: "11:00-21:00"
         const timeRange = `${spec.startTime}-${spec.endTime}`;
-        tags.push(["schema.org:OpeningHoursSpecification", dayRange, timeRange]);
+        hoursParts.push(`${dayRange} ${timeRange}`);
       }
+    }
+    if (hoursParts.length > 0) {
+      tags.push(["schema.org:openingHours", hoursParts.join(", ")]);
     }
   }
 

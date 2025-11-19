@@ -534,7 +534,7 @@ describe("buildProfileEvent", () => {
     expect(event.tags.some(tag => tag[0] === "k" && tag[1] === "nip")).toBe(false);
   });
 
-  it("should include openingHoursSpecification tags when opening hours are provided", () => {
+  it("should include openingHours tag when opening hours are provided", () => {
     const openingHours: OpeningHoursSpec[] = [
       { days: ["Tu", "We", "Th"], startTime: "11:00", endTime: "21:00" },
       { days: ["Fr", "Sa"], startTime: "11:00", endTime: "00:00" },
@@ -548,15 +548,13 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithHours);
 
-    expect(event.tags).toContainEqual(["schema.org:OpeningHoursSpecification", "Tu-Th", "11:00-21:00"]);
-    expect(event.tags).toContainEqual(["schema.org:OpeningHoursSpecification", "Fr-Sa", "11:00-00:00"]);
-    expect(event.tags).toContainEqual(["schema.org:OpeningHoursSpecification", "Su", "12:00-21:00"]);
+    expect(event.tags).toContainEqual(["schema.org:openingHours", "Tu-Th 11:00-21:00, Fr-Sa 11:00-00:00, Su 12:00-21:00"]);
   });
 
-  it("should not include openingHoursSpecification tags when opening hours are not provided", () => {
+  it("should not include openingHours tag when opening hours are not provided", () => {
     const event = buildProfileEvent(baseProfile);
 
-    expect(event.tags.some(tag => tag[0] === "schema.org:OpeningHoursSpecification")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:openingHours")).toBe(false);
   });
 
   it("should handle single day opening hours", () => {
@@ -571,7 +569,7 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithHours);
 
-    expect(event.tags).toContainEqual(["schema.org:OpeningHoursSpecification", "Mo", "09:00-17:00"]);
+    expect(event.tags).toContainEqual(["schema.org:openingHours", "Mo 09:00-17:00"]);
   });
 });
 
