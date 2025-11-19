@@ -65,8 +65,40 @@ const validateModificationResponsePayload = () => true;
  */
 export function validateReservationRequest(payload: unknown): ValidationResult {
   // TODO: This function will be removed/refactored in PR 4 when we move to tag-based structure
-  // For now, payload validation is disabled since new schemas validate full event structure
-  // The payload structure will change from JSON to tags in later PRs
+  // For now, provide basic validation to keep tests passing. Full validation will be in PR 4.
+  
+  if (!payload || typeof payload !== "object") {
+    return { valid: false, errors: [{ message: "Payload must be an object" }] };
+  }
+  
+  const p = payload as Record<string, unknown>;
+  const errors: ValidationError[] = [];
+  
+  // Required fields
+  if (typeof p.party_size !== "number" || p.party_size < 1 || p.party_size > 20) {
+    errors.push({ field: "party_size", message: "party_size must be between 1 and 20" });
+  }
+  if (typeof p.iso_time !== "string" || !p.iso_time) {
+    errors.push({ field: "iso_time", message: "iso_time is required" });
+  }
+  
+  // Optional contact validation
+  if (p.contact && typeof p.contact === "object") {
+    const contact = p.contact as Record<string, unknown>;
+    if (contact.email && typeof contact.email === "string" && !contact.email.includes("@")) {
+      errors.push({ field: "contact.email", message: "Invalid email format" });
+    }
+  }
+  
+  // Notes length
+  if (p.notes && typeof p.notes === "string" && p.notes.length > 2000) {
+    errors.push({ field: "notes", message: "notes must be max 2000 characters" });
+  }
+  
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+  
   return { valid: true };
 }
 
@@ -108,8 +140,29 @@ export function validateReservationRequestRumor(rumor: UnsignedEvent & { id?: st
  */
 export function validateReservationResponse(payload: unknown): ValidationResult {
   // TODO: This function will be removed/refactored in PR 5 when we move to tag-based structure
-  // For now, payload validation is disabled since new schemas validate full event structure
-  // The payload structure will change from JSON to tags in later PRs
+  // For now, provide basic validation to keep tests passing. Full validation will be in PR 5.
+  
+  if (!payload || typeof payload !== "object") {
+    return { valid: false, errors: [{ message: "Payload must be an object" }] };
+  }
+  
+  const p = payload as Record<string, unknown>;
+  const errors: ValidationError[] = [];
+  
+  // Required status field
+  if (!p.status || !["confirmed", "declined", "cancelled"].includes(p.status as string)) {
+    errors.push({ field: "status", message: "status must be confirmed, declined, or cancelled" });
+  }
+  
+  // iso_time is required (can be null for declined/cancelled)
+  if (p.iso_time !== null && typeof p.iso_time !== "string") {
+    errors.push({ field: "iso_time", message: "iso_time must be a string or null" });
+  }
+  
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+  
   return { valid: true };
 }
 
@@ -408,8 +461,40 @@ export function parseReservationResponse(
  */
 export function validateReservationModificationRequest(payload: unknown): ValidationResult {
   // TODO: This function will be removed/refactored in PR 6 when we move to tag-based structure
-  // For now, payload validation is disabled since new schemas validate full event structure
-  // The payload structure will change from JSON to tags in later PRs
+  // For now, provide basic validation to keep tests passing. Full validation will be in PR 6.
+  
+  if (!payload || typeof payload !== "object") {
+    return { valid: false, errors: [{ message: "Payload must be an object" }] };
+  }
+  
+  const p = payload as Record<string, unknown>;
+  const errors: ValidationError[] = [];
+  
+  // Required fields (same as request)
+  if (typeof p.party_size !== "number" || p.party_size < 1 || p.party_size > 20) {
+    errors.push({ field: "party_size", message: "party_size must be between 1 and 20" });
+  }
+  if (typeof p.iso_time !== "string" || !p.iso_time) {
+    errors.push({ field: "iso_time", message: "iso_time is required" });
+  }
+  
+  // Optional contact validation
+  if (p.contact && typeof p.contact === "object") {
+    const contact = p.contact as Record<string, unknown>;
+    if (contact.email && typeof contact.email === "string" && !contact.email.includes("@")) {
+      errors.push({ field: "contact.email", message: "Invalid email format" });
+    }
+  }
+  
+  // Notes length
+  if (p.notes && typeof p.notes === "string" && p.notes.length > 2000) {
+    errors.push({ field: "notes", message: "notes must be max 2000 characters" });
+  }
+  
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+  
   return { valid: true };
 }
 
@@ -451,8 +536,29 @@ export function validateReservationModificationRequestRumor(rumor: UnsignedEvent
  */
 export function validateReservationModificationResponse(payload: unknown): ValidationResult {
   // TODO: This function will be removed/refactored in PR 7 when we move to tag-based structure
-  // For now, payload validation is disabled since new schemas validate full event structure
-  // The payload structure will change from JSON to tags in later PRs
+  // For now, provide basic validation to keep tests passing. Full validation will be in PR 7.
+  
+  if (!payload || typeof payload !== "object") {
+    return { valid: false, errors: [{ message: "Payload must be an object" }] };
+  }
+  
+  const p = payload as Record<string, unknown>;
+  const errors: ValidationError[] = [];
+  
+  // Required status field (only confirmed or declined for modifications)
+  if (!p.status || !["confirmed", "declined"].includes(p.status as string)) {
+    errors.push({ field: "status", message: "status must be confirmed or declined" });
+  }
+  
+  // iso_time is required (can be null for declined)
+  if (p.iso_time !== null && typeof p.iso_time !== "string") {
+    errors.push({ field: "iso_time", message: "iso_time must be a string or null" });
+  }
+  
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+  
   return { valid: true };
 }
 
