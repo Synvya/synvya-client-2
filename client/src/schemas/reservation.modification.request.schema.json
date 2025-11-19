@@ -10,17 +10,14 @@
         "id": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Deterministic event hash as defined in NIP-01",
-          "errorMessage": "id must be a 64-character lowercase hex string"
+          "description": "Deterministic event hash as defined in NIP-01"
         },
         "content": {
           "type": "string",
-          "errorMessage": "content must be a string",
           "description": "The content of the note"
         },
         "created_at": {
           "type": "integer",
-          "errorMessage": "created_at must be a timestamp expressed in seconds (not milliseconds)",
           "description": "The timestamp of the note creation"
         },
         "kind": {
@@ -29,12 +26,10 @@
         "pubkey": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "errorMessage": "pubkey must be a secp256k1 public key",
           "description": "The public key of the note's author"
         },
         "tags": {
           "type": "array",
-          "errorMessage": "tags must be an array of valid tag tuples",
           "description": "The tags of the note",
           "items": {
             "type": "array",
@@ -58,20 +53,17 @@
       "properties": {
         "kind": {
           "const": 9903,
-          "description": "Kind 9903 identifies a reservation modification request",
-          "errorMessage": "kind must equal 9903"
+          "description": "Kind 9903 identifies a reservation modification request"
         },
         "id": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Deterministic event hash as defined in NIP-01",
-          "errorMessage": "id must be a 64-character lowercase hex string"
+          "description": "Deterministic event hash as defined in NIP-01"
         },
         "pubkey": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Sender public key",
-          "errorMessage": "pubkey must be a 64-character lowercase hex string (secp256k1 public key)"
+          "description": "Sender public key"
         },
         "content": {
           "type": "string",
@@ -101,8 +93,7 @@
                   {
                     "type": "string",
                     "pattern": "^[a-f0-9]{64}$",
-                    "description": "Recipient public key",
-                    "errorMessage": "p tag value must be a 64-character lowercase hex string"
+                    "description": "Recipient public key"
                   },
                   {
                     "type": "string",
@@ -110,9 +101,6 @@
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include at least one p tag identifying the recipient"
               }
             },
             {
@@ -128,8 +116,7 @@
                   {
                     "type": "string",
                     "pattern": "^[a-f0-9]{64}$",
-                    "description": "Unsigned rumor ID of the original reservation.request (kind 9901) - connects message to reservation thread",
-                    "errorMessage": "e tag value must be a 64-character lowercase hex string (unsigned rumor ID)"
+                    "description": "Unsigned rumor ID of the original reservation.request (kind 9901) - connects message to reservation thread"
                   },
                   {
                     "const": "",
@@ -141,9 +128,6 @@
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include an e tag with format ['e', '<unsigned-9901-rumor.id>', '', 'root']"
               }
             },
             {
@@ -159,14 +143,10 @@
                   {
                     "type": "string",
                     "pattern": "^(1[0-9]|[1-9]|20)$",
-                    "description": "Number of people in the reservation (integer between 1 and 20)",
-                    "errorMessage": "party_size must be an integer between 1 and 20"
+                    "description": "Number of people in the reservation (integer between 1 and 20)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include a party_size tag with format ['party_size', '<integer between 1 and 20>']"
               }
             },
             {
@@ -182,14 +162,10 @@
                   {
                     "type": "string",
                     "pattern": "^[0-9]+$",
-                    "description": "Inclusive reservation start Unix timestamp in seconds",
-                    "errorMessage": "time must be a Unix timestamp in seconds"
+                    "description": "Inclusive reservation start Unix timestamp in seconds"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include a time tag with format ['time', '<unix timestamp in seconds>']"
               }
             },
             {
@@ -204,14 +180,10 @@
                   },
                   {
                     "type": "string",
-                    "description": "Time zone of the reservation time, earliest_time, and latest_time Unix timestamps, as defined by the IANA Time Zone Database (e.g., America/Costa_Rica)",
-                    "errorMessage": "tzid must be a valid IANA Time Zone Database identifier"
+                    "description": "Time zone of the reservation time, earliest_time, and latest_time Unix timestamps, as defined by the IANA Time Zone Database (e.g., America/Costa_Rica)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include a tzid tag with format ['tzid', '<IANA Time Zone Database identifier>']"
               }
             },
             {
@@ -227,14 +199,10 @@
                   {
                     "type": "string",
                     "maxLength": 200,
-                    "description": "Reservation holder name (optional, max 200 chars, must be included if present in reservation.request)",
-                    "errorMessage": "name must be a string with max 200 characters"
+                    "description": "Reservation holder name (optional, max 200 chars, must be included if present in reservation.request)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags may include a name tag with format ['name', '<string, max 200 chars>']"
               }
             },
             {
@@ -250,14 +218,10 @@
                   {
                     "type": "string",
                     "pattern": "^tel:",
-                    "description": "Phone number for the reservation holder as 'tel:' URI per RFC 3966 (optional, must be included if present in reservation.request)",
-                    "errorMessage": "telephone must be a 'tel:' URI as per RFC 3966"
+                    "description": "Phone number for the reservation holder as 'tel:' URI per RFC 3966 (optional, must be included if present in reservation.request)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags may include a telephone tag with format ['telephone', '<tel: URI>']"
               }
             },
             {
@@ -273,14 +237,10 @@
                   {
                     "type": "string",
                     "pattern": "^mailto:",
-                    "description": "Email for the reservation holder as 'mailto:' URI per RFC 6068 (optional, must be included if present in reservation.request)",
-                    "errorMessage": "email must be a 'mailto:' URI as per RFC 6068"
+                    "description": "Email for the reservation holder as 'mailto:' URI per RFC 6068 (optional, must be included if present in reservation.request)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags may include an email tag with format ['email', '<mailto: URI>']"
               }
             },
             {
@@ -296,14 +256,10 @@
                   {
                     "type": "string",
                     "pattern": "^[0-9]+$",
-                    "description": "Duration of reservation in seconds (optional)",
-                    "errorMessage": "duration must be a positive integer (duration in seconds)"
+                    "description": "Duration of reservation in seconds (optional)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags may include a duration tag with format ['duration', '<duration in seconds>']"
               }
             },
             {
@@ -319,14 +275,10 @@
                   {
                     "type": "string",
                     "pattern": "^[0-9]+$",
-                    "description": "Earliest start time Unix timestamp that the requestor would accept for the reservation (optional)",
-                    "errorMessage": "earliest_time must be a Unix timestamp in seconds"
+                    "description": "Earliest start time Unix timestamp that the requestor would accept for the reservation (optional)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags may include an earliest_time tag with format ['earliest_time', '<unix timestamp in seconds>']"
               }
             },
             {
@@ -342,14 +294,10 @@
                   {
                     "type": "string",
                     "pattern": "^[0-9]+$",
-                    "description": "Latest start time Unix timestamp that the requestor would accept for the reservation (optional)",
-                    "errorMessage": "latest_time must be a Unix timestamp in seconds"
+                    "description": "Latest start time Unix timestamp that the requestor would accept for the reservation (optional)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags may include a latest_time tag with format ['latest_time', '<unix timestamp in seconds>']"
               }
             }
           ]

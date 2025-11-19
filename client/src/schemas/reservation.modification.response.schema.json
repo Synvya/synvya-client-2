@@ -10,17 +10,14 @@
         "id": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Deterministic event hash as defined in NIP-01",
-          "errorMessage": "id must be a 64-character lowercase hex string"
+          "description": "Deterministic event hash as defined in NIP-01"
         },
         "content": {
           "type": "string",
-          "errorMessage": "content must be a string",
           "description": "The content of the note"
         },
         "created_at": {
           "type": "integer",
-          "errorMessage": "created_at must be a timestamp expressed in seconds (not milliseconds)",
           "description": "The timestamp of the note creation"
         },
         "kind": {
@@ -29,12 +26,10 @@
         "pubkey": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "errorMessage": "pubkey must be a secp256k1 public key",
           "description": "The public key of the note's author"
         },
         "tags": {
           "type": "array",
-          "errorMessage": "tags must be an array of valid tag tuples",
           "description": "The tags of the note",
           "items": {
             "type": "array",
@@ -58,20 +53,17 @@
       "properties": {
         "kind": {
           "const": 9904,
-          "description": "Kind 9904 identifies a reservation modification response",
-          "errorMessage": "kind must equal 9904"
+          "description": "Kind 9904 identifies a reservation modification response"
         },
         "id": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Deterministic event hash as defined in NIP-01",
-          "errorMessage": "id must be a 64-character lowercase hex string"
+          "description": "Deterministic event hash as defined in NIP-01"
         },
         "pubkey": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Sender public key",
-          "errorMessage": "pubkey must be a 64-character lowercase hex string (secp256k1 public key)"
+          "description": "Sender public key"
         },
         "content": {
           "type": "string",
@@ -101,8 +93,7 @@
                   {
                     "type": "string",
                     "pattern": "^[a-f0-9]{64}$",
-                    "description": "Recipient public key",
-                    "errorMessage": "p tag value must be a 64-character lowercase hex string"
+                    "description": "Recipient public key"
                   },
                   {
                     "type": "string",
@@ -110,9 +101,6 @@
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include at least one p tag identifying the recipient"
               }
             },
             {
@@ -128,8 +116,7 @@
                   {
                     "type": "string",
                     "pattern": "^[a-f0-9]{64}$",
-                    "description": "Unsigned rumor ID of the original reservation.request (kind 9901) - connects message to reservation thread",
-                    "errorMessage": "e tag value must be a 64-character lowercase hex string (unsigned rumor ID)"
+                    "description": "Unsigned rumor ID of the original reservation.request (kind 9901) - connects message to reservation thread"
                   },
                   {
                     "const": "",
@@ -141,9 +128,6 @@
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include an e tag with format ['e', '<unsigned-9901-rumor.id>', '', 'root']"
               }
             },
             {
@@ -162,14 +146,10 @@
                       "confirmed",
                       "declined"
                     ],
-                    "description": "Status of the reservation modification",
-                    "errorMessage": "status must be one of: confirmed or declined"
+                    "description": "Status of the reservation modification"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include a status tag with format ['status', '<confirmed|declined>']"
               }
             },
             {
@@ -185,14 +165,10 @@
                   {
                     "type": "string",
                     "pattern": "^[0-9]+$",
-                    "description": "Inclusive reservation start Unix timestamp in seconds",
-                    "errorMessage": "time must be a Unix timestamp in seconds"
+                    "description": "Inclusive reservation start Unix timestamp in seconds"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include a time tag with format ['time', '<unix timestamp in seconds>']"
               }
             },
             {
@@ -207,14 +183,10 @@
                   },
                   {
                     "type": "string",
-                    "description": "Time zone of the reservation time Unix timestamp, as defined by the IANA Time Zone Database (e.g., America/Costa_Rica)",
-                    "errorMessage": "tzid must be a valid IANA Time Zone Database identifier"
+                    "description": "Time zone of the reservation time Unix timestamp, as defined by the IANA Time Zone Database (e.g., America/Costa_Rica)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags must include a tzid tag with format ['tzid', '<IANA Time Zone Database identifier>']"
               }
             },
             {
@@ -230,14 +202,10 @@
                   {
                     "type": "string",
                     "pattern": "^[0-9]+$",
-                    "description": "Duration of reservation in seconds (optional)",
-                    "errorMessage": "duration must be a positive integer (duration in seconds)"
+                    "description": "Duration of reservation in seconds (optional)"
                   }
                 ],
                 "additionalItems": false
-              },
-              "errorMessage": {
-                "contains": "tags may include a duration tag with format ['duration', '<duration in seconds>']"
               }
             }
           ]
