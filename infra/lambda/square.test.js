@@ -697,7 +697,7 @@ describe("buildEvents - New Tag Strategy", () => {
     expect(typeTag).toEqual(["type", "simple", "physical"]);
   });
 
-  it("should add t tags from ingredients array", () => {
+  it("should add contains tags from ingredients array", () => {
     const item = {
       ingredients: ["GLUTEN", "WHEAT"]
     };
@@ -705,15 +705,15 @@ describe("buildEvents - New Tag Strategy", () => {
     if (Array.isArray(item.ingredients)) {
       for (const ingredient of item.ingredients) {
         if (typeof ingredient === "string" && ingredient.trim()) {
-          tags.push(["t", ingredient.trim()]);
+          tags.push(["contains", ingredient.trim()]);
         }
       }
     }
 
-    const tTags = tags.filter((t) => t[0] === "t");
-    expect(tTags).toHaveLength(2);
-    expect(tTags[0]).toEqual(["t", "GLUTEN"]);
-    expect(tTags[1]).toEqual(["t", "WHEAT"]);
+    const containsTags = tags.filter((t) => t[0] === "contains");
+    expect(containsTags).toHaveLength(2);
+    expect(containsTags[0]).toEqual(["contains", "GLUTEN"]);
+    expect(containsTags[1]).toEqual(["contains", "WHEAT"]);
   });
 
   it("should add t tags from dietary_preferences array", () => {
@@ -735,7 +735,7 @@ describe("buildEvents - New Tag Strategy", () => {
     expect(tTags[1]).toEqual(["t", "DAIRY_FREE"]);
   });
 
-  it("should add t tags from both ingredients and dietary_preferences", () => {
+  it("should add contains tags from ingredients and t tags from dietary_preferences", () => {
     const item = {
       ingredients: ["GLUTEN"],
       dietaryPreferences: ["GLUTEN_FREE"]
@@ -744,7 +744,7 @@ describe("buildEvents - New Tag Strategy", () => {
     if (Array.isArray(item.ingredients)) {
       for (const ingredient of item.ingredients) {
         if (typeof ingredient === "string" && ingredient.trim()) {
-          tags.push(["t", ingredient.trim()]);
+          tags.push(["contains", ingredient.trim()]);
         }
       }
     }
@@ -756,9 +756,11 @@ describe("buildEvents - New Tag Strategy", () => {
       }
     }
 
+    const containsTags = tags.filter((t) => t[0] === "contains");
     const tTags = tags.filter((t) => t[0] === "t");
-    expect(tTags).toHaveLength(2);
-    expect(tTags).toContainEqual(["t", "GLUTEN"]);
+    expect(containsTags).toHaveLength(1);
+    expect(containsTags).toContainEqual(["contains", "GLUTEN"]);
+    expect(tTags).toHaveLength(1);
     expect(tTags).toContainEqual(["t", "GLUTEN_FREE"]);
   });
 
@@ -850,7 +852,7 @@ ${item.description || ""}`.trim();
     if (Array.isArray(item.ingredients)) {
       for (const ingredient of item.ingredients) {
         if (typeof ingredient === "string" && ingredient.trim()) {
-          tags.push(["t", ingredient.trim()]);
+          tags.push(["contains", ingredient.trim()]);
         }
       }
     }

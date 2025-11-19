@@ -109,7 +109,7 @@ export function PublicationPreview({
               // Extract suitableForDiet tags
               const suitableForDiet = extractTagValues(event.tags, "suitableForDiet");
               
-              // Extract t tags (ingredients and dietary preferences)
+              // Extract t tags (dietary preferences only - ingredients are now in contains tags)
               const tTags = extractTagValues(event.tags, "t");
 
               return (
