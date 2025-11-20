@@ -116,90 +116,36 @@ export function unixAndTzidToIso8601(
     throw new Error(`Failed to format date in timezone: ${tzid}`);
   }
 
-  // Validate that hour is within valid range (0-23)
-  // Some timezone formatters might produce invalid values in edge cases
-  const hourNum = parseInt(hour, 10);
-  if (isNaN(hourNum) || hourNum < 0 || hourNum > 23) {
-    throw new Error(`Invalid hour value from timezone formatter: ${hour} (timezone: ${tzid}, timestamp: ${unixTimestamp})`);
+  // Get the timezone offset directly using Intl.DateTimeFormat with timeZoneName
+  // This is much simpler and more reliable than calculating it manually
+  const offsetFormatter = new Intl.DateTimeFormat("en", {
+    timeZone: tzid,
+    timeZoneName: "longOffset",
+  });
+
+  const offsetParts = offsetFormatter.formatToParts(date);
+  const offsetPart = offsetParts.find(p => p.type === "timeZoneName");
+  
+  if (!offsetPart) {
+    throw new Error(`Failed to get timezone offset for: ${tzid}`);
   }
 
-  // Calculate timezone offset for this specific date/time
-  // We know the UTC timestamp (date.getTime()) and the local time components in the timezone
-  // We need to find the offset that makes: local_time_string + offset = UTC_timestamp
+  // Parse the offset string (e.g., "GMT-07:00" or "GMT+09:00")
+  // Extract the offset part after "GMT"
+  const offsetMatch = offsetPart.value.match(/GMT([+-])(\d{2}):(\d{2})/);
   
-  // The most reliable way: try different offsets until we find one that produces
-  // the same local time components when applied to the UTC timestamp
-  
-  // Format the same moment in UTC to get UTC components for comparison
-  const utcFormatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "UTC",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  
-  const utcParts = utcFormatter.formatToParts(date);
-  const utcYear = utcParts.find(p => p.type === "year")?.value;
-  const utcMonth = utcParts.find(p => p.type === "month")?.value;
-  const utcDay = utcParts.find(p => p.type === "day")?.value;
-  const utcHour = utcParts.find(p => p.type === "hour")?.value;
-  const utcMinute = utcParts.find(p => p.type === "minute")?.value;
-  const utcSecond = utcParts.find(p => p.type === "second")?.value;
-  
-  if (!utcYear || !utcMonth || !utcDay || !utcHour || !utcMinute || !utcSecond) {
-    throw new Error("Failed to format date in UTC");
+  if (!offsetMatch) {
+    // If no offset (UTC), return with Z
+    if (offsetPart.value === "GMT" || offsetPart.value.includes("UTC")) {
+      return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
+    }
+    throw new Error(`Unexpected timezone offset format: ${offsetPart.value} (timezone: ${tzid})`);
   }
-  
-  // Calculate offset using direct comparison method (environment-independent)
-  // Method: Compare UTC and local time components parsed as UTC to get offset
-  // This is more reliable than brute-force search and works consistently across environments
-  
-  // The actual UTC timestamp
-  const actualUtcTime = date.getTime();
-  
-  // Create date strings for UTC and local time (both parsed as UTC for comparison)
-  const utcTimeStr = `${utcYear}-${utcMonth}-${utcDay}T${utcHour}:${utcMinute}:${utcSecond}Z`;
-  const localTimeStr = `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
-  
-  const utcParsed = new Date(utcTimeStr);
-  const localParsed = new Date(localTimeStr);
-  
-  // Validate parsing
-  if (isNaN(utcParsed.getTime())) {
-    throw new Error(`Failed to parse UTC time string: ${utcTimeStr}`);
-  }
-  if (isNaN(localParsed.getTime())) {
-    throw new Error(`Failed to parse local time string: ${localTimeStr}`);
-  }
-  
-  // Calculate offset: difference between UTC and local time (both parsed as UTC)
-  // If local time is behind UTC, offset is positive (we need -HH:MM)
-  // If local time is ahead of UTC, offset is negative (we need +HH:MM)
-  const offsetMs = utcParsed.getTime() - localParsed.getTime();
-  const offsetMinutes = Math.round(offsetMs / (1000 * 60));
-  
-  // Validate offset is within reasonable bounds
-  if (Math.abs(offsetMinutes) > 14 * 60) {
-    throw new Error(`Calculated offset is out of bounds: ${offsetMinutes} minutes (timezone: ${tzid}, timestamp: ${unixTimestamp})`);
-  }
-  
-  // Handle UTC case (offset is 0)
-  if (offsetMinutes === 0) {
-    return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
-  }
-  
-  // Format offset as ±HH:MM
-  // ISO8601: +HH:MM means UTC+offset (ahead), -HH:MM means UTC-offset (behind)
-  // If offsetMinutes is positive, local is behind UTC, so we need -HH:MM
-  // If offsetMinutes is negative, local is ahead of UTC, so we need +HH:MM
-  const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
-  const offsetMins = Math.abs(offsetMinutes) % 60;
-  const offsetSign = offsetMinutes > 0 ? "-" : "+";
-  const offsetString = `${offsetSign}${String(offsetHours).padStart(2, "0")}:${String(offsetMins).padStart(2, "0")}`;
+
+  const offsetSign = offsetMatch[1];
+  const offsetHours = offsetMatch[2];
+  const offsetMinutes = offsetMatch[3];
+  const offsetString = `${offsetSign}${offsetHours}:${offsetMinutes}`;
 
   // Construct and validate the resulting ISO8601 string
   const result = `${year}-${month}-${day}T${hour}:${minute}:${second}${offsetString}`;
