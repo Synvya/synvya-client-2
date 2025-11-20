@@ -620,7 +620,7 @@ ${item.description || ""}`.trim();
       if (Array.isArray(item.ingredients)) {
         for (const ingredient of item.ingredients) {
           if (typeof ingredient === "string" && ingredient.trim()) {
-            tags.push(["contains", ingredient.trim()]);
+            tags.push(["schema.org:Recipe:recipeIngredient", ingredient.trim(), "https://schema.org/recipeIngredient"]);
           }
         }
       }
@@ -647,7 +647,7 @@ ${item.description || ""}`.trim();
       if (Array.isArray(item.dietaryPreferences)) {
         for (const pref of item.dietaryPreferences) {
           if (typeof pref === "string" && pref.trim()) {
-            tags.push(["suitableForDiet", pref.trim()]);
+            tags.push(["schema.org:MenuItem:suitableForDiet", pref.trim(), "https://schema.org/suitableForDiet"]);
           }
         }
       }
