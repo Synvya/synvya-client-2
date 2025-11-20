@@ -15,7 +15,7 @@ describe("buildProfileEvent", () => {
     categories: ["test", "shop"]
   };
 
-  it("should build profile event without chamber", () => {
+  it("should build profile event without memberOf", () => {
     const event = buildProfileEvent(baseProfile);
 
     expect(event.kind).toBe(0);
@@ -23,40 +23,40 @@ describe("buildProfileEvent", () => {
     expect(event.tags).toContainEqual(["t", "test"]);
     expect(event.tags).toContainEqual(["t", "shop"]);
     
-    // Should NOT contain chamber tags
+    // Should NOT contain memberOf tags
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
   });
 
-  it("should include chamber tag when chamber is specified", () => {
+  it("should include memberOf tag when memberOf is specified", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
-      chamber: "snovalley"
+      memberOf: "snovalley.org"
     };
 
     const event = buildProfileEvent(profileWithChamber);
 
     expect(event.kind).toBe(0);
-    expect(event.tags).toContainEqual(["schema.org:memberOf", "snovalley", "https://schema.org/memberOf"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:memberOf", "https://snovalley.org", "https://schema.org/memberOf"]);
     // Should NOT contain namespace tags
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
-  it("should support different chamber IDs", () => {
+  it("should support different organization domains", () => {
     const profileWithEastside: BusinessProfile = {
       ...baseProfile,
-      chamber: "eastside"
+      memberOf: "eastsidechamber.org"
     };
 
     const event = buildProfileEvent(profileWithEastside);
 
-    expect(event.tags).toContainEqual(["schema.org:memberOf", "eastside", "https://schema.org/memberOf"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:memberOf", "https://eastsidechamber.org", "https://schema.org/memberOf"]);
     // Should NOT contain namespace tags
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
-  it("should include chamber tag along with other tags", () => {
+  it("should include memberOf tag along with other tags", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
       phone: "(555) 123-4567",
@@ -64,7 +64,7 @@ describe("buildProfileEvent", () => {
       city: "Seattle",
       state: "WA",
       zip: "98101",
-      chamber: "snovalley"
+      memberOf: "snovalley.org"
     };
 
     const event = buildProfileEvent(profileWithChamber);
@@ -78,46 +78,46 @@ describe("buildProfileEvent", () => {
     expect(event.tags).toContainEqual(["schema.org:PostalAddress:postalCode", "98101", "https://schema.org/postalCode"]);
     expect(event.tags).toContainEqual(["schema.org:PostalAddress:addressCountry", "US", "https://schema.org/addressCountry"]);
     
-    // Should also include chamber tag
-    expect(event.tags).toContainEqual(["schema.org:memberOf", "snovalley", "https://schema.org/memberOf"]);
+    // Should also include memberOf tag
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:memberOf", "https://snovalley.org", "https://schema.org/memberOf"]);
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
-  it("should not add chamber tags when chamber is undefined", () => {
+  it("should not add memberOf tags when memberOf is undefined", () => {
     const profileWithoutChamber: BusinessProfile = {
       ...baseProfile,
-      chamber: undefined
+      memberOf: undefined
     };
 
     const event = buildProfileEvent(profileWithoutChamber);
 
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
-    expect(event.tags.some(tag => tag[0] === "schema.org:memberOf")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:memberOf")).toBe(false);
   });
 
-  it("should not add chamber tags when chamber is empty string", () => {
+  it("should not add memberOf tags when memberOf is empty string", () => {
     const profileWithEmptyChamber: BusinessProfile = {
       ...baseProfile,
-      chamber: ""
+      memberOf: ""
     };
 
     const event = buildProfileEvent(profileWithEmptyChamber);
 
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
-    expect(event.tags.some(tag => tag[0] === "schema.org:memberOf")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:memberOf")).toBe(false);
   });
 
-  it("should place chamber tag after address tags", () => {
+  it("should place memberOf tag after address tags", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
       street: "123 Main St",
       city: "Seattle",
       state: "WA",
       zip: "98101",
-      chamber: "snovalley"
+      memberOf: "snovalley.org"
     };
 
     const event = buildProfileEvent(profileWithChamber);
@@ -131,40 +131,40 @@ describe("buildProfileEvent", () => {
         break;
       }
     }
-    const chamberTagIndex = event.tags.findIndex(
-      (tag: string[]) => tag[0] === "schema.org:memberOf"
+    const memberOfTagIndex = event.tags.findIndex(
+      (tag: string[]) => tag[0] === "schema.org:FoodEstablishment:memberOf"
     );
 
     expect(lastAddressIndex).toBeGreaterThan(-1);
-    expect(chamberTagIndex).toBeGreaterThan(-1);
-    expect(chamberTagIndex).toBeGreaterThan(lastAddressIndex);
+    expect(memberOfTagIndex).toBeGreaterThan(-1);
+    expect(memberOfTagIndex).toBeGreaterThan(lastAddressIndex);
   });
 
-  it("should verify chamber tag structure", () => {
+  it("should verify memberOf tag structure", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
-      chamber: "snovalley"
+      memberOf: "snovalley.org"
     };
 
     const event = buildProfileEvent(profileWithChamber);
 
-    // Find all chamber-related tags
-    const chamberTags = event.tags.filter(
-      tag => tag[0] === "schema.org:memberOf"
+    // Find all memberOf-related tags
+    const memberOfTags = event.tags.filter(
+      tag => tag[0] === "schema.org:FoodEstablishment:memberOf"
     );
 
-    expect(chamberTags).toHaveLength(1);
-    expect(chamberTags).toContainEqual(["schema.org:memberOf", "snovalley", "https://schema.org/memberOf"]);
+    expect(memberOfTags).toHaveLength(1);
+    expect(memberOfTags).toContainEqual(["schema.org:FoodEstablishment:memberOf", "https://snovalley.org", "https://schema.org/memberOf"]);
     
     // Verify no namespace tags are present
     expect(event.tags.some(tag => tag[0] === "L" && tag[1] === "com.synvya.chamber")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
 
-  it("should preserve content structure with chamber", () => {
+  it("should preserve content structure with memberOf", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
-      chamber: "snovalley"
+      memberOf: "snovalley.org"
     };
 
     const event = buildProfileEvent(profileWithChamber);
@@ -178,8 +178,8 @@ describe("buildProfileEvent", () => {
     expect(content.banner).toBe("https://example.com/banner.jpg");
     expect(content.nip05).toBe("testshop@synvya.com");
     
-    // Chamber should not be in content, only in tags
-    expect(content.chamber).toBeUndefined();
+    // memberOf should not be in content, only in tags
+    expect(content.memberOf).toBeUndefined();
   });
 
   it("should include geo tags when geohash, latitude, and longitude are provided", () => {
@@ -313,14 +313,14 @@ describe("buildProfileEvent", () => {
     expect(event.tags.some(tag => tag[0] === "i" && tag[1]?.startsWith("location:"))).toBe(false);
   });
 
-  it("should include geo tags along with address and chamber tags", () => {
+  it("should include geo tags along with address and memberOf tags", () => {
     const profileWithAll: BusinessProfile = {
       ...baseProfile,
       street: "123 Main St",
       city: "Seattle",
       state: "WA",
       zip: "98101",
-      chamber: "snovalley"
+      memberOf: "snovalley.org"
     };
 
     const event = buildProfileEvent(profileWithAll, { 
@@ -335,7 +335,7 @@ describe("buildProfileEvent", () => {
     expect(event.tags).toContainEqual(["schema.org:GeoCoordinates:latitude", "47.6062", "https://schema.org/latitude"]);
     expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
     expect(event.tags).toContainEqual(["k", "geo"]);
-    expect(event.tags).toContainEqual(["schema.org:memberOf", "snovalley", "https://schema.org/memberOf"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:memberOf", "https://snovalley.org", "https://schema.org/memberOf"]);
     // Should NOT contain namespace tags
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);

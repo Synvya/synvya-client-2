@@ -12,6 +12,21 @@ interface BuildOptions {
 }
 
 /**
+ * Converts organization domain to full URL
+ * e.g., "snovalley.org" → "https://snovalley.org"
+ * If already a full URL, returns as-is
+ */
+function getChamberUrl(domain: string): string {
+  // If already a full URL, return as-is
+  if (domain.startsWith("http://") || domain.startsWith("https://")) {
+    return domain;
+  }
+  
+  // Add https:// prefix if not present
+  return `https://${domain}`;
+}
+
+/**
  * Maps ISO 3166-1 alpha-2 country code to telephone country code
  * e.g., "US" → "+1"
  */
@@ -169,9 +184,11 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
     }
   }
 
-  // Add chamber membership tag if chamber is specified
-  if (profile.chamber) {
-    tags.push(["schema.org:memberOf", profile.chamber, "https://schema.org/memberOf"]);
+  // Add memberOf organization tag if memberOf is specified
+  // Use organization URL (e.g., "https://snovalley.org") instead of identifier
+  if (profile.memberOf) {
+    const memberOfUrl = getChamberUrl(profile.memberOf);
+    tags.push(["schema.org:FoodEstablishment:memberOf", memberOfUrl, "https://schema.org/memberOf"]);
   }
 
   const event: EventTemplate = {

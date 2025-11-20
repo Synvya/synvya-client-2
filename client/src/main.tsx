@@ -6,7 +6,7 @@ import "./app.css";
 import { installNostrShim } from "@/lib/nostrShim";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
-import { initializeChamberFromUrl } from "@/state/useChamber";
+import { initializeMemberOfFromUrl } from "@/state/useMemberOf";
 
 installNostrShim({
   async getPublicKey() {
@@ -34,7 +34,7 @@ installNostrShim({
 });
 
 void useAuth.getState().initialize();
-initializeChamberFromUrl();
+initializeMemberOfFromUrl();
 
 const container = document.getElementById("root");
 if (!container) {

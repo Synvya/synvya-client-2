@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
-import { useChamber } from "@/state/useChamber";
+import { useMemberOf } from "@/state/useMemberOf";
 import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { buildProfileEvent } from "@/lib/events";
 import { publishToRelays, getPool } from "@/lib/relayPool";
@@ -181,6 +181,28 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       categories.push(tag[1]);
     } else if ((tag[0] === "schema.org:FoodEstablishment:servesCuisine" || tag[0] === "schema.org:servesCuisine") && typeof tag[1] === "string") {
       patch.cuisine = tag[1];
+    } else if ((tag[0] === "schema.org:FoodEstablishment:memberOf" || tag[0] === "schema.org:memberOf") && typeof tag[1] === "string") {
+      // New format: ["schema.org:FoodEstablishment:memberOf", "https://snovalley.org", "https://schema.org/memberOf"]
+      // Extract domain from URL (e.g., "https://snovalley.org" → "snovalley.org")
+      // Backward compatibility: if value is not a URL, use it as-is
+      const value = tag[1];
+      if (value.startsWith("http://") || value.startsWith("https://")) {
+        // Extract domain from URL
+        try {
+          const url = new URL(value);
+          const hostname = url.hostname;
+          // Store the domain (e.g., "snovalley.org")
+          if (hostname) {
+            patch.memberOf = hostname;
+          }
+        } catch {
+          // If URL parsing fails, fall back to using value as-is
+          patch.memberOf = value;
+        }
+      } else {
+        // Backward compatibility: use value as-is if it's not a URL
+        patch.chamber = value;
+      }
     } else if (tag[0] === "schema.org:FoodEstablishment:telephone" && typeof tag[1] === "string") {
       // Extract phone number from "tel:+155512345678" format
       const phoneValue = tag[1].startsWith("tel:") ? tag[1].slice(4) : tag[1];
@@ -333,7 +355,7 @@ export function BusinessProfileForm(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
   const authStatus = useAuth((state) => state.status);
   const relays = useRelays((state) => state.relays);
-  const chamberId = useChamber((state) => state.chamberId);
+  const memberOfDomain = useMemberOf((state) => state.domain);
   const setProfileLocation = useBusinessProfile((state) => state.setLocation);
   const setProfileBusinessType = useBusinessProfile((state) => state.setBusinessType);
   const [profile, setProfile] = useState<BusinessProfile>(createInitialProfile);
@@ -381,7 +403,7 @@ export function BusinessProfileForm(): JSX.Element {
       city: profile.city?.trim() || undefined,
       state: profile.state?.trim() || undefined,
       zip: profile.zip?.trim() || undefined,
-      chamber: chamberId || undefined
+      memberOf: memberOfDomain || undefined
     };
 
     if (!relays.length) {
