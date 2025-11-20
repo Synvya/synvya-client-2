@@ -95,46 +95,38 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
 
   if (profile.phone) {
     const formattedPhone = formatPhoneWithCountryCode(profile.phone, profile.country);
-    tags.push(["i", `schema.org:telephone:tel:${formattedPhone}`, "https://datatracker.ietf.org/doc/html/rfc3966"]);
-    tags.push(["k", "schema.org:telephone"]);
+    tags.push(["schema.org:FoodEstablishment:telephone", `tel:${formattedPhone}`, "https://datatracker.ietf.org/doc/html/rfc3966"]);
   }
 
   if (profile.email) {
-    tags.push(["i", `schema.org:email:mailto:${profile.email}`, "https://schema.org/email"]);
-    tags.push(["k", "schema.org:email"]);
+    tags.push(["schema.org:FoodEstablishment:email", `mailto:${profile.email}`, "https://schema.org/email"]);
   }
 
   // Add postal address component tags
   if (profile.street) {
-    tags.push(["i", `schema.org:PostalAddress:streetAddress:${profile.street}`, "https://schema.org/streetAddress"]);
-    tags.push(["k", "schema.org:PostalAddress:streetAddress"]);
+    tags.push(["schema.org:PostalAddress:streetAddress", profile.street, "https://schema.org/streetAddress"]);
   }
   if (profile.city) {
-    tags.push(["i", `schema.org:PostalAddress:addressLocality:${profile.city}`, "https://schema.org/addressLocality"]);
-    tags.push(["k", "schema.org:PostalAddress:addressLocality"]);
+    tags.push(["schema.org:PostalAddress:addressLocality", profile.city, "https://schema.org/addressLocality"]);
   }
   if (profile.state) {
-    tags.push(["i", `schema.org:PostalAddress:addressRegion:${profile.state}`, "https://schema.org/addressRegion"]);
-    tags.push(["k", "schema.org:PostalAddress:addressRegion"]);
+    tags.push(["schema.org:PostalAddress:addressRegion", profile.state, "https://schema.org/addressRegion"]);
   }
   if (profile.zip) {
-    tags.push(["i", `schema.org:PostalAddress:postalCode:${profile.zip}`, "https://schema.org/postalCode"]);
-    tags.push(["k", "schema.org:PostalAddress:postalCode"]);
+    tags.push(["schema.org:PostalAddress:postalCode", profile.zip, "https://schema.org/postalCode"]);
   }
   // Always add country if we have any address components
   if (profile.street || profile.city || profile.state || profile.zip) {
     const country = profile.country || "US"; // Default to US if not specified
-    tags.push(["i", `schema.org:PostalAddress:addressCountry:${country}`, "https://schema.org/addressCountry"]);
-    tags.push(["k", "schema.org:PostalAddress:addressCountry"]);
+    tags.push(["schema.org:PostalAddress:addressCountry", country, "https://schema.org/addressCountry"]);
   }
 
   // Add geo tags if geocoding succeeded
   let hasGeoTag = false;
   if (options.latitude != null && options.longitude != null) {
-    tags.push(["i", `schema.org:GeoCoordinates:latitude:${options.latitude}`, "https://schema.org/latitude"]);
-    tags.push(["k", "schema.org:GeoCoordinates:latitude"]);
-    tags.push(["i", `schema.org:GeoCoordinates:longitude:${options.longitude}`, "https://schema.org/longitude"]);
-    tags.push(["k", "schema.org:GeoCoordinates:longitude"]);
+    // Add longitude first, then latitude (as specified)
+    tags.push(["schema.org:GeoCoordinates:longitude", options.longitude.toString(), "https://schema.org/longitude"]);
+    tags.push(["schema.org:GeoCoordinates:latitude", options.latitude.toString(), "https://schema.org/latitude"]);
     hasGeoTag = true;
   }
   if (options.geohash) {
