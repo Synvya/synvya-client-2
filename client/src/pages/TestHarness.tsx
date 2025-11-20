@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { buildReservationRequest } from "@/lib/reservationEvents";
 import { wrapEvent } from "@/lib/nip59";
 import { publishToRelays } from "@/lib/relayPool";
+import { iso8601ToUnixAndTzid } from "@/lib/reservationTimeUtils";
 import { generateSecretKey, getPublicKey } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { AlertCircle, Send, Zap, Users, Calendar } from "lucide-react";
@@ -54,15 +55,16 @@ export function TestHarnessPage(): JSX.Element {
 
     try {
       // Build reservation request payload
+      const isoTime = new Date(datetime).toISOString();
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid(isoTime);
       const request: ReservationRequest = {
         party_size: parseInt(partySize, 10),
-        iso_time: new Date(datetime).toISOString(),
-        notes: notes || undefined,
-        contact: contactName || contactPhone || contactEmail ? {
-          name: contactName || undefined,
-          phone: contactPhone || undefined,
-          email: contactEmail || undefined,
-        } : undefined,
+        time: unixTimestamp,
+        tzid,
+        message: notes || undefined,
+        name: contactName || undefined,
+        telephone: contactPhone ? (contactPhone.startsWith("tel:") ? contactPhone : `tel:${contactPhone}`) : undefined,
+        email: contactEmail ? (contactEmail.startsWith("mailto:") ? contactEmail : `mailto:${contactEmail}`) : undefined,
       };
 
       // Build reservation request event template

@@ -14,6 +14,7 @@ import { publishToRelays } from "@/lib/relayPool";
 import { wrapEvent, createRumor } from "@/lib/nip59";
 import { loadAndDecryptSecret } from "@/lib/secureStore";
 import { skFromNsec } from "@/lib/nostrKeys";
+import { iso8601ToUnixAndTzid, unixAndTzidToIso8601 } from "@/lib/reservationTimeUtils";
 import type { 
     ReservationResponse, 
     ReservationModificationResponse,
@@ -28,9 +29,9 @@ export interface ReservationActionState {
 }
 
 export interface AcceptOptions {
-    table?: string;
     message?: string;
-    iso_time?: string | null; // Optional override for iso_time (used when auto-replying to modification responses)
+    time?: number | null; // Optional override for time (Unix timestamp)
+    tzid?: string; // Optional timezone identifier
 }
 
 export interface DeclineOptions {
@@ -39,17 +40,15 @@ export interface DeclineOptions {
 
 export interface SendModificationRequestOptions {
     party_size: number;
-    iso_time: string;
-    notes?: string;
-    contact?: {
-        name?: string;
-        phone?: string;
-        email?: string;
-    };
-    constraints?: {
-        earliest_iso_time?: string;
-        latest_iso_time?: string;
-    };
+    time: number; // Unix timestamp
+    tzid: string; // IANA timezone identifier
+    message?: string;
+    name?: string;
+    telephone?: string; // tel: URI format
+    email?: string; // mailto: URI format
+    duration?: number;
+    earliest_time?: number; // Unix timestamp
+    latest_time?: number; // Unix timestamp
 }
 
 export function useReservationActions() {
@@ -164,10 +163,31 @@ export function useReservationActions() {
             request: ReservationMessage,
             options: AcceptOptions = {}
         ): Promise<void> => {
+            // Get time from options or from request payload
+            let time: number | null = null;
+            let tzid: string | undefined = undefined;
+            
+            if (options.time !== undefined) {
+                time = options.time;
+                tzid = options.tzid;
+            } else {
+                // Extract from request payload (temporary - will be fixed in later PRs)
+                const payload = request.payload as any;
+                if (payload.time !== undefined) {
+                    time = payload.time;
+                    tzid = payload.tzid;
+                } else if (payload.iso_time) {
+                    // Legacy support - convert ISO8601 to Unix timestamp
+                    const converted = iso8601ToUnixAndTzid(payload.iso_time);
+                    time = converted.unixTimestamp;
+                    tzid = converted.tzid;
+                }
+            }
+            
             const response: ReservationResponse = {
                 status: "confirmed",
-                iso_time: options.iso_time !== undefined ? options.iso_time : (request.payload as any).iso_time,
-                table: options.table || null,
+                time,
+                tzid,
                 message: options.message,
             };
 
@@ -183,7 +203,7 @@ export function useReservationActions() {
         ): Promise<void> => {
             const response: ReservationResponse = {
                 status: "declined",
-                iso_time: null,
+                time: null,
                 message: options.message,
             };
 
@@ -232,10 +252,15 @@ export function useReservationActions() {
                 // Build modification request payload
                 const modificationRequest: ReservationModificationRequest = {
                     party_size: options.party_size,
-                    iso_time: options.iso_time,
-                    notes: options.notes,
-                    contact: options.contact,
-                    constraints: options.constraints,
+                    time: options.time,
+                    tzid: options.tzid,
+                    message: options.message,
+                    name: options.name,
+                    telephone: options.telephone,
+                    email: options.email,
+                    duration: options.duration,
+                    earliest_time: options.earliest_time,
+                    latest_time: options.latest_time,
                 };
 
                 // Build thread tags per NIP-17 and NIP-RR:
@@ -386,7 +411,8 @@ export function useReservationActions() {
             const modificationPayload = modificationRequest.payload as ReservationModificationRequest;
             const response: ReservationModificationResponse = {
                 status: "confirmed",
-                iso_time: modificationPayload.iso_time,
+                time: options.time !== undefined ? options.time : modificationPayload.time,
+                tzid: options.tzid !== undefined ? options.tzid : modificationPayload.tzid,
                 message: options.message,
             };
 
@@ -402,7 +428,7 @@ export function useReservationActions() {
         ): Promise<void> => {
             const response: ReservationModificationResponse = {
                 status: "declined",
-                iso_time: null,
+                time: null,
                 message: options.message,
             };
 

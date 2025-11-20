@@ -14,6 +14,7 @@ import {
 import { wrapEvent } from "@/lib/nip59";
 import { buildReservationRequest, buildReservationResponse } from "@/lib/reservationEvents";
 import type { ReservationRequest, ReservationResponse } from "@/types/reservation";
+import { iso8601ToUnixAndTzid } from "@/lib/reservationTimeUtils";
 import { getPool } from "@/lib/relayPool";
 
 // Mock the relay pool
@@ -177,10 +178,12 @@ describe("reservationService", () => {
       subscription.start();
 
       // Create a reservation request
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
-        notes: "Window seat",
+        time: unixTimestamp,
+        tzid,
+        message: "Window seat",
       };
 
       const requestTemplate = buildReservationRequest(
@@ -223,10 +226,11 @@ describe("reservationService", () => {
       subscription.start();
 
       // Create a reservation response
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const response: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:00:00-07:00",
-        table: "A4",
+        time: unixTimestamp,
+        tzid,
       };
 
       const responseTemplate = buildReservationResponse(
@@ -268,9 +272,11 @@ describe("reservationService", () => {
       subscription.start();
 
       // Create a valid gift wrap encrypted for someone else
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const template = buildReservationRequest(
@@ -404,9 +410,11 @@ describe("reservationService", () => {
       const options = mockPool.subscribeMany.mock.calls[0][2];
 
       // Message 1: Initial request
+      const { unixTimestamp: time1, tzid: tzid1 } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request1: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: time1,
+        tzid: tzid1,
       };
       const wrap1 = wrapEvent(
         buildReservationRequest(request1, conciergePrivateKey, merchantPublicKey),
@@ -416,9 +424,11 @@ describe("reservationService", () => {
       options.onevent(wrap1);
 
       // Message 2: Another request
+      const { unixTimestamp: time2, tzid: tzid2 } = iso8601ToUnixAndTzid("2025-10-21T20:00:00-07:00");
       const request2: ReservationRequest = {
         party_size: 4,
-        iso_time: "2025-10-21T20:00:00-07:00",
+        time: time2,
+        tzid: tzid2,
       };
       const wrap2 = wrapEvent(
         buildReservationRequest(request2, conciergePrivateKey, merchantPublicKey),
@@ -455,9 +465,11 @@ describe("reservationService", () => {
       const options = mockPool.subscribeMany.mock.calls[0][2];
 
       // Good message
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
       const wrap1 = wrapEvent(
         buildReservationRequest(request, conciergePrivateKey, merchantPublicKey),
