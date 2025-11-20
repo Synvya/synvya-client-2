@@ -909,6 +909,7 @@ describe("reservationEvents", () => {
     it("builds a valid modification request event", () => {
       const conciergePrivateKey = generateSecretKey();
       const restaurantPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
 
       const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const request: ReservationModificationRequest = {
@@ -921,17 +922,23 @@ describe("reservationEvents", () => {
       const template = buildReservationModificationRequest(
         request,
         conciergePrivateKey,
-        restaurantPublicKey
+        restaurantPublicKey,
+        rootRumorId
       );
 
       expect(template.kind).toBe(9903);
-      expect(template.content).toBeTruthy();
+      expect(template.content).toBe("This time works for us");
       expect(template.tags).toContainEqual(["p", restaurantPublicKey]);
+      expect(template.tags).toContainEqual(["e", rootRumorId, "", "root"]);
+      expect(template.tags).toContainEqual(["party_size", "2"]);
+      expect(template.tags).toContainEqual(["time", unixTimestamp.toString()]);
+      expect(template.tags).toContainEqual(["tzid", tzid]);
     });
 
     it("throws error for invalid modification request", () => {
       const conciergePrivateKey = generateSecretKey();
       const restaurantPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
 
       const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const request: ReservationModificationRequest = {
@@ -944,7 +951,8 @@ describe("reservationEvents", () => {
         buildReservationModificationRequest(
           request,
           conciergePrivateKey,
-          restaurantPublicKey
+          restaurantPublicKey,
+          rootRumorId
         );
       }).toThrow();
     });
@@ -995,11 +1003,78 @@ describe("reservationEvents", () => {
     });
   });
 
+  describe("buildReservationModificationRequest", () => {
+    it("builds event template with tag-based structure", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
+      const request: ReservationModificationRequest = {
+        party_size: 2,
+        time: unixTimestamp,
+        tzid,
+        message: "Works for us",
+      };
+
+      const template = buildReservationModificationRequest(
+        request,
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
+      );
+
+      expect(template.kind).toBe(9903);
+      expect(template.content).toBe("Works for us");
+      expect(template.tags).toContainEqual(["p", recipientPublicKey]);
+      expect(template.tags).toContainEqual(["e", rootRumorId, "", "root"]);
+      expect(template.tags).toContainEqual(["party_size", "2"]);
+      expect(template.tags).toContainEqual(["time", unixTimestamp.toString()]);
+      expect(template.tags).toContainEqual(["tzid", tzid]);
+    });
+
+    it("includes optional fields in tags", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
+      const request: ReservationModificationRequest = {
+        party_size: 4,
+        time: unixTimestamp,
+        tzid,
+        name: "Jane Doe",
+        telephone: "tel:+1987654321",
+        email: "mailto:jane@example.com",
+        duration: 7200,
+        earliest_time: unixTimestamp - 1800,
+        latest_time: unixTimestamp + 1800,
+        message: "This time works",
+      };
+
+      const template = buildReservationModificationRequest(
+        request,
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
+      );
+
+      expect(template.tags).toContainEqual(["name", "Jane Doe"]);
+      expect(template.tags).toContainEqual(["telephone", "tel:+1987654321"]);
+      expect(template.tags).toContainEqual(["email", "mailto:jane@example.com"]);
+      expect(template.tags).toContainEqual(["duration", "7200"]);
+      expect(template.tags).toContainEqual(["earliest_time", (unixTimestamp - 1800).toString()]);
+      expect(template.tags).toContainEqual(["latest_time", (unixTimestamp + 1800).toString()]);
+      expect(template.content).toBe("This time works");
+    });
+  });
+
   describe("parseReservationModificationRequest", () => {
     it("parses a valid modification request", () => {
       const conciergePrivateKey = generateSecretKey();
       const restaurantPrivateKey = generateSecretKey();
       const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
+      const rootRumorId = "a".repeat(64);
 
       const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const request: ReservationModificationRequest = {
@@ -1012,11 +1087,62 @@ describe("reservationEvents", () => {
       const template = buildReservationModificationRequest(
         request,
         conciergePrivateKey,
-        restaurantPublicKey
+        restaurantPublicKey,
+        rootRumorId
       );
 
-      const giftWrap = wrapEvent(template, conciergePrivateKey, restaurantPublicKey);
-      const rumor = unwrapEvent(giftWrap, restaurantPrivateKey);
+      const pubkey = getPublicKey(conciergePrivateKey);
+      const unsignedEvent: UnsignedEvent = {
+        ...template,
+        pubkey,
+      };
+      const rumor = {
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
+      };
+
+      const parsed = parseReservationModificationRequest(rumor, restaurantPrivateKey);
+
+      expect(parsed).toEqual(request);
+    });
+
+    it("parses request with all optional fields", () => {
+      const conciergePrivateKey = generateSecretKey();
+      const restaurantPrivateKey = generateSecretKey();
+      const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
+      const rootRumorId = "a".repeat(64);
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
+      const request: ReservationModificationRequest = {
+        party_size: 3,
+        time: unixTimestamp,
+        tzid,
+        name: "Bob Smith",
+        telephone: "tel:+1555123456",
+        email: "mailto:bob@example.com",
+        duration: 5400,
+        earliest_time: unixTimestamp - 900,
+        latest_time: unixTimestamp + 900,
+        message: "Perfect timing",
+      };
+
+      const template = buildReservationModificationRequest(
+        request,
+        conciergePrivateKey,
+        restaurantPublicKey,
+        rootRumorId
+      );
+
+      const pubkey = getPublicKey(conciergePrivateKey);
+      const unsignedEvent: UnsignedEvent = {
+        ...template,
+        pubkey,
+      };
+      const rumor = {
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
+      };
+
       const parsed = parseReservationModificationRequest(rumor, restaurantPrivateKey);
 
       expect(parsed).toEqual(request);
@@ -1141,7 +1267,8 @@ describe("reservationEvents", () => {
       const modRequestTemplate = buildReservationModificationRequest(
         modificationRequest,
         conciergePrivateKey,
-        restaurantPublicKey
+        restaurantPublicKey,
+        rootRumorId
       );
       const modRequestWrap = wrapEvent(
         modRequestTemplate,

@@ -265,26 +265,24 @@ export function useReservationActions() {
                     latest_time: options.latest_time,
                 };
 
-                // Build thread tags per NIP-17 and NIP-RR:
-                // - Root: ALWAYS the unsigned 9901 rumor ID (the original request)
-                // - Only use root tag, no reply tags per NIP-RR specification
-                const threadTag: string[][] = [
-                    ["e", rootRumorId, "", "root"]
-                ];
-
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
+                // Root rumor ID is required for threading (references unsigned 9901 rumor ID)
                 const requestToAgent = buildReservationModificationRequest(
                     modificationRequest,
                     privateKey,
                     response.senderPubkey,
-                    threadTag
+                    rootRumorId,  // Required root rumor ID for threading
+                    undefined,  // Optional relay URL
+                    []  // Additional tags (none needed, e tag is added automatically)
                 );
                 
                 const requestToSelf = buildReservationModificationRequest(
                     modificationRequest,
                     privateKey,
                     pubkey!,
-                    threadTag
+                    rootRumorId,  // Required root rumor ID for threading
+                    undefined,  // Optional relay URL
+                    []  // Additional tags (none needed, e tag is added automatically)
                 );
 
                 // Create rumor from the Self CC template (for local storage)
