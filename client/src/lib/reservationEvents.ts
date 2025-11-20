@@ -889,17 +889,51 @@ export function validateReservationModificationResponse(payload: unknown): Valid
  * @returns Validation result with errors if invalid
  */
 export function validateReservationModificationResponseRumor(rumor: UnsignedEvent & { id?: string }): ValidationResult {
-  // TODO: This validation will be updated in PR 7 when we refactor to tag-based structure
-  // For now, skip strict schema validation since new schemas expect tag structure
-  // but existing code still uses JSON content. Full validation will be enabled in PR 7.
-  
-  // Basic structure validation only
+  // Basic structure validation
   if (!rumor.kind || rumor.kind !== 9904) {
     return { valid: false, errors: [{ message: "Kind must be 9904" }] };
   }
   if (!rumor.pubkey || !rumor.tags || !Array.isArray(rumor.tags)) {
     return { valid: false, errors: [{ message: "Missing required fields" }] };
   }
+  
+  // Validate required tags exist
+  const tags = rumor.tags;
+  const hasP = tags.some(t => t[0] === "p" && t[1]);
+  const hasE = tags.some(t => t[0] === "e" && t[1] && t[3] === "root");
+  const hasStatus = tags.some(t => t[0] === "status" && t[1]);
+  
+  if (!hasP) {
+    return { valid: false, errors: [{ field: "tags", message: "Missing required tag: p" }] };
+  }
+  if (!hasE) {
+    return { valid: false, errors: [{ field: "tags", message: "Missing required tag: e (root)" }] };
+  }
+  if (!hasStatus) {
+    return { valid: false, errors: [{ field: "tags", message: "Missing required tag: status" }] };
+  }
+  
+  // Validate status value
+  const statusTag = tags.find(t => t[0] === "status");
+  if (statusTag && statusTag[1] !== "confirmed" && statusTag[1] !== "declined") {
+    return { valid: false, errors: [{ field: "tags", message: `Invalid status value: ${statusTag[1]}` }] };
+  }
+  
+  // If status is confirmed, time and tzid should be present
+  if (statusTag && statusTag[1] === "confirmed") {
+    const hasTime = tags.some(t => t[0] === "time" && t[1]);
+    const hasTzid = tags.some(t => t[0] === "tzid" && t[1]);
+    if (!hasTime) {
+      return { valid: false, errors: [{ field: "tags", message: "Missing required tag: time (required when status is confirmed)" }] };
+    }
+    if (!hasTzid) {
+      return { valid: false, errors: [{ field: "tags", message: "Missing required tag: tzid (required when status is confirmed)" }] };
+    }
+  }
+  
+  // TODO: Enable full schema validation once AJV strict mode issues are resolved
+  // The schema uses `contains` which AJV validates in a way that causes false positives
+  // For now, we validate required tags manually above
   
   return { valid: true };
 }
@@ -1028,18 +1062,19 @@ export function buildReservationModificationRequest(
 /**
  * Creates a rumor event for a reservation modification response (kind 9904).
  * 
- * The rumor contains plain text JSON content. Encryption happens at the seal
- * (kind 13) and gift wrap (kind 1059) layers via NIP-59 wrapping.
+ * The rumor uses tag-based structure per NIP-RP. Content field contains plain text message.
+ * Encryption happens at the seal (kind 13) and gift wrap (kind 1059) layers via NIP-59 wrapping.
  * 
- * IMPORTANT: When responding to a modification request, the `e` tag in additionalTags
- * MUST reference the UNSIGNED RUMOR ID per NIP-RR:
- * - Root: unsigned 9901 rumor ID (the original request)
+ * IMPORTANT: When responding to a modification request, the `e` tag MUST reference the
+ * UNSIGNED 9901 RUMOR ID of the original request, per NIP-17. This is the ID of the
+ * unsigned kind 9901 event before it was sealed and gift-wrapped.
  * 
  * @param response - The reservation modification response payload
  * @param senderPrivateKey - Sender's private key (used for rumor ID generation)
  * @param recipientPublicKey - Recipient's public key (for p tag)
- * @param additionalTags - Optional additional tags (e.g., thread markers)
- *                        MUST include `["e", unsigned9901RumorId, "", "root"]` for threading
+ * @param rootRumorId - The unsigned 9901 rumor ID (required for threading)
+ * @param relayUrl - Optional relay URL to include in p tag
+ * @param additionalTags - Optional additional tags (beyond required e tag)
  * @returns Event template ready to be wrapped with NIP-59
  * @throws Error if validation fails
  * 
@@ -1048,12 +1083,14 @@ export function buildReservationModificationRequest(
  * const rumor = buildReservationModificationResponse(
  *   {
  *     status: "confirmed",
- *     iso_time: "2025-10-20T19:30:00-07:00",
+ *     time: 1729459800,
+ *     tzid: "America/Los_Angeles",
  *     message: "See you then!"
  *   },
  *   myPrivateKey,
  *   userPublicKey,
- *   [["e", originalRequest.rumor.id, "", "root"]]
+ *   originalRequestRumorId,  // Unsigned 9901 rumor ID
+ *   "wss://relay.example.com"
  * );
  * ```
  */
@@ -1061,6 +1098,8 @@ export function buildReservationModificationResponse(
   response: ReservationModificationResponse,
   senderPrivateKey: Uint8Array,
   recipientPublicKey: string,
+  rootRumorId: string,
+  relayUrl?: string,
   additionalTags: string[][] = []
 ): EventTemplate {
   // Validate payload
@@ -1070,15 +1109,44 @@ export function buildReservationModificationResponse(
     throw new Error(`Invalid reservation modification response payload: ${errorMessages}`);
   }
 
-  // Build event template with plain text JSON content
+  // Build tags array
+  const tags: string[][] = [];
+  
+  // Required p tag (with optional relay URL)
+  if (relayUrl) {
+    tags.push(["p", recipientPublicKey, relayUrl]);
+  } else {
+    tags.push(["p", recipientPublicKey]);
+  }
+  
+  // Required e tag for threading (references unsigned 9901 rumor ID)
+  tags.push(["e", rootRumorId, "", "root"]);
+  
+  // Required status tag
+  tags.push(["status", response.status]);
+  
+  // Time and tzid (required if status is confirmed)
+  if (response.time !== null && response.time !== undefined) {
+    tags.push(["time", response.time.toString()]);
+    if (response.tzid) {
+      tags.push(["tzid", response.tzid]);
+    }
+  }
+  
+  // Optional duration tag
+  if (response.duration !== undefined) {
+    tags.push(["duration", response.duration.toString()]);
+  }
+  
+  // Add additional tags
+  tags.push(...additionalTags);
+
+  // Build event template with plain text message in content
   // Encryption happens at seal/gift wrap layers via NIP-59
   const template: EventTemplate = {
     kind: 9904,
-    content: JSON.stringify(response),
-    tags: [
-      ["p", recipientPublicKey],
-      ...additionalTags,
-    ],
+    content: response.message || "",
+    tags,
     created_at: Math.floor(Date.now() / 1000),
   };
 
@@ -1225,8 +1293,8 @@ export function parseReservationModificationRequest(
 /**
  * Parses a reservation modification response from a rumor event.
  * 
- * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
- * Validates the full rumor event structure (including id, pubkey, tags, etc.) and content.
+ * Extracts data from tags per NIP-RP tag-based structure. Content field contains plain text message.
+ * Validates the full rumor event structure (including id, pubkey, tags, etc.).
  * 
  * @param rumor - The unwrapped rumor event (kind 9904)
  * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
@@ -1239,10 +1307,12 @@ export function parseReservationModificationRequest(
  * const response = parseReservationModificationResponse(rumor, myPrivateKey);
  * 
  * console.log(`Status: ${response.status}`);
+ * console.log(`Time: ${response.time}`);
+ * console.log(`Message: ${response.message}`);
  * ```
  */
 export function parseReservationModificationResponse(
-  rumor: Event | { kind: number; content: string; pubkey: string },
+  rumor: Event | { kind: number; content: string; pubkey: string; tags?: string[][] },
   recipientPrivateKey: Uint8Array
 ): ReservationModificationResponse {
   if (rumor.kind !== 9904) {
@@ -1256,17 +1326,67 @@ export function parseReservationModificationResponse(
     throw new Error(`Invalid reservation modification response rumor event: ${errorMessages}`);
   }
 
-  // Parse plain text JSON content
-  // Decryption happened at seal/gift wrap layers via NIP-59
-  const payload = JSON.parse(rumor.content);
-
-  // Validate payload
-  const payloadValidation = validateReservationModificationResponse(payload);
+  // Extract data from tags
+  const tags = rumor.tags || [];
+  
+  // Helper function to find tag value
+  const findTag = (tagName: string): string | undefined => {
+    const tag = tags.find(t => t[0] === tagName);
+    return tag?.[1];
+  };
+  
+  // Required status tag
+  const statusStr = findTag("status");
+  if (!statusStr) {
+    throw new Error("Missing required tag: status");
+  }
+  if (statusStr !== "confirmed" && statusStr !== "declined") {
+    throw new Error(`Invalid status: ${statusStr}`);
+  }
+  const status = statusStr as ReservationModificationStatus;
+  
+  // Time and tzid (required if status is confirmed)
+  const timeStr = findTag("time");
+  let time: number | null = null;
+  let tzid: string | undefined = undefined;
+  
+  if (timeStr) {
+    time = parseInt(timeStr, 10);
+    if (isNaN(time)) {
+      throw new Error(`Invalid time: ${timeStr}`);
+    }
+    tzid = findTag("tzid");
+    if (!tzid) {
+      throw new Error("Missing required tag: tzid (required when time is present)");
+    }
+  }
+  
+  // Optional duration tag
+  const durationStr = findTag("duration");
+  const duration = durationStr ? parseInt(durationStr, 10) : undefined;
+  if (durationStr && isNaN(duration!)) {
+    throw new Error(`Invalid duration: ${durationStr}`);
+  }
+  
+  // Message is in content field (plain text)
+  const message = rumor.content || undefined;
+  
+  // Build ReservationModificationResponse object
+  const response: ReservationModificationResponse = {
+    status,
+    time,
+    ...(tzid && { tzid }),
+    ...(duration !== undefined && { duration }),
+    ...(message && { message }),
+  };
+  
+  // Validate the parsed response
+  const payloadValidation = validateReservationModificationResponse(response);
   if (!payloadValidation.valid) {
     const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
     throw new Error(`Invalid reservation modification response payload: ${errorMessages}`);
   }
 
-  return payload as ReservationModificationResponse;
+  return response;
 }
 
