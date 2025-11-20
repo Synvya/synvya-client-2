@@ -115,17 +115,37 @@ export function validateReservationRequest(payload: unknown): ValidationResult {
  * @returns Validation result with errors if invalid
  */
 export function validateReservationRequestRumor(rumor: UnsignedEvent & { id?: string }): ValidationResult {
-  // TODO: This validation will be updated in PR 4 when we refactor to tag-based structure
-  // For now, skip strict schema validation since new schemas expect tag structure
-  // but existing code still uses JSON content. Full validation will be enabled in PR 4.
-  
-  // Basic structure validation only
+  // Basic structure validation
   if (!rumor.kind || rumor.kind !== 9901) {
     return { valid: false, errors: [{ message: "Kind must be 9901" }] };
   }
   if (!rumor.pubkey || !rumor.tags || !Array.isArray(rumor.tags)) {
     return { valid: false, errors: [{ message: "Missing required fields" }] };
   }
+  
+  // Validate required tags exist
+  const tags = rumor.tags;
+  const hasP = tags.some(t => t[0] === "p" && t[1]);
+  const hasPartySize = tags.some(t => t[0] === "party_size" && t[1]);
+  const hasTime = tags.some(t => t[0] === "time" && t[1]);
+  const hasTzid = tags.some(t => t[0] === "tzid" && t[1]);
+  
+  if (!hasP) {
+    return { valid: false, errors: [{ field: "tags", message: "Missing required tag: p" }] };
+  }
+  if (!hasPartySize) {
+    return { valid: false, errors: [{ field: "tags", message: "Missing required tag: party_size" }] };
+  }
+  if (!hasTime) {
+    return { valid: false, errors: [{ field: "tags", message: "Missing required tag: time" }] };
+  }
+  if (!hasTzid) {
+    return { valid: false, errors: [{ field: "tags", message: "Missing required tag: tzid" }] };
+  }
+  
+  // TODO: Enable full schema validation once AJV strict mode issues are resolved
+  // The schema uses `contains` which AJV validates in a way that causes false positives
+  // For now, we validate required tags manually above
   
   return { valid: true };
 }
@@ -207,12 +227,13 @@ export function validateReservationResponseRumor(rumor: UnsignedEvent & { id?: s
 /**
  * Creates a rumor event for a reservation request (kind 9901).
  * 
- * The rumor contains plain text JSON content. Encryption happens at the seal
- * (kind 13) and gift wrap (kind 1059) layers via NIP-59 wrapping.
+ * The rumor uses tag-based structure per NIP-RP. Content field contains plain text message.
+ * Encryption happens at the seal (kind 13) and gift wrap (kind 1059) layers via NIP-59 wrapping.
  * 
  * @param request - The reservation request payload
  * @param senderPrivateKey - Sender's private key (used for rumor ID generation)
  * @param recipientPublicKey - Recipient's public key (for p tag)
+ * @param relayUrl - Optional relay URL to include in p tag
  * @param additionalTags - Optional additional tags (e.g., thread markers)
  * @returns Event template ready to be wrapped with NIP-59
  * @throws Error if validation fails
@@ -222,11 +243,13 @@ export function validateReservationResponseRumor(rumor: UnsignedEvent & { id?: s
  * const rumor = buildReservationRequest(
  *   {
  *     party_size: 2,
- *     iso_time: "2025-10-20T19:00:00-07:00",
- *     notes: "Window seat"
+ *     time: 1729458000,
+ *     tzid: "America/Los_Angeles",
+ *     message: "Window seat"
  *   },
  *   myPrivateKey,
- *   restaurantPublicKey
+ *   restaurantPublicKey,
+ *   "wss://relay.example.com"
  * );
  * 
  * // Wrap and send
@@ -238,6 +261,7 @@ export function buildReservationRequest(
   request: ReservationRequest,
   senderPrivateKey: Uint8Array,
   recipientPublicKey: string,
+  relayUrl?: string,
   additionalTags: string[][] = []
 ): EventTemplate {
   // Validate payload
@@ -247,15 +271,50 @@ export function buildReservationRequest(
     throw new Error(`Invalid reservation request payload: ${errorMessages}`);
   }
 
-  // Build event template with plain text JSON content
+  // Build tags array
+  const tags: string[][] = [];
+  
+  // Required p tag (with optional relay URL)
+  if (relayUrl) {
+    tags.push(["p", recipientPublicKey, relayUrl]);
+  } else {
+    tags.push(["p", recipientPublicKey]);
+  }
+  
+  // Required tags
+  tags.push(["party_size", request.party_size.toString()]);
+  tags.push(["time", request.time.toString()]);
+  tags.push(["tzid", request.tzid]);
+  
+  // Optional tags
+  if (request.name) {
+    tags.push(["name", request.name]);
+  }
+  if (request.telephone) {
+    tags.push(["telephone", request.telephone]);
+  }
+  if (request.email) {
+    tags.push(["email", request.email]);
+  }
+  if (request.duration !== undefined) {
+    tags.push(["duration", request.duration.toString()]);
+  }
+  if (request.earliest_time !== undefined) {
+    tags.push(["earliest_time", request.earliest_time.toString()]);
+  }
+  if (request.latest_time !== undefined) {
+    tags.push(["latest_time", request.latest_time.toString()]);
+  }
+  
+  // Add additional tags (e.g., thread markers)
+  tags.push(...additionalTags);
+
+  // Build event template with plain text message in content
   // Encryption happens at seal/gift wrap layers via NIP-59
   const template: EventTemplate = {
     kind: 9901,
-    content: JSON.stringify(request),
-    tags: [
-      ["p", recipientPublicKey],
-      ...additionalTags,
-    ],
+    content: request.message || "",
+    tags,
     created_at: Math.floor(Date.now() / 1000),
   };
 
@@ -362,8 +421,8 @@ export function buildReservationResponse(
 /**
  * Parses a reservation request from a rumor event.
  * 
- * The rumor content is plain text JSON (decryption happened at seal/gift wrap layers).
- * Validates the full rumor event structure (including id, pubkey, tags, etc.) and content.
+ * Extracts data from tags per NIP-RP tag-based structure. Content field contains plain text message.
+ * Validates the full rumor event structure (including id, pubkey, tags, etc.).
  * 
  * @param rumor - The unwrapped rumor event (kind 9901)
  * @param recipientPrivateKey - Recipient's private key (unused, kept for API compatibility)
@@ -377,11 +436,12 @@ export function buildReservationResponse(
  * const request = parseReservationRequest(rumor, myPrivateKey);
  * 
  * console.log(`Party size: ${request.party_size}`);
- * console.log(`Time: ${request.iso_time}`);
+ * console.log(`Time: ${request.time}`);
+ * console.log(`Message: ${request.message}`);
  * ```
  */
 export function parseReservationRequest(
-  rumor: Event | { kind: number; content: string; pubkey: string },
+  rumor: Event | { kind: number; content: string; pubkey: string; tags?: string[][] },
   recipientPrivateKey: Uint8Array
 ): ReservationRequest {
   if (rumor.kind !== 9901) {
@@ -395,18 +455,87 @@ export function parseReservationRequest(
     throw new Error(`Invalid reservation request rumor event: ${errorMessages}`);
   }
 
-  // Parse plain text JSON content
-  // Decryption happened at seal/gift wrap layers via NIP-59
-  const payload = JSON.parse(rumor.content);
-
-  // Validate payload
-  const payloadValidation = validateReservationRequest(payload);
+  // Extract data from tags
+  const tags = rumor.tags || [];
+  
+  // Helper function to find tag value
+  const findTag = (tagName: string): string | undefined => {
+    const tag = tags.find(t => t[0] === tagName);
+    return tag?.[1];
+  };
+  
+  // Required fields
+  const partySizeStr = findTag("party_size");
+  if (!partySizeStr) {
+    throw new Error("Missing required tag: party_size");
+  }
+  const party_size = parseInt(partySizeStr, 10);
+  if (isNaN(party_size) || party_size < 1 || party_size > 20) {
+    throw new Error(`Invalid party_size: ${partySizeStr}`);
+  }
+  
+  const timeStr = findTag("time");
+  if (!timeStr) {
+    throw new Error("Missing required tag: time");
+  }
+  const time = parseInt(timeStr, 10);
+  if (isNaN(time)) {
+    throw new Error(`Invalid time: ${timeStr}`);
+  }
+  
+  const tzid = findTag("tzid");
+  if (!tzid) {
+    throw new Error("Missing required tag: tzid");
+  }
+  
+  // Optional fields
+  const name = findTag("name");
+  const telephone = findTag("telephone");
+  const email = findTag("email");
+  
+  const durationStr = findTag("duration");
+  const duration = durationStr ? parseInt(durationStr, 10) : undefined;
+  if (durationStr && isNaN(duration!)) {
+    throw new Error(`Invalid duration: ${durationStr}`);
+  }
+  
+  const earliestTimeStr = findTag("earliest_time");
+  const earliest_time = earliestTimeStr ? parseInt(earliestTimeStr, 10) : undefined;
+  if (earliestTimeStr && isNaN(earliest_time!)) {
+    throw new Error(`Invalid earliest_time: ${earliestTimeStr}`);
+  }
+  
+  const latestTimeStr = findTag("latest_time");
+  const latest_time = latestTimeStr ? parseInt(latestTimeStr, 10) : undefined;
+  if (latestTimeStr && isNaN(latest_time!)) {
+    throw new Error(`Invalid latest_time: ${latestTimeStr}`);
+  }
+  
+  // Message is in content field (plain text)
+  const message = rumor.content || undefined;
+  
+  // Build ReservationRequest object
+  const request: ReservationRequest = {
+    party_size,
+    time,
+    tzid,
+    ...(name && { name }),
+    ...(telephone && { telephone }),
+    ...(email && { email }),
+    ...(duration !== undefined && { duration }),
+    ...(earliest_time !== undefined && { earliest_time }),
+    ...(latest_time !== undefined && { latest_time }),
+    ...(message && { message }),
+  };
+  
+  // Validate the parsed request
+  const payloadValidation = validateReservationRequest(request);
   if (!payloadValidation.valid) {
     const errorMessages = payloadValidation.errors?.map(e => e.message).join(", ");
     throw new Error(`Invalid reservation request payload: ${errorMessages}`);
   }
 
-  return payload as ReservationRequest;
+  return request;
 }
 
 /**

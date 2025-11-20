@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateSecretKey, getPublicKey } from "nostr-tools";
+import { generateSecretKey, getPublicKey, getEventHash } from "nostr-tools";
+import type { UnsignedEvent } from "nostr-tools";
 import {
   validateReservationRequest,
   validateReservationResponse,
@@ -206,7 +207,7 @@ describe("reservationEvents", () => {
   });
 
   describe("buildReservationRequest", () => {
-    it("builds encrypted event template", () => {
+    it("builds event template with tag-based structure", () => {
       const senderPrivateKey = generateSecretKey();
       const recipientPublicKey = getPublicKey(generateSecretKey());
 
@@ -225,9 +226,67 @@ describe("reservationEvents", () => {
       );
 
       expect(template.kind).toBe(9901);
-      expect(template.content).toBeTruthy();
+      expect(template.content).toBe("Window seat");
       expect(template.tags).toContainEqual(["p", recipientPublicKey]);
+      expect(template.tags).toContainEqual(["party_size", "2"]);
+      expect(template.tags).toContainEqual(["time", unixTimestamp.toString()]);
+      expect(template.tags).toContainEqual(["tzid", tzid]);
       expect(template.created_at).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+    });
+
+    it("includes relay URL in p tag when provided", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
+      const request: ReservationRequest = {
+        party_size: 2,
+        time: unixTimestamp,
+        tzid,
+      };
+
+      const relayUrl = "wss://relay.example.com";
+      const template = buildReservationRequest(
+        request,
+        senderPrivateKey,
+        recipientPublicKey,
+        relayUrl
+      );
+
+      expect(template.tags).toContainEqual(["p", recipientPublicKey, relayUrl]);
+    });
+
+    it("includes optional fields in tags", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
+      const request: ReservationRequest = {
+        party_size: 4,
+        time: unixTimestamp,
+        tzid,
+        name: "John Doe",
+        telephone: "tel:+1234567890",
+        email: "mailto:john@example.com",
+        duration: 7200,
+        earliest_time: unixTimestamp - 3600,
+        latest_time: unixTimestamp + 3600,
+        message: "Anniversary dinner",
+      };
+
+      const template = buildReservationRequest(
+        request,
+        senderPrivateKey,
+        recipientPublicKey
+      );
+
+      expect(template.tags).toContainEqual(["name", "John Doe"]);
+      expect(template.tags).toContainEqual(["telephone", "tel:+1234567890"]);
+      expect(template.tags).toContainEqual(["email", "mailto:john@example.com"]);
+      expect(template.tags).toContainEqual(["duration", "7200"]);
+      expect(template.tags).toContainEqual(["earliest_time", (unixTimestamp - 3600).toString()]);
+      expect(template.tags).toContainEqual(["latest_time", (unixTimestamp + 3600).toString()]);
+      expect(template.content).toBe("Anniversary dinner");
     });
 
     it("includes additional tags", () => {
@@ -249,6 +308,7 @@ describe("reservationEvents", () => {
         request,
         senderPrivateKey,
         recipientPublicKey,
+        undefined,
         additionalTags
       );
 
@@ -310,7 +370,7 @@ describe("reservationEvents", () => {
   });
 
   describe("parseReservationRequest", () => {
-    it("parses and decrypts request from rumor", () => {
+    it("parses request from tag-based rumor", () => {
       const senderPrivateKey = generateSecretKey();
       const recipientPrivateKey = generateSecretKey();
       const senderPublicKey = getPublicKey(senderPrivateKey);
@@ -330,13 +390,56 @@ describe("reservationEvents", () => {
         recipientPublicKey
       );
 
-      // Create a pseudo-rumor with all required fields
+      // Create a pseudo-rumor with all required fields (including id for validation)
+      const pubkey = getPublicKey(senderPrivateKey);
+      const unsignedEvent: UnsignedEvent = {
+        ...template,
+        pubkey,
+      };
       const rumor = {
-        kind: 9901,
-        content: template.content,
-        pubkey: senderPublicKey,
-        created_at: template.created_at,
-        tags: template.tags,
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
+      };
+
+      const parsed = parseReservationRequest(rumor, recipientPrivateKey);
+
+      expect(parsed).toEqual(request);
+    });
+
+    it("parses request with all optional fields", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPrivateKey = generateSecretKey();
+      const senderPublicKey = getPublicKey(senderPrivateKey);
+      const recipientPublicKey = getPublicKey(recipientPrivateKey);
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T20:00:00-07:00");
+      const request: ReservationRequest = {
+        party_size: 2,
+        time: unixTimestamp,
+        tzid,
+        name: "Jane Smith",
+        telephone: "tel:+1987654321",
+        email: "mailto:jane@example.com",
+        duration: 5400,
+        earliest_time: unixTimestamp - 1800,
+        latest_time: unixTimestamp + 1800,
+        message: "Birthday celebration",
+      };
+
+      const template = buildReservationRequest(
+        request,
+        senderPrivateKey,
+        recipientPublicKey
+      );
+
+      const pubkey = getPublicKey(senderPrivateKey);
+      const unsignedEvent: UnsignedEvent = {
+        ...template,
+        pubkey,
+      };
+      const rumor = {
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
       };
 
       const parsed = parseReservationRequest(rumor, recipientPrivateKey);
