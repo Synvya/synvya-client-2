@@ -101,11 +101,10 @@ export function useReservationActions() {
                     rootRumorId = rootTag[1];
                 }
 
-                // Build thread tag - MUST reference the unsigned 9901 rumor ID per NIP-17
-                // The unsigned 9901 event ID threads all subsequent messages together
-                const threadTag: string[][] = [
-                    ["e", rootRumorId, "", "root"]
-                ];
+                // Extract relay URL from incoming message's p tag if available
+                // This helps the recipient know which relay to use for responses
+                const pTag = request.rumor.tags.find(tag => tag[0] === "p" && tag[1] === request.senderPubkey);
+                const relayUrl = pTag && pTag.length > 2 ? pTag[2] : (relays.length > 0 ? relays[0] : undefined);
 
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
                 // Create ONE rumor template (same content, same tags, same p tag)
@@ -116,7 +115,7 @@ export function useReservationActions() {
                     privateKey,
                     request.senderPubkey,  // p tag points to original recipient (agent)
                     rootRumorId,  // Required root rumor ID for threading
-                    undefined,  // Optional relay URL
+                    relayUrl,  // Relay URL from incoming message or first configured relay
                     []  // Additional tags (none needed, e tag is added automatically)
                 );
 
@@ -265,6 +264,10 @@ export function useReservationActions() {
                     latest_time: options.latest_time,
                 };
 
+                // Extract relay URL from incoming message's p tag if available
+                const pTag = response.rumor.tags.find(tag => tag[0] === "p" && tag[1] === response.senderPubkey);
+                const relayUrl = pTag && pTag.length > 2 ? pTag[2] : (relays.length > 0 ? relays[0] : undefined);
+
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
                 // Root rumor ID is required for threading (references unsigned 9901 rumor ID)
                 const requestToAgent = buildReservationModificationRequest(
@@ -272,7 +275,7 @@ export function useReservationActions() {
                     privateKey,
                     response.senderPubkey,
                     rootRumorId,  // Required root rumor ID for threading
-                    undefined,  // Optional relay URL
+                    relayUrl,  // Relay URL from incoming message or first configured relay
                     []  // Additional tags (none needed, e tag is added automatically)
                 );
                 
@@ -281,7 +284,7 @@ export function useReservationActions() {
                     privateKey,
                     pubkey!,
                     rootRumorId,  // Required root rumor ID for threading
-                    undefined,  // Optional relay URL
+                    relayUrl,  // Relay URL from incoming message or first configured relay
                     []  // Additional tags (none needed, e tag is added automatically)
                 );
 
@@ -349,6 +352,10 @@ export function useReservationActions() {
                 
                 const rootRumorId = rootTag[1];
 
+                // Extract relay URL from incoming message's p tag if available
+                const pTag = modificationRequest.rumor.tags.find(tag => tag[0] === "p" && tag[1] === modificationRequest.senderPubkey);
+                const relayUrl = pTag && pTag.length > 2 ? pTag[2] : (relays.length > 0 ? relays[0] : undefined);
+
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
                 // Root rumor ID is required for threading (references unsigned 9901 rumor ID)
                 const responseToAgent = buildReservationModificationResponse(
@@ -356,7 +363,7 @@ export function useReservationActions() {
                     privateKey,
                     modificationRequest.senderPubkey,
                     rootRumorId,  // Required root rumor ID for threading
-                    undefined,  // Optional relay URL
+                    relayUrl,  // Relay URL from incoming message or first configured relay
                     []  // Additional tags (none needed, e tag is added automatically)
                 );
                 
@@ -365,7 +372,7 @@ export function useReservationActions() {
                     privateKey,
                     pubkey!,
                     rootRumorId,  // Required root rumor ID for threading
-                    undefined,  // Optional relay URL
+                    relayUrl,  // Relay URL from incoming message or first configured relay
                     []  // Additional tags (none needed, e tag is added automatically)
                 );
 
