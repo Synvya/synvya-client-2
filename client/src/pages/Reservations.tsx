@@ -28,12 +28,14 @@ import type { ReservationRequest, ReservationResponse, ReservationModificationRe
 import type { ReservationMessage } from "@/services/reservationService";
 import type { ConversationThread } from "@/state/useReservations";
 import { UserLink } from "@/components/UserLink";
+import { unixAndTzidToIso8601, iso8601ToUnixAndTzid } from "@/lib/reservationTimeUtils";
 
 /**
- * Formats an ISO8601 datetime string for display in restaurant UI
+ * Formats a Unix timestamp and timezone for display in restaurant UI
  * Shows the time without timezone offset (restaurant knows their own timezone)
  */
-function formatDateTimeWithTimezone(isoTime: string): string {
+function formatDateTimeWithTimezone(time: number, tzid: string): string {
+  const isoTime = unixAndTzidToIso8601(time, tzid);
   // Parse ISO8601 string to extract components
   // Format: YYYY-MM-DDTHH:mm:ss±HH:MM
   const isoMatch = isoTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})([+-]\d{2}):(\d{2})$/);
@@ -98,22 +100,22 @@ export function ReservationsPage(): JSX.Element {
       const msg = thread.messages[i];
       if (msg.type === "response") {
         const response = msg.payload as ReservationResponse;
-        if (response.status === "confirmed" && response.iso_time) {
-          return response.iso_time;
+        if (response.status === "confirmed" && response.time !== null && response.tzid) {
+          return unixAndTzidToIso8601(response.time, response.tzid);
         }
       } else if (msg.type === "modification-response") {
         const response = msg.payload as ReservationModificationResponse;
-        if (response.status === "confirmed" && response.iso_time) {
-          return response.iso_time;
+        if (response.status === "confirmed" && response.time !== null && response.tzid) {
+          return unixAndTzidToIso8601(response.time, response.tzid);
         }
       } else if (msg.type === "modification-request") {
         const modRequest = msg.payload as ReservationModificationRequest;
-        if (modRequest.iso_time) {
-          return modRequest.iso_time;
+        if (modRequest.time && modRequest.tzid) {
+          return unixAndTzidToIso8601(modRequest.time, modRequest.tzid);
         }
       }
     }
-    return request.iso_time;
+    return unixAndTzidToIso8601(request.time, request.tzid);
   };
 
   // Helper function to get thread status
@@ -225,7 +227,8 @@ export function ReservationsPage(): JSX.Element {
               if (modificationResponse.status === "confirmed") {
                 await acceptReservation(originalRequest, {
                   message: modificationResponse.message,
-                  iso_time: modificationResponse.iso_time || undefined,
+                  time: modificationResponse.time || undefined,
+                  tzid: modificationResponse.tzid,
                 });
               } else if (modificationResponse.status === "declined") {
                 await declineReservation(originalRequest, {
@@ -390,23 +393,23 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
       const msg = messages[i];
       if (msg.type === "response") {
         const response = msg.payload as ReservationResponse;
-        if (response.status === "confirmed" && response.iso_time) {
-          return response.iso_time;
+        if (response.status === "confirmed" && response.time !== null && response.tzid) {
+          return unixAndTzidToIso8601(response.time, response.tzid);
         }
       } else if (msg.type === "modification-response") {
         const response = msg.payload as ReservationModificationResponse;
-        if (response.status === "confirmed" && response.iso_time) {
-          return response.iso_time;
+        if (response.status === "confirmed" && response.time !== null && response.tzid) {
+          return unixAndTzidToIso8601(response.time, response.tzid);
         }
       } else if (msg.type === "modification-request") {
         const modRequest = msg.payload as ReservationModificationRequest;
-        if (modRequest.iso_time) {
-          return modRequest.iso_time;
+        if (modRequest.time && modRequest.tzid) {
+          return unixAndTzidToIso8601(modRequest.time, modRequest.tzid);
         }
       }
     }
     // Fall back to original request time
-    return request.iso_time;
+    return unixAndTzidToIso8601(request.time, request.tzid);
   };
 
   const displayTime = getDisplayTime();
@@ -458,10 +461,10 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
     if (message.senderPubkey === partnerPubkey) {
       if (message.type === "request") {
         const req = message.payload as ReservationRequest;
-        if (req.notes) lastCustomerMessage = req.notes;
+        if (req.message) lastCustomerMessage = req.message;
       } else if (message.type === "modification-request") {
         const modReq = message.payload as ReservationModificationRequest;
-        if (modReq.notes) lastCustomerMessage = modReq.notes;
+        if (modReq.message) lastCustomerMessage = modReq.message;
       }
     }
   });
@@ -485,18 +488,18 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
                 </div>
                 <div>
                   <h3 className="font-semibold">
-                    {request.party_size} guests • {formatDateTimeWithTimezone(displayTime)}
+                    {request.party_size} guests • {formatDateTimeWithTimezone(request.time, request.tzid)}
                   </h3>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <UserLink pubkey={partnerPubkey} contactName={request.contact?.name} />
-                    {request.contact?.phone && (
+                    <UserLink pubkey={partnerPubkey} contactName={request.name} />
+                    {request.telephone && (
                       <>
                         <span>•</span>
                         <a 
-                          href={`tel:+1${request.contact.phone.replace(/\D/g, '')}`}
+                          href={request.telephone.startsWith("tel:") ? request.telephone : `tel:${request.telephone}`}
                           className="text-primary hover:underline"
                         >
-                          {formatPhoneNumber(request.contact.phone)}
+                          {formatPhoneNumber(request.telephone.replace(/^tel:/, ""))}
                         </a>
                       </>
                     )}
@@ -566,20 +569,20 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
           <Users className="h-4 w-4 mt-1 text-primary" />
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Request from <UserLink pubkey={senderPubkey} contactName={request.contact?.name} /></span>
+              <span className="text-sm font-medium">Request from <UserLink pubkey={senderPubkey} contactName={request.name} /></span>
               <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
             </div>
             <div className="text-sm">
-              <p>{request.party_size} guests on {formatDateTimeWithTimezone(request.iso_time)}</p>
-              {request.notes && <p className="mt-1 text-muted-foreground">{request.notes}</p>}
-              {request.contact?.phone && (
+              <p>{request.party_size} guests on {formatDateTimeWithTimezone(request.time, request.tzid)}</p>
+              {request.message && <p className="mt-1 text-muted-foreground">{request.message}</p>}
+              {request.telephone && (
                 <p className="mt-1">
                   <span className="text-muted-foreground">Phone: </span>
                   <a 
-                    href={`tel:${request.contact.phone}`}
+                    href={request.telephone.startsWith("tel:") ? request.telephone : `tel:${request.telephone}`}
                     className="text-primary hover:underline"
                   >
-                    {request.contact.phone}
+                    {request.telephone.replace(/^tel:/, "")}
                   </a>
                 </p>
               )}
@@ -598,20 +601,20 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
           <RefreshCw className="h-4 w-4 mt-1 text-blue-600" />
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Modification Request from <UserLink pubkey={senderPubkey} contactName={request.contact?.name} /></span>
+              <span className="text-sm font-medium">Modification Request from <UserLink pubkey={senderPubkey} contactName={request.name} /></span>
               <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
             </div>
             <div className="text-sm">
-              <p>{request.party_size} guests on {formatDateTimeWithTimezone(request.iso_time)}</p>
-              {request.notes && <p className="mt-1 text-muted-foreground">{request.notes}</p>}
-              {request.contact?.phone && (
+              <p>{request.party_size} guests on {formatDateTimeWithTimezone(request.time, request.tzid)}</p>
+              {request.message && <p className="mt-1 text-muted-foreground">{request.message}</p>}
+              {request.telephone && (
                 <p className="mt-1">
                   <span className="text-muted-foreground">Phone: </span>
                   <a 
-                    href={`tel:${request.contact.phone}`}
+                    href={request.telephone.startsWith("tel:") ? request.telephone : `tel:${request.telephone}`}
                     className="text-primary hover:underline"
                   >
-                    {request.contact.phone}
+                    {request.telephone.replace(/^tel:/, "")}
                   </a>
                 </p>
               )}
@@ -636,8 +639,8 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
               <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
             </div>
             <div className="text-sm">
-              {response.status === "confirmed" && response.iso_time && (
-                <p>Confirmed for {formatDateTimeWithTimezone(response.iso_time)}</p>
+              {response.status === "confirmed" && response.time !== null && response.tzid && (
+                <p>Confirmed for {formatDateTimeWithTimezone(response.time, response.tzid)}</p>
               )}
               {response.status === "declined" && <p className="text-destructive">Declined</p>}
               {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
@@ -662,12 +665,11 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
             <span className="text-xs text-muted-foreground">{timestamp.toLocaleString()}</span>
           </div>
           <div className="text-sm">
-            {response.status === "confirmed" && response.iso_time && (
-              <p>Confirmed for {formatDateTimeWithTimezone(response.iso_time)}</p>
+            {response.status === "confirmed" && response.time !== null && response.tzid && (
+              <p>Confirmed for {formatDateTimeWithTimezone(response.time, response.tzid)}</p>
             )}
             {response.status === "declined" && <p className="text-destructive">Declined</p>}
             {response.message && <p className="mt-1 text-muted-foreground">{response.message}</p>}
-            {response.table && <p className="text-xs text-muted-foreground">Table: {response.table}</p>}
           </div>
         </div>
       </div>
@@ -714,7 +716,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
   const handleAccept = async () => {
     try {
       await acceptReservation(message, {
-        table: tableNumber || undefined,
         message: acceptMessage || undefined,
       });
       setAcceptDialogOpen(false);
@@ -765,11 +766,13 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const timeStr = `${String(hour24).padStart(2, '0')}:${String(selectedMinute).padStart(2, '0')}:00`;
       const isoTime = `${dateStr}T${timeStr}${offsetString}`;
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid(isoTime);
       
       await sendModificationRequest(message, {
         party_size: parseInt(modifyPartySize),
-        iso_time: isoTime,
-        notes: modifyNotes || undefined,
+        time: unixTimestamp,
+        tzid,
+        message: modifyNotes || undefined,
       });
       setModifyDialogOpen(false);
       setSelectedDate("");
@@ -786,7 +789,6 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
   const handleAcceptModification = async () => {
     try {
       await acceptModification(message, {
-        table: tableNumber || undefined,
         message: acceptMessage || undefined,
       });
       setAcceptDialogOpen(false);
@@ -835,7 +837,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 <div>
                   <h3 className="font-semibold">New Reservation Request</h3>
                   <p className="text-xs text-muted-foreground">
-                    From: <UserLink pubkey={senderPubkey} contactName={request.contact?.name} />
+                    From: <UserLink pubkey={senderPubkey} contactName={request.name} />
                   </p>
                 </div>
               </div>
@@ -848,26 +850,26 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{formatDateTimeWithTimezone(request.iso_time)}</span>
+                  <span>{formatDateTimeWithTimezone(request.time, request.tzid)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Time shown in restaurant's timezone</span>
                 </div>
-                {request.notes && (
+                {request.message && (
                   <div className="flex items-start gap-2">
                     <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{request.notes}</span>
+                    <span className="text-muted-foreground">{request.message}</span>
                   </div>
                 )}
-                {request.contact?.phone && (
+                {request.telephone && (
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-muted-foreground">Phone:</span>
                     <a 
-                      href={`tel:${request.contact.phone}`}
+                      href={request.telephone.startsWith("tel:") ? request.telephone : `tel:${request.telephone}`}
                       className="text-primary hover:underline"
                     >
-                      {request.contact.phone}
+                      {request.telephone.replace(/^tel:/, "")}
                     </a>
                   </div>
                 )}
@@ -895,7 +897,8 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 variant="outline"
                 onClick={() => {
                   // Initialize time picker with original request time
-                  const originalDate = new Date(request.iso_time);
+                  const isoTime = unixAndTzidToIso8601(request.time, request.tzid);
+                  const originalDate = new Date(isoTime);
                   const year = originalDate.getFullYear();
                   const month = String(originalDate.getMonth() + 1).padStart(2, '0');
                   const day = String(originalDate.getDate()).padStart(2, '0');
@@ -911,7 +914,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                   setSelectedMinute(Math.round(minute / 15) * 15); // Round to nearest 15 minutes
                   setSelectedAmPm(amPm);
                   setModifyPartySize(request.party_size.toString());
-                  setModifyNotes(request.notes || "");
+                  setModifyNotes(request.message || "");
                   setModifyDialogOpen(true);
                 }}
                 disabled={actionState.loading}
@@ -939,7 +942,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               <DialogTitle>Accept Reservation</DialogTitle>
               <DialogDescription>
                 Confirm the reservation for {request.party_size} guests on{" "}
-                {formatDateTimeWithTimezone(request.iso_time)}
+                {formatDateTimeWithTimezone(request.time, request.tzid)}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -985,7 +988,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               <DialogTitle>Decline Reservation</DialogTitle>
               <DialogDescription>
                 Decline the reservation request for {request.party_size} guests on{" "}
-                {formatDateTimeWithTimezone(request.iso_time)}
+                {formatDateTimeWithTimezone(request.time, request.tzid)}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -1167,7 +1170,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 <div>
                   <h3 className="font-semibold">Modification Request</h3>
                   <p className="text-xs text-muted-foreground">
-                    From: <UserLink pubkey={senderPubkey} contactName={request.contact?.name} />
+                    From: <UserLink pubkey={senderPubkey} contactName={request.name} />
                   </p>
                 </div>
               </div>
@@ -1180,26 +1183,26 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{formatDateTimeWithTimezone(request.iso_time)}</span>
+                  <span>{formatDateTimeWithTimezone(request.time, request.tzid)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Time shown in restaurant's timezone</span>
                 </div>
-                {request.notes && (
+                {request.message && (
                   <div className="flex items-start gap-2">
                     <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{request.notes}</span>
+                    <span className="text-muted-foreground">{request.message}</span>
                   </div>
                 )}
-                {request.contact?.phone && (
+                {request.telephone && (
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-muted-foreground">Phone:</span>
                     <a 
-                      href={`tel:${request.contact.phone}`}
+                      href={request.telephone.startsWith("tel:") ? request.telephone : `tel:${request.telephone}`}
                       className="text-primary hover:underline"
                     >
-                      {request.contact.phone}
+                      {request.telephone.replace(/^tel:/, "")}
                     </a>
                   </div>
                 )}
@@ -1242,7 +1245,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               <DialogTitle>Accept Modification</DialogTitle>
               <DialogDescription>
                 Confirm the modification for {request.party_size} guests on{" "}
-                {new Date(request.iso_time).toLocaleString()}
+                {new Date(unixAndTzidToIso8601(request.time, request.tzid)).toLocaleString()}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -1288,7 +1291,7 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               <DialogTitle>Decline Modification</DialogTitle>
               <DialogDescription>
                 Decline the modification request for {request.party_size} guests on{" "}
-                {new Date(request.iso_time).toLocaleString()}
+                {new Date(unixAndTzidToIso8601(request.time, request.tzid)).toLocaleString()}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -1344,9 +1347,9 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
               </p>
             </div>
             
-            {response.status === "confirmed" && response.iso_time && (
+            {response.status === "confirmed" && response.time !== null && response.tzid && (
             <div className="text-sm">
-              <p>Confirmed for {formatDateTimeWithTimezone(response.iso_time)}</p>
+              <p>Confirmed for {formatDateTimeWithTimezone(response.time, response.tzid)}</p>
             </div>
             )}
             
@@ -1388,10 +1391,9 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
             </p>
           </div>
           
-          {response.status === "confirmed" && response.iso_time && (
+          {response.status === "confirmed" && response.time !== null && response.tzid && (
             <div className="text-sm">
-              <p>Confirmed for {formatDateTimeWithTimezone(response.iso_time)}</p>
-              {response.table && <p className="text-muted-foreground">Table: {response.table}</p>}
+              <p>Confirmed for {formatDateTimeWithTimezone(response.time, response.tzid)}</p>
             </div>
           )}
           
