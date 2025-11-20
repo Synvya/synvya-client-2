@@ -115,7 +115,9 @@ export function useReservationActions() {
                     response,
                     privateKey,
                     request.senderPubkey,  // p tag points to original recipient (agent)
-                    threadTag
+                    rootRumorId,  // Required root rumor ID for threading
+                    undefined,  // Optional relay URL
+                    []  // Additional tags (none needed, e tag is added automatically)
                 );
 
                 // Create the rumor from the template (for local storage)

@@ -333,9 +333,39 @@ describe("reservationEvents", () => {
   });
 
   describe("buildReservationResponse", () => {
-    it("builds encrypted event template", () => {
+    it("builds event template with tag-based structure", () => {
       const senderPrivateKey = generateSecretKey();
       const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64); // Mock root rumor ID
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
+      const response: ReservationResponse = {
+        status: "confirmed",
+        time: unixTimestamp,
+        tzid,
+        message: "See you then!",
+      };
+
+      const template = buildReservationResponse(
+        response,
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
+      );
+
+      expect(template.kind).toBe(9902);
+      expect(template.content).toBe("See you then!");
+      expect(template.tags).toContainEqual(["p", recipientPublicKey]);
+      expect(template.tags).toContainEqual(["e", rootRumorId, "", "root"]);
+      expect(template.tags).toContainEqual(["status", "confirmed"]);
+      expect(template.tags).toContainEqual(["time", unixTimestamp.toString()]);
+      expect(template.tags).toContainEqual(["tzid", tzid]);
+    });
+
+    it("includes relay URL in p tag when provided", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
 
       const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const response: ReservationResponse = {
@@ -344,28 +374,90 @@ describe("reservationEvents", () => {
         tzid,
       };
 
+      const relayUrl = "wss://relay.example.com";
       const template = buildReservationResponse(
         response,
         senderPrivateKey,
-        recipientPublicKey
+        recipientPublicKey,
+        rootRumorId,
+        relayUrl
       );
 
-      expect(template.kind).toBe(9902);
-      expect(template.content).toBeTruthy();
-      expect(template.tags).toContainEqual(["p", recipientPublicKey]);
+      expect(template.tags).toContainEqual(["p", recipientPublicKey, relayUrl]);
+    });
+
+    it("includes optional duration tag", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
+      const response: ReservationResponse = {
+        status: "confirmed",
+        time: unixTimestamp,
+        tzid,
+        duration: 7200,
+      };
+
+      const template = buildReservationResponse(
+        response,
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
+      );
+
+      expect(template.tags).toContainEqual(["duration", "7200"]);
+    });
+
+    it("handles declined status without time", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
+
+      const response: ReservationResponse = {
+        status: "declined",
+        time: null,
+      };
+
+      const template = buildReservationResponse(
+        response,
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
+      );
+
+      expect(template.tags).toContainEqual(["status", "declined"]);
+      expect(template.tags.find(t => t[0] === "time")).toBeUndefined();
+      expect(template.tags.find(t => t[0] === "tzid")).toBeUndefined();
     });
 
     it("throws error for invalid response", () => {
       const senderPrivateKey = generateSecretKey();
       const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
 
       const invalidResponse = {
         status: "invalid-status",
       } as unknown as ReservationResponse;
 
       expect(() =>
-        buildReservationResponse(invalidResponse, senderPrivateKey, recipientPublicKey)
+        buildReservationResponse(invalidResponse, senderPrivateKey, recipientPublicKey, rootRumorId)
       ).toThrow(/Invalid reservation response/);
+    });
+
+    it("throws error when confirmed status missing time", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
+
+      const invalidResponse: ReservationResponse = {
+        status: "confirmed",
+        time: null,
+      };
+
+      expect(() =>
+        buildReservationResponse(invalidResponse, senderPrivateKey, recipientPublicKey, rootRumorId)
+      ).toThrow(/Invalid reservation response payload/);
     });
   });
 
@@ -463,11 +555,12 @@ describe("reservationEvents", () => {
   });
 
   describe("parseReservationResponse", () => {
-    it("parses and decrypts response from rumor", () => {
+    it("parses response from tag-based rumor", () => {
       const senderPrivateKey = generateSecretKey();
       const recipientPrivateKey = generateSecretKey();
       const senderPublicKey = getPublicKey(senderPrivateKey);
       const recipientPublicKey = getPublicKey(recipientPrivateKey);
+      const rootRumorId = "a".repeat(64);
 
       const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T20:00:00-07:00");
       const response: ReservationResponse = {
@@ -480,15 +573,91 @@ describe("reservationEvents", () => {
       const template = buildReservationResponse(
         response,
         senderPrivateKey,
-        recipientPublicKey
+        recipientPublicKey,
+        rootRumorId
       );
 
+      const pubkey = getPublicKey(senderPrivateKey);
+      const unsignedEvent: UnsignedEvent = {
+        ...template,
+        pubkey,
+      };
       const rumor = {
-        kind: 9902,
-        content: template.content,
-        pubkey: senderPublicKey,
-        created_at: template.created_at,
-        tags: template.tags,
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
+      };
+
+      const parsed = parseReservationResponse(rumor, recipientPrivateKey);
+
+      expect(parsed).toEqual(response);
+    });
+
+    it("parses response with duration", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPrivateKey = generateSecretKey();
+      const senderPublicKey = getPublicKey(senderPrivateKey);
+      const recipientPublicKey = getPublicKey(recipientPrivateKey);
+      const rootRumorId = "a".repeat(64);
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T20:00:00-07:00");
+      const response: ReservationResponse = {
+        status: "confirmed",
+        time: unixTimestamp,
+        tzid,
+        duration: 7200,
+        message: "See you then!",
+      };
+
+      const template = buildReservationResponse(
+        response,
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
+      );
+
+      const pubkey = getPublicKey(senderPrivateKey);
+      const unsignedEvent: UnsignedEvent = {
+        ...template,
+        pubkey,
+      };
+      const rumor = {
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
+      };
+
+      const parsed = parseReservationResponse(rumor, recipientPrivateKey);
+
+      expect(parsed).toEqual(response);
+    });
+
+    it("parses declined response without time", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPrivateKey = generateSecretKey();
+      const senderPublicKey = getPublicKey(senderPrivateKey);
+      const recipientPublicKey = getPublicKey(recipientPrivateKey);
+      const rootRumorId = "a".repeat(64);
+
+      const response: ReservationResponse = {
+        status: "declined",
+        time: null,
+        message: "Sorry, we're fully booked.",
+      };
+
+      const template = buildReservationResponse(
+        response,
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
+      );
+
+      const pubkey = getPublicKey(senderPrivateKey);
+      const unsignedEvent: UnsignedEvent = {
+        ...template,
+        pubkey,
+      };
+      const rumor = {
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
       };
 
       const parsed = parseReservationResponse(rumor, recipientPrivateKey);
@@ -545,6 +714,7 @@ describe("reservationEvents", () => {
 
     it("full response workflow: build → wrap → unwrap → parse", () => {
       const restaurantPrivateKey = generateSecretKey();
+      const rootRumorId = "a".repeat(64);
       const conciergePrivateKey = generateSecretKey();
       const conciergePublicKey = getPublicKey(conciergePrivateKey);
 
@@ -560,7 +730,8 @@ describe("reservationEvents", () => {
       const template = buildReservationResponse(
         response,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        rootRumorId
       );
 
       const giftWrap = wrapEvent(template, restaurantPrivateKey, conciergePublicKey);
@@ -576,6 +747,7 @@ describe("reservationEvents", () => {
       const restaurantPrivateKey = generateSecretKey();
       const conciergePrivateKey = generateSecretKey();
       const conciergePublicKey = getPublicKey(conciergePrivateKey);
+      const rootRumorId = "a".repeat(64);
 
       const response: ReservationResponse = {
         status: "declined",
@@ -586,7 +758,8 @@ describe("reservationEvents", () => {
       const template = buildReservationResponse(
         response,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        rootRumorId
       );
 
       const giftWrap = wrapEvent(template, restaurantPrivateKey, conciergePublicKey);
@@ -636,10 +809,19 @@ describe("reservationEvents", () => {
         message: "Confirmed!",
       };
 
+      // Get the root rumor ID from the request
+      const requestPubkey = getPublicKey(conciergePrivateKey);
+      const requestUnsignedEvent: UnsignedEvent = {
+        ...requestTemplate,
+        pubkey: requestPubkey,
+      };
+      const requestRumorId = getEventHash(requestUnsignedEvent);
+
       const confirmTemplate = buildReservationResponse(
         confirmation,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        requestRumorId
       );
 
       const confirmWrap = wrapEvent(
@@ -917,6 +1099,14 @@ describe("reservationEvents", () => {
       );
       const requestWrap = wrapEvent(requestTemplate, conciergePrivateKey, restaurantPublicKey);
       const requestRumor = unwrapEvent(requestWrap, restaurantPrivateKey);
+      
+      // Get the root rumor ID from the request
+      const requestPubkey = getPublicKey(conciergePrivateKey);
+      const requestUnsignedEvent: UnsignedEvent = {
+        ...requestTemplate,
+        pubkey: requestPubkey,
+      };
+      const rootRumorId = getEventHash(requestUnsignedEvent);
 
       // Step 2: Restaurant responds with a suggested time (using 9902)
       const { unixTimestamp: suggestionTime, tzid: suggestionTzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
@@ -930,7 +1120,8 @@ describe("reservationEvents", () => {
       const suggestionTemplate = buildReservationResponse(
         suggestion,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        rootRumorId
       );
       const suggestionWrap = wrapEvent(
         suggestionTemplate,
