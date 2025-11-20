@@ -12,16 +12,6 @@ interface BuildOptions {
 }
 
 /**
- * Maps BusinessType (camelCase) to Schema.org URL format
- * e.g., "barOrPub" → "https://schema.org:BarOrPub"
- */
-function businessTypeToSchemaOrgUrl(businessType: BusinessType): string {
-  // Convert camelCase to PascalCase - just capitalize first letter
-  const pascalCase = businessType.charAt(0).toUpperCase() + businessType.slice(1);
-  return `https://schema.org:${pascalCase}`;
-}
-
-/**
  * Maps ISO 3166-1 alpha-2 country code to telephone country code
  * e.g., "US" → "+1"
  */
@@ -86,9 +76,11 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   if (profile.banner) content.banner = profile.banner;
   if (profile.nip05) content.nip05 = profile.nip05;
 
-  const tags: string[][] = [
-    ["l", businessTypeToSchemaOrgUrl(profile.businessType)]
-  ];
+  const tags: string[][] = [];
+  
+  // Add business type tag
+  const businessTypePascalCase = profile.businessType.charAt(0).toUpperCase() + profile.businessType.slice(1);
+  tags.push(["schema.org:FoodEstablishment", businessTypePascalCase, "https://schema.org/FoodEstablishment"]);
 
   for (const category of profile.categories) {
     const trimmed = category.trim();
@@ -98,7 +90,7 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   }
 
   if (profile.cuisine) {
-    tags.push(["schema.org:servesCuisine", profile.cuisine, "https://schema.org/servesCuisine"]);
+    tags.push(["schema.org:FoodEstablishment:servesCuisine", profile.cuisine, "https://schema.org/servesCuisine"]);
   }
 
   if (profile.phone) {
@@ -158,9 +150,9 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
 
   // Add acceptsReservations tags
   if (profile.acceptsReservations === false) {
-    tags.push(["schema.org:acceptsReservations", "False"]);
+    tags.push(["schema.org:FoodEstablishment:acceptsReservations", "False", "https://schema.org/acceptsReservations"]);
   } else if (profile.acceptsReservations === true) {
-    tags.push(["schema.org:acceptsReservations", "https://dinedirect.app"]);
+    tags.push(["schema.org:FoodEstablishment:acceptsReservations", "https://dinedirect.app", "https://schema.org/acceptsReservations"]);
     tags.push(["i", "rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
     tags.push(["k", "nip"]);
   }
@@ -181,13 +173,13 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
       }
     }
     if (hoursParts.length > 0) {
-      tags.push(["schema.org:openingHours", hoursParts.join(", ")]);
+      tags.push(["schema.org:FoodEstablishment:openingHours", hoursParts.join(", "), "https://schema.org/openingHours"]);
     }
   }
 
   // Add chamber membership tag if chamber is specified
   if (profile.chamber) {
-    tags.push(["i", `com.synvya.chamber:${profile.chamber}`, ""]);
+    tags.push(["schema.org:memberOf", profile.chamber, "https://schema.org/memberOf"]);
   }
 
   const event: EventTemplate = {

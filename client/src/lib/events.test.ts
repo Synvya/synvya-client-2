@@ -19,7 +19,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(baseProfile);
 
     expect(event.kind).toBe(0);
-    expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment", "Restaurant", "https://schema.org/FoodEstablishment"]);
     expect(event.tags).toContainEqual(["t", "test"]);
     expect(event.tags).toContainEqual(["t", "shop"]);
     
@@ -36,7 +36,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithChamber);
 
     expect(event.kind).toBe(0);
-    expect(event.tags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
+    expect(event.tags).toContainEqual(["schema.org:memberOf", "snovalley", "https://schema.org/memberOf"]);
     // Should NOT contain namespace tags
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
@@ -50,7 +50,7 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithEastside);
 
-    expect(event.tags).toContainEqual(["i", "com.synvya.chamber:eastside", ""]);
+    expect(event.tags).toContainEqual(["schema.org:memberOf", "eastside", "https://schema.org/memberOf"]);
     // Should NOT contain namespace tags
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
@@ -70,7 +70,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithChamber);
 
     // Should include all standard tags
-    expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment", "Restaurant", "https://schema.org/FoodEstablishment"]);
     expect(event.tags).toContainEqual(["i", "schema.org:telephone:tel:+15551234567", "https://datatracker.ietf.org/doc/html/rfc3966"]);
     expect(event.tags).toContainEqual(["k", "schema.org:telephone"]);
     expect(event.tags).toContainEqual(["i", "schema.org:PostalAddress:streetAddress:123 Main St", "https://schema.org/streetAddress"]);
@@ -85,8 +85,8 @@ describe("buildProfileEvent", () => {
     expect(event.tags).toContainEqual(["k", "schema.org:PostalAddress:postalCode"]);
     expect(event.tags).toContainEqual(["k", "schema.org:PostalAddress:addressCountry"]);
     
-    // Should also include chamber tag (only the "i" tag, no namespace tags)
-    expect(event.tags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
+    // Should also include chamber tag
+    expect(event.tags).toContainEqual(["schema.org:memberOf", "snovalley", "https://schema.org/memberOf"]);
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
   });
@@ -101,7 +101,7 @@ describe("buildProfileEvent", () => {
 
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
-    expect(event.tags.some(tag => tag[0] === "i" && tag[1].startsWith("com.synvya.chamber:"))).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:memberOf")).toBe(false);
   });
 
   it("should not add chamber tags when chamber is empty string", () => {
@@ -114,7 +114,7 @@ describe("buildProfileEvent", () => {
 
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
-    expect(event.tags.some(tag => tag[0] === "i" && tag[1].startsWith("com.synvya.chamber:"))).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:memberOf")).toBe(false);
   });
 
   it("should place chamber tag after address tags", () => {
@@ -139,7 +139,7 @@ describe("buildProfileEvent", () => {
       }
     }
     const chamberTagIndex = event.tags.findIndex(
-      (tag: string[]) => tag[0] === "i" && tag[1]?.startsWith("com.synvya.chamber:")
+      (tag: string[]) => tag[0] === "schema.org:memberOf"
     );
 
     expect(lastAddressIndex).toBeGreaterThan(-1);
@@ -155,13 +155,13 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithChamber);
 
-    // Find all chamber-related tags (should only be the "i" tag)
+    // Find all chamber-related tags
     const chamberTags = event.tags.filter(
-      tag => tag[0] === "i" && tag[1].startsWith("com.synvya.chamber:")
+      tag => tag[0] === "schema.org:memberOf"
     );
 
     expect(chamberTags).toHaveLength(1);
-    expect(chamberTags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
+    expect(chamberTags).toContainEqual(["schema.org:memberOf", "snovalley", "https://schema.org/memberOf"]);
     
     // Verify no namespace tags are present
     expect(event.tags.some(tag => tag[0] === "L" && tag[1] === "com.synvya.chamber")).toBe(false);
@@ -352,7 +352,7 @@ describe("buildProfileEvent", () => {
     expect(event.tags).toContainEqual(["k", "schema.org:GeoCoordinates:longitude"]);
     expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
     expect(event.tags).toContainEqual(["k", "geo"]);
-    expect(event.tags).toContainEqual(["i", "com.synvya.chamber:snovalley", ""]);
+    expect(event.tags).toContainEqual(["schema.org:memberOf", "snovalley", "https://schema.org/memberOf"]);
     // Should NOT contain namespace tags
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.chamber")).toBe(false);
@@ -366,13 +366,13 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithCuisine);
 
-    expect(event.tags).toContainEqual(["schema.org:servesCuisine", "Italian, Seafood", "https://schema.org/servesCuisine"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:servesCuisine", "Italian, Seafood", "https://schema.org/servesCuisine"]);
   });
 
   it("should not include servesCuisine tag when cuisine is not provided", () => {
     const event = buildProfileEvent(baseProfile);
 
-    expect(event.tags.some(tag => tag[0] === "schema.org:servesCuisine")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:servesCuisine")).toBe(false);
   });
 
   it("should not include servesCuisine tag when cuisine is undefined", () => {
@@ -383,7 +383,7 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithoutCuisine);
 
-    expect(event.tags.some(tag => tag[0] === "schema.org:servesCuisine")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:servesCuisine")).toBe(false);
   });
 
   it("should place servesCuisine tag after categories", () => {
@@ -405,7 +405,7 @@ describe("buildProfileEvent", () => {
       }
     }
     const cuisineIndex = event.tags.findIndex(
-      (tag: string[]) => tag[0] === "schema.org:servesCuisine"
+      (tag: string[]) => tag[0] === "schema.org:FoodEstablishment:servesCuisine"
     );
 
     expect(lastCategoryIndex).toBeGreaterThan(-1);
@@ -470,22 +470,22 @@ describe("buildProfileEvent", () => {
   it("should use Schema.org URL format for business type", () => {
     const event = buildProfileEvent(baseProfile);
 
-    expect(event.tags).toContainEqual(["l", "https://schema.org:Restaurant"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment", "Restaurant", "https://schema.org/FoodEstablishment"]);
     expect(event.tags.some(tag => tag[0] === "L" && tag[1] === "com.synvya.merchant")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.merchant")).toBe(false);
   });
 
-  it("should map all Food Establishment types to Schema.org URLs", () => {
+  it("should map all Food Establishment types to Schema.org format", () => {
     const types: Array<{ type: BusinessProfile["businessType"]; expected: string }> = [
-      { type: "bakery", expected: "https://schema.org:Bakery" },
-      { type: "barOrPub", expected: "https://schema.org:BarOrPub" },
-      { type: "brewery", expected: "https://schema.org:Brewery" },
-      { type: "cafeOrCoffeeShop", expected: "https://schema.org:CafeOrCoffeeShop" },
-      { type: "distillery", expected: "https://schema.org:Distillery" },
-      { type: "fastFoodRestaurant", expected: "https://schema.org:FastFoodRestaurant" },
-      { type: "iceCreamShop", expected: "https://schema.org:IceCreamShop" },
-      { type: "restaurant", expected: "https://schema.org:Restaurant" },
-      { type: "winery", expected: "https://schema.org:Winery" }
+      { type: "bakery", expected: "Bakery" },
+      { type: "barOrPub", expected: "BarOrPub" },
+      { type: "brewery", expected: "Brewery" },
+      { type: "cafeOrCoffeeShop", expected: "CafeOrCoffeeShop" },
+      { type: "distillery", expected: "Distillery" },
+      { type: "fastFoodRestaurant", expected: "FastFoodRestaurant" },
+      { type: "iceCreamShop", expected: "IceCreamShop" },
+      { type: "restaurant", expected: "Restaurant" },
+      { type: "winery", expected: "Winery" }
     ];
 
     for (const { type, expected } of types) {
@@ -494,7 +494,7 @@ describe("buildProfileEvent", () => {
         businessType: type
       };
       const event = buildProfileEvent(profile);
-      expect(event.tags).toContainEqual(["l", expected]);
+      expect(event.tags).toContainEqual(["schema.org:FoodEstablishment", expected, "https://schema.org/FoodEstablishment"]);
     }
   });
 
@@ -506,8 +506,8 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithReservations);
 
-    expect(event.tags).toContainEqual(["schema.org:acceptsReservations", "False"]);
-    expect(event.tags.some(tag => tag[0] === "schema.org:acceptsReservations" && tag[1] === "https://dinedirect.app")).toBe(false);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:acceptsReservations", "False", "https://schema.org/acceptsReservations"]);
+    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:acceptsReservations" && tag[1] === "https://dinedirect.app")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "rp")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "k" && tag[1] === "nip")).toBe(false);
   });
@@ -520,17 +520,17 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithReservations);
 
-    expect(event.tags).toContainEqual(["schema.org:acceptsReservations", "https://dinedirect.app"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:acceptsReservations", "https://dinedirect.app", "https://schema.org/acceptsReservations"]);
     expect(event.tags).toContainEqual(["i", "rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
     expect(event.tags).toContainEqual(["k", "nip"]);
-    expect(event.tags.some(tag => tag[0] === "schema.org:acceptsReservations" && tag[1] === "False")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:acceptsReservations" && tag[1] === "False")).toBe(false);
   });
 
   it("should not include acceptsReservations tags when undefined", () => {
     const event = buildProfileEvent(baseProfile);
 
     expect(event.tags.some(tag => tag[0] === "acceptsReservations")).toBe(false);
-    expect(event.tags.some(tag => tag[0] === "schema.org:acceptsReservations")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:acceptsReservations")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "rp")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "k" && tag[1] === "nip")).toBe(false);
   });
@@ -549,13 +549,13 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithHours);
 
-    expect(event.tags).toContainEqual(["schema.org:openingHours", "Tu-Th 11:00-21:00, Fr-Sa 11:00-00:00, Su 12:00-21:00"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:openingHours", "Tu-Th 11:00-21:00, Fr-Sa 11:00-00:00, Su 12:00-21:00", "https://schema.org/openingHours"]);
   });
 
   it("should not include openingHours tag when opening hours are not provided", () => {
     const event = buildProfileEvent(baseProfile);
 
-    expect(event.tags.some(tag => tag[0] === "schema.org:openingHours")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:openingHours")).toBe(false);
   });
 
   it("should handle single day opening hours", () => {
@@ -570,7 +570,7 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithHours);
 
-    expect(event.tags).toContainEqual(["schema.org:openingHours", "Mo 09:00-17:00"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:openingHours", "Mo 09:00-17:00", "https://schema.org/openingHours"]);
   });
 });
 
