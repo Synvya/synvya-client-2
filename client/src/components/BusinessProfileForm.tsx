@@ -201,7 +201,7 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
         }
       } else {
         // Backward compatibility: use value as-is if it's not a URL
-        patch.chamber = value;
+        patch.memberOf = value;
       }
     } else if (tag[0] === "schema.org:FoodEstablishment:telephone" && typeof tag[1] === "string") {
       // Extract phone number from "tel:+155512345678" format
