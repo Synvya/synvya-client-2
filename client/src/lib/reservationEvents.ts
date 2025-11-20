@@ -14,6 +14,7 @@ import type {
   ReservationResponse,
   ReservationModificationRequest,
   ReservationModificationResponse,
+  ReservationModificationStatus,
   ReservationStatus,
   ValidationResult,
   ValidationError,
