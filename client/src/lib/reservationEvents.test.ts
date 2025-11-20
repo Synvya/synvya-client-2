@@ -457,7 +457,7 @@ describe("reservationEvents", () => {
 
       expect(() =>
         buildReservationResponse(invalidResponse, senderPrivateKey, recipientPublicKey, rootRumorId)
-      ).toThrow(/time is required when status is confirmed/);
+      ).toThrow(/Invalid reservation response payload/);
     });
   });
 
