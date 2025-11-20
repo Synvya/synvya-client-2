@@ -320,7 +320,7 @@ describe("Reservation Flow Integration Tests", () => {
       // Get root rumor ID for threading
       const requestPubkey = getPublicKey(conciergePrivateKey);
       const requestUnsignedEvent: UnsignedEvent = {
-        ...requestTemplate,
+        ...requestToRecipient,
         pubkey: requestPubkey,
       };
       const rootRumorId = getEventHash(requestUnsignedEvent);
