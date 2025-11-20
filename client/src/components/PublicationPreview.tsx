@@ -107,7 +107,7 @@ export function PublicationPreview({
                 .map((t) => t[3] as string);
               
               // Extract suitableForDiet tags
-              const suitableForDiet = extractTagValues(event.tags, "suitableForDiet");
+              const suitableForDiet = extractTagValues(event.tags, "schema.org:MenuItem:suitableForDiet");
               
               // Extract t tags (dietary preferences only - ingredients are now in contains tags)
               const tTags = extractTagValues(event.tags, "t");
