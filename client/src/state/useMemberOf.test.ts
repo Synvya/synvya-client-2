@@ -75,6 +75,39 @@ describe("parseMemberOfFromUrl", () => {
     expect(result).toBe("snovalley.org");
   });
 
+  it("should parse memberOf case-insensitively (lowercase)", () => {
+    vi.stubGlobal("window", {
+      location: {
+        search: "?memberof=snovalley.org"
+      }
+    });
+
+    const result = parseMemberOfFromUrl();
+    expect(result).toBe("snovalley.org");
+  });
+
+  it("should parse memberOf case-insensitively (mixed case)", () => {
+    vi.stubGlobal("window", {
+      location: {
+        search: "?MemberOf=snovalley.org"
+      }
+    });
+
+    const result = parseMemberOfFromUrl();
+    expect(result).toBe("snovalley.org");
+  });
+
+  it("should parse memberOf case-insensitively (uppercase)", () => {
+    vi.stubGlobal("window", {
+      location: {
+        search: "?MEMBEROF=snovalley.org"
+      }
+    });
+
+    const result = parseMemberOfFromUrl();
+    expect(result).toBe("snovalley.org");
+  });
+
   it("should return null when memberOf parameter is missing", () => {
     vi.stubGlobal("window", {
       location: {
