@@ -116,6 +116,13 @@ export function unixAndTzidToIso8601(
     throw new Error(`Failed to format date in timezone: ${tzid}`);
   }
 
+  // Validate that hour is within valid range (0-23)
+  // Some timezone formatters might produce invalid values in edge cases
+  const hourNum = parseInt(hour, 10);
+  if (isNaN(hourNum) || hourNum < 0 || hourNum > 23) {
+    throw new Error(`Invalid hour value from timezone formatter: ${hour} (timezone: ${tzid}, timestamp: ${unixTimestamp})`);
+  }
+
   // Calculate timezone offset for this specific date/time
   // We know the UTC timestamp (date.getTime()) and the local time components in the timezone
   // We need to find the offset that makes: local_time_string + offset = UTC_timestamp
