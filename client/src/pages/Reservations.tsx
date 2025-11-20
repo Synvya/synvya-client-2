@@ -895,6 +895,17 @@ function ReservationMessageCard({ message, compact = false }: ReservationMessage
                     </a>
                   </div>
                 )}
+                {request.email && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Email:</span>
+                    <a 
+                      href={request.email.startsWith("mailto:") ? request.email : `mailto:${request.email}`}
+                      className="text-primary hover:underline"
+                    >
+                      {request.email.replace(/^mailto:/, "")}
+                    </a>
+                  </div>
+                )}
               </div>
 
               {/* Timestamp */}
