@@ -346,6 +346,7 @@ describe("Reservation Flow Integration Tests", () => {
   describe("Error Handling", () => {
     it("should handle declined modification requests", () => {
       const conciergePrivateKey = generateSecretKey();
+      const conciergePublicKey = getPublicKey(conciergePrivateKey);
       const restaurantPrivateKey = generateSecretKey();
       const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
       
@@ -395,10 +396,13 @@ describe("Reservation Flow Integration Tests", () => {
         message: "That time is no longer available",
       };
 
+      // buildReservationModificationResponse still uses old signature (will be refactored in issue #155)
+      // For now, pass rootRumorId in additionalTags
       const declineTemplate = buildReservationModificationResponse(
         decline,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        [["e", rootRumorId, "", "root"]]  // Required e tag for threading
       );
       const declineWrap = wrapEvent(declineTemplate, restaurantPrivateKey, conciergePublicKey);
       const declineRumor = unwrapEvent(declineWrap, conciergePrivateKey);
