@@ -822,8 +822,6 @@ describe("reservationEvents", () => {
         restaurantPrivateKey,
         conciergePublicKey,
         requestRumorId
-        restaurantPrivateKey,
-        conciergePublicKey
       );
 
       const confirmWrap = wrapEvent(
@@ -1101,6 +1099,14 @@ describe("reservationEvents", () => {
       );
       const requestWrap = wrapEvent(requestTemplate, conciergePrivateKey, restaurantPublicKey);
       const requestRumor = unwrapEvent(requestWrap, restaurantPrivateKey);
+      
+      // Get the root rumor ID from the request
+      const requestPubkey = getPublicKey(conciergePrivateKey);
+      const requestUnsignedEvent: UnsignedEvent = {
+        ...requestTemplate,
+        pubkey: requestPubkey,
+      };
+      const rootRumorId = getEventHash(requestUnsignedEvent);
 
       // Step 2: Restaurant responds with a suggested time (using 9902)
       const { unixTimestamp: suggestionTime, tzid: suggestionTzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
@@ -1114,7 +1120,8 @@ describe("reservationEvents", () => {
       const suggestionTemplate = buildReservationResponse(
         suggestion,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        rootRumorId
       );
       const suggestionWrap = wrapEvent(
         suggestionTemplate,

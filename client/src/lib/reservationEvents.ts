@@ -14,6 +14,7 @@ import type {
   ReservationResponse,
   ReservationModificationRequest,
   ReservationModificationResponse,
+  ReservationStatus,
   ValidationResult,
   ValidationError,
 } from "@/types/reservation";
