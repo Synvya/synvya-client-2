@@ -82,7 +82,7 @@ describe("Reservation Flow Integration Tests", () => {
         suggestion,
         restaurantPrivateKey,
         conciergePublicKey,
-        [["e", rootRumorId, "", "root"]]  // Use unsigned 9901 rumor ID per NIP-17
+        rootRumorId  // Use unsigned 9901 rumor ID per NIP-17
       );
       // Create unsigned rumor to get its ID
       const suggestionRumor = createRumor(suggestionTemplate, restaurantPrivateKey);
@@ -208,7 +208,7 @@ describe("Reservation Flow Integration Tests", () => {
         response,
         restaurantPrivateKey,
         conciergePublicKey,
-        [["e", rootRumorId, "", "root"]]  // Use unsigned 9901 rumor ID per NIP-17
+        rootRumorId  // Use unsigned 9901 rumor ID per NIP-17
       );
       const responseRumor = createRumor(responseTemplate, restaurantPrivateKey);
       const responseRumorId = responseRumor.id;

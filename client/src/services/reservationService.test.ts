@@ -233,10 +233,13 @@ describe("reservationService", () => {
         tzid,
       };
 
+      // Mock root rumor ID for threading
+      const rootRumorId = "a".repeat(64);
       const responseTemplate = buildReservationResponse(
         response,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        rootRumorId
       );
 
       const giftWrap = wrapEvent(responseTemplate, restaurantPrivateKey, conciergePublicKey);
