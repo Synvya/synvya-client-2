@@ -136,10 +136,25 @@ export function unixAndTzidToIso8601(
   
   if (!offsetMatch) {
     // If no offset (UTC), return with Z
-    if (offsetPart.value === "GMT" || offsetPart.value.includes("UTC")) {
+    // Check for various UTC representations: "GMT", "UTC", "GMT+00:00", "GMT-00:00"
+    if (
+      offsetPart.value === "GMT" ||
+      offsetPart.value === "UTC" ||
+      offsetPart.value.includes("UTC") ||
+      offsetPart.value === "GMT+00:00" ||
+      offsetPart.value === "GMT-00:00" ||
+      tzid === "UTC"
+    ) {
       return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
     }
     throw new Error(`Unexpected timezone offset format: ${offsetPart.value} (timezone: ${tzid})`);
+  }
+  
+  // Check if offset is actually zero (GMT+00:00 or GMT-00:00)
+  const offsetHoursNum = parseInt(offsetMatch[2], 10);
+  const offsetMinutesNum = parseInt(offsetMatch[3], 10);
+  if (offsetHoursNum === 0 && offsetMinutesNum === 0) {
+    return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
   }
 
   const offsetSign = offsetMatch[1];
@@ -151,13 +166,17 @@ export function unixAndTzidToIso8601(
   const result = `${year}-${month}-${day}T${hour}:${minute}:${second}${offsetString}`;
   const testParse = new Date(result);
   if (isNaN(testParse.getTime())) {
-    throw new Error(`Generated invalid ISO8601 string: ${result}`);
+    throw new Error(`Generated invalid ISO8601 string: ${result} (timezone: ${tzid}, timestamp: ${unixTimestamp})`);
   }
   
   // Verify the parsed result matches the original timestamp (within 1 minute for rounding)
   const timeDiff = Math.abs(testParse.getTime() - date.getTime());
   if (timeDiff > 60 * 1000) {
-    throw new Error(`Generated ISO8601 string does not match original timestamp: ${result} (diff: ${timeDiff}ms)`);
+    // For debugging: log what went wrong
+    const expectedIso = date.toISOString();
+    throw new Error(
+      `Generated ISO8601 string does not match original timestamp: ${result} (diff: ${timeDiff}ms, expected: ${expectedIso}, got: ${testParse.toISOString()}, timezone: ${tzid}, timestamp: ${unixTimestamp})`
+    );
   }
 
   return result;
