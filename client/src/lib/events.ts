@@ -103,7 +103,8 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
 
   if (profile.phone) {
     const formattedPhone = formatPhoneWithCountryCode(profile.phone, profile.country);
-    tags.push(["i", `schema.org:telephone:${formattedPhone}`, "https://datatracker.ietf.org/doc/html/rfc3966"]);
+    tags.push(["i", `schema.org:telephone:tel:${formattedPhone}`, "https://datatracker.ietf.org/doc/html/rfc3966"]);
+    tags.push(["k", "schema.org:telephone"]);
   }
 
   if (profile.email) {
