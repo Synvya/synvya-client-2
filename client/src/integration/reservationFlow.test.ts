@@ -9,7 +9,8 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { generateSecretKey, getPublicKey } from "nostr-tools";
+import { generateSecretKey, getPublicKey, getEventHash } from "nostr-tools";
+import type { UnsignedEvent } from "nostr-tools";
 import {
   buildReservationRequest,
   buildReservationResponse,
@@ -109,23 +110,21 @@ describe("Reservation Flow Integration Tests", () => {
         message: "7:30pm works for us",
       };
 
-      // Add threading tags referencing unsigned rumor IDs per NIP-17
+      // Root rumor ID is required for threading (references unsigned 9901 rumor ID per NIP-17)
       const modRequestTemplate = buildReservationModificationRequest(
         modificationRequest,
         conciergePrivateKey,
         restaurantPublicKey,
-        [
-          ["e", rootRumorId, "", "root"],           // Unsigned 9901 rumor ID
-          ["e", suggestionRumorId, "", "reply"],   // Unsigned 9902 rumor ID
-        ]
+        rootRumorId  // Unsigned 9901 rumor ID (required for threading)
       );
       const modRequestRumor = createRumor(modRequestTemplate, conciergePrivateKey);
       const modRequestRumorId = modRequestRumor.id;
       expect(modRequestTemplate.kind).toBe(9903);
 
-      // Verify threading tags reference original request
-      const modRequestTags = modRequestTemplate.tags.filter((tag) => tag[0] === "e");
-      expect(modRequestTags.length).toBeGreaterThan(0);
+      // Verify threading tags reference original request (root tag is required)
+      const modRequestRootTags = modRequestTemplate.tags.filter((tag) => tag[0] === "e" && tag[3] === "root");
+      expect(modRequestRootTags.length).toBe(1);
+      expect(modRequestRootTags[0][1]).toBe(rootRumorId);
 
       const modRequestWrap = wrapEvent(
         modRequestTemplate,
@@ -232,25 +231,18 @@ describe("Reservation Flow Integration Tests", () => {
         modRequest,
         conciergePrivateKey,
         restaurantPublicKey,
-        [
-          ["e", rootRumorId, "", "root"],           // Unsigned 9901 rumor ID
-          ["e", responseRumorId, "", "reply"],     // Unsigned 9902 rumor ID
-        ]
+        rootRumorId  // Unsigned 9901 rumor ID (required for threading)
       );
       const modRequestRumor = createRumor(modRequestTemplate, conciergePrivateKey);
       const modRequestRumorId = modRequestRumor.id;
       const modRequestWrap = wrapEvent(modRequestTemplate, conciergePrivateKey, restaurantPublicKey);
 
-      // Verify modification request references root and response
+      // Verify modification request references root (per NIP-RP, only root tag is required)
       const modRequestRootTags = modRequestTemplate.tags.filter(
         (tag) => tag[0] === "e" && tag[3] === "root"
       );
-      const modRequestReplyTags = modRequestTemplate.tags.filter(
-        (tag) => tag[0] === "e" && tag[3] === "reply"
-      );
       expect(modRequestRootTags.length).toBe(1);
       expect(modRequestRootTags[0][1]).toBe(rootRumorId);
-      expect(modRequestReplyTags.length).toBeGreaterThan(0);
 
       // Modification response with threading (using unsigned rumor IDs)
       const modResponse: ReservationModificationResponse = {
@@ -325,15 +317,25 @@ describe("Reservation Flow Integration Tests", () => {
         tzid: modTzid,
       };
 
+      // Get root rumor ID for threading
+      const requestPubkey = getPublicKey(conciergePrivateKey);
+      const requestUnsignedEvent: UnsignedEvent = {
+        ...requestTemplate,
+        pubkey: requestPubkey,
+      };
+      const rootRumorId = getEventHash(requestUnsignedEvent);
+
       const modRequestToRecipient = buildReservationModificationRequest(
         modRequest,
         conciergePrivateKey,
-        restaurantPublicKey
+        restaurantPublicKey,
+        rootRumorId
       );
       const modRequestToSelf = buildReservationModificationRequest(
         modRequest,
         conciergePrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        rootRumorId
       );
 
       expect(modRequestToRecipient.kind).toBe(9903);
@@ -343,6 +345,29 @@ describe("Reservation Flow Integration Tests", () => {
 
   describe("Error Handling", () => {
     it("should handle declined modification requests", () => {
+      const conciergePrivateKey = generateSecretKey();
+      const restaurantPrivateKey = generateSecretKey();
+      const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
+      
+      // Create a request to get rootRumorId
+      const { unixTimestamp: requestTime, tzid: requestTzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
+      const initialRequest: ReservationRequest = {
+        party_size: 2,
+        time: requestTime,
+        tzid: requestTzid,
+      };
+      const requestTemplate = buildReservationRequest(
+        initialRequest,
+        conciergePrivateKey,
+        restaurantPublicKey
+      );
+      const requestPubkey = getPublicKey(conciergePrivateKey);
+      const requestUnsignedEvent: UnsignedEvent = {
+        ...requestTemplate,
+        pubkey: requestPubkey,
+      };
+      const rootRumorId = getEventHash(requestUnsignedEvent);
+
       const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const modificationRequest: ReservationModificationRequest = {
         party_size: 2,
@@ -353,7 +378,8 @@ describe("Reservation Flow Integration Tests", () => {
       const modRequestTemplate = buildReservationModificationRequest(
         modificationRequest,
         conciergePrivateKey,
-        restaurantPublicKey
+        restaurantPublicKey,
+        rootRumorId
       );
       const modRequestWrap = wrapEvent(
         modRequestTemplate,
