@@ -337,33 +337,36 @@ export function useReservationActions() {
                 }
                 const privateKey = skFromNsec(nsec);
 
-                // Build thread tags per NIP-17:
-                // - Root: unsigned 9901 rumor ID (the original request)
-                const rootTags = modificationRequest.rumor.tags
-                    .filter(tag => tag[0] === "e" && tag[3] === "root")
-                    .map(tag => ["e", tag[1], tag[2] || "", "root"]);
+                // Extract root rumor ID from modification request tags
+                // Root: unsigned 9901 rumor ID (the original request)
+                const rootTag = modificationRequest.rumor.tags.find(
+                    tag => tag[0] === "e" && tag[3] === "root"
+                );
                 
-                if (rootTags.length === 0) {
+                if (!rootTag || !rootTag[1]) {
                     throw new Error("Cannot find root rumor ID in modification request tags");
                 }
                 
-                const threadTag: string[][] = [
-                    ...rootTags
-                ];
+                const rootRumorId = rootTag[1];
 
                 // IMPORTANT: Implement "Self CC" per NIP-17 pattern
+                // Root rumor ID is required for threading (references unsigned 9901 rumor ID)
                 const responseToAgent = buildReservationModificationResponse(
                     response,
                     privateKey,
                     modificationRequest.senderPubkey,
-                    threadTag
+                    rootRumorId,  // Required root rumor ID for threading
+                    undefined,  // Optional relay URL
+                    []  // Additional tags (none needed, e tag is added automatically)
                 );
                 
                 const responseToSelf = buildReservationModificationResponse(
                     response,
                     privateKey,
                     pubkey!,
-                    threadTag
+                    rootRumorId,  // Required root rumor ID for threading
+                    undefined,  // Optional relay URL
+                    []  // Additional tags (none needed, e tag is added automatically)
                 );
 
                 // Create rumor from the Self CC template (for local storage)

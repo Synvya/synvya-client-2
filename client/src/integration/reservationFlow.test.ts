@@ -148,21 +148,19 @@ describe("Reservation Flow Integration Tests", () => {
         message: "Confirmed! See you at 7:30pm",
       };
 
-      // Add threading tags referencing root and modification request (using unsigned rumor IDs)
+      // Root rumor ID is required for threading (references unsigned 9901 rumor ID per NIP-17)
       const confirmTemplate = buildReservationModificationResponse(
         confirmation,
         restaurantPrivateKey,
         conciergePublicKey,
-        [
-          ["e", rootRumorId, "", "root"],           // Unsigned 9901 rumor ID
-          ["e", modRequestRumorId, "", "reply"],   // Unsigned 9903 rumor ID
-        ]
+        rootRumorId  // Unsigned 9901 rumor ID (required for threading)
       );
       expect(confirmTemplate.kind).toBe(9904);
 
-      // Verify threading tags reference modification request
-      const confirmTags = confirmTemplate.tags.filter((tag) => tag[0] === "e");
-      expect(confirmTags.length).toBeGreaterThan(0);
+      // Verify threading tags reference root (per NIP-RP, only root tag is required)
+      const confirmRootTags = confirmTemplate.tags.filter((tag) => tag[0] === "e" && tag[3] === "root");
+      expect(confirmRootTags.length).toBe(1);
+      expect(confirmRootTags[0][1]).toBe(rootRumorId);
 
       const confirmWrap = wrapEvent(confirmTemplate, restaurantPrivateKey, conciergePublicKey);
       const confirmRumor = unwrapEvent(confirmWrap, conciergePrivateKey);
@@ -255,23 +253,16 @@ describe("Reservation Flow Integration Tests", () => {
         modResponse,
         restaurantPrivateKey,
         conciergePublicKey,
-        [
-          ["e", rootRumorId, "", "root"],           // Unsigned 9901 rumor ID
-          ["e", modRequestRumorId, "", "reply"],    // Unsigned 9903 rumor ID
-        ]
+        rootRumorId  // Unsigned 9901 rumor ID (required for threading)
       );
       const modResponseWrap = wrapEvent(modResponseTemplate, restaurantPrivateKey, conciergePublicKey);
 
-      // Verify modification response references root and modification request
+      // Verify modification response references root (per NIP-RP, only root tag is required)
       const modResponseRootTags = modResponseTemplate.tags.filter(
         (tag) => tag[0] === "e" && tag[3] === "root"
       );
-      const modResponseReplyTags = modResponseTemplate.tags.filter(
-        (tag) => tag[0] === "e" && tag[3] === "reply"
-      );
       expect(modResponseRootTags.length).toBe(1);
       expect(modResponseRootTags[0][1]).toBe(rootRumorId);
-      expect(modResponseReplyTags.length).toBeGreaterThan(0);
     });
   });
 
@@ -396,13 +387,11 @@ describe("Reservation Flow Integration Tests", () => {
         message: "That time is no longer available",
       };
 
-      // buildReservationModificationResponse still uses old signature (will be refactored in issue #155)
-      // For now, pass rootRumorId in additionalTags
       const declineTemplate = buildReservationModificationResponse(
         decline,
         restaurantPrivateKey,
         conciergePublicKey,
-        [["e", rootRumorId, "", "root"]]  // Required e tag for threading
+        rootRumorId  // Required root rumor ID for threading
       );
       const declineWrap = wrapEvent(declineTemplate, restaurantPrivateKey, conciergePublicKey);
       const declineRumor = unwrapEvent(declineWrap, conciergePrivateKey);

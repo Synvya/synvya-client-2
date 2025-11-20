@@ -959,9 +959,10 @@ describe("reservationEvents", () => {
   });
 
   describe("buildReservationModificationResponse", () => {
-    it("builds a valid modification response event", () => {
-      const restaurantPrivateKey = generateSecretKey();
-      const conciergePublicKey = getPublicKey(generateSecretKey());
+    it("builds event template with tag-based structure", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
 
       const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response: ReservationModificationResponse = {
@@ -973,18 +974,73 @@ describe("reservationEvents", () => {
 
       const template = buildReservationModificationResponse(
         response,
-        restaurantPrivateKey,
-        conciergePublicKey
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
       );
 
       expect(template.kind).toBe(9904);
-      expect(template.content).toBeTruthy();
-      expect(template.tags).toContainEqual(["p", conciergePublicKey]);
+      expect(template.content).toBe("Perfect!");
+      expect(template.tags).toContainEqual(["p", recipientPublicKey]);
+      expect(template.tags).toContainEqual(["e", rootRumorId, "", "root"]);
+      expect(template.tags).toContainEqual(["status", "confirmed"]);
+      expect(template.tags).toContainEqual(["time", unixTimestamp.toString()]);
+      expect(template.tags).toContainEqual(["tzid", tzid]);
+    });
+
+    it("includes optional duration in tags", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
+
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
+      const response: ReservationModificationResponse = {
+        status: "confirmed",
+        time: unixTimestamp,
+        tzid,
+        duration: 7200,
+        message: "See you then!",
+      };
+
+      const template = buildReservationModificationResponse(
+        response,
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
+      );
+
+      expect(template.tags).toContainEqual(["duration", "7200"]);
+      expect(template.content).toBe("See you then!");
+    });
+
+    it("handles declined status without time", () => {
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
+
+      const response: ReservationModificationResponse = {
+        status: "declined",
+        time: null,
+        message: "Sorry, that time is no longer available",
+      };
+
+      const template = buildReservationModificationResponse(
+        response,
+        senderPrivateKey,
+        recipientPublicKey,
+        rootRumorId
+      );
+
+      expect(template.tags).toContainEqual(["status", "declined"]);
+      expect(template.tags).not.toContainEqual(expect.arrayContaining(["time"]));
+      expect(template.tags).not.toContainEqual(expect.arrayContaining(["tzid"]));
+      expect(template.content).toBe("Sorry, that time is no longer available");
     });
 
     it("throws error for invalid modification response", () => {
-      const restaurantPrivateKey = generateSecretKey();
-      const conciergePublicKey = getPublicKey(generateSecretKey());
+      const senderPrivateKey = generateSecretKey();
+      const recipientPublicKey = getPublicKey(generateSecretKey());
+      const rootRumorId = "a".repeat(64);
 
       const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response = {
@@ -996,8 +1052,9 @@ describe("reservationEvents", () => {
       expect(() => {
         buildReservationModificationResponse(
           response as ReservationModificationResponse,
-          restaurantPrivateKey,
-          conciergePublicKey
+          senderPrivateKey,
+          recipientPublicKey,
+          rootRumorId
         );
       }).toThrow();
     });
@@ -1167,6 +1224,7 @@ describe("reservationEvents", () => {
       const restaurantPrivateKey = generateSecretKey();
       const conciergePrivateKey = generateSecretKey();
       const conciergePublicKey = getPublicKey(conciergePrivateKey);
+      const rootRumorId = "a".repeat(64);
 
       const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response: ReservationModificationResponse = {
@@ -1179,11 +1237,54 @@ describe("reservationEvents", () => {
       const template = buildReservationModificationResponse(
         response,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        rootRumorId
       );
 
-      const giftWrap = wrapEvent(template, restaurantPrivateKey, conciergePublicKey);
-      const rumor = unwrapEvent(giftWrap, conciergePrivateKey);
+      const pubkey = getPublicKey(restaurantPrivateKey);
+      const unsignedEvent: UnsignedEvent = {
+        ...template,
+        pubkey,
+      };
+      const rumor = {
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
+      };
+
+      const parsed = parseReservationModificationResponse(rumor, conciergePrivateKey);
+
+      expect(parsed).toEqual(response);
+    });
+
+    it("parses declined response without time", () => {
+      const restaurantPrivateKey = generateSecretKey();
+      const conciergePrivateKey = generateSecretKey();
+      const conciergePublicKey = getPublicKey(conciergePrivateKey);
+      const rootRumorId = "a".repeat(64);
+
+      const response: ReservationModificationResponse = {
+        status: "declined",
+        time: null,
+        message: "Sorry, that time is no longer available",
+      };
+
+      const template = buildReservationModificationResponse(
+        response,
+        restaurantPrivateKey,
+        conciergePublicKey,
+        rootRumorId
+      );
+
+      const pubkey = getPublicKey(restaurantPrivateKey);
+      const unsignedEvent: UnsignedEvent = {
+        ...template,
+        pubkey,
+      };
+      const rumor = {
+        ...unsignedEvent,
+        id: getEventHash(unsignedEvent),
+      };
+
       const parsed = parseReservationModificationResponse(rumor, conciergePrivateKey);
 
       expect(parsed).toEqual(response);
@@ -1295,7 +1396,8 @@ describe("reservationEvents", () => {
       const confirmTemplate = buildReservationModificationResponse(
         confirmation,
         restaurantPrivateKey,
-        conciergePublicKey
+        conciergePublicKey,
+        rootRumorId  // Required root rumor ID for threading
       );
       const confirmWrap = wrapEvent(confirmTemplate, restaurantPrivateKey, conciergePublicKey);
       const confirmRumor = unwrapEvent(confirmWrap, conciergePrivateKey);
