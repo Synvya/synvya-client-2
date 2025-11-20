@@ -117,10 +117,11 @@ export function unixAndTzidToIso8601(
   }
 
   // Calculate timezone offset for this specific date/time
-  // Method: Use Intl.DateTimeFormat to get timezone offset directly
-  // We'll create a formatter that includes timezone offset information
+  // Method: Use the actual UTC time from the date object and compare with local time components
+  // We know the UTC timestamp (date.getTime()), and we have the local time components
+  // We need to find what offset would make the local time equal to the UTC time
   
-  // Format the same moment in UTC to compare
+  // Format the same moment in UTC to get UTC components
   const utcFormatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "UTC",
     year: "numeric",
@@ -144,18 +145,48 @@ export function unixAndTzidToIso8601(
     throw new Error("Failed to format date in UTC");
   }
   
-  // Create Date objects representing the UTC and local times
-  // Both are parsed as if they were UTC to get comparable timestamps
-  const utcTime = new Date(`${utcYear}-${utcMonth}-${utcDay}T${utcHour}:${utcMinute}:${utcSecond}Z`).getTime();
-  const localTime = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`).getTime();
+  // Create a date string with the local time components and try different offsets
+  // The offset is the difference between UTC and local time
+  // We'll construct an ISO8601 string with the local time and calculate the offset
   
-  // Calculate offset in minutes
-  // If local time is 19:00 and UTC is 02:00 (next day), local is 7 hours behind UTC
-  // So localTime (as UTC) is 7 hours ahead of actual UTC time
-  // offset = (utcTime - localTime) in minutes
-  // This gives us: if local is behind UTC, offset is positive (we need -HH:MM)
-  //                if local is ahead of UTC, offset is negative (we need +HH:MM)
-  const offsetMs = utcTime - localTime;
+  // Parse the UTC time components as a date
+  const utcDateStr = `${utcYear}-${utcMonth}-${utcDay}T${utcHour}:${utcMinute}:${utcSecond}Z`;
+  const utcParsed = new Date(utcDateStr);
+  
+  // The actual UTC time is date.getTime()
+  // The UTC parsed time should match (within rounding)
+  const actualUtcTime = date.getTime();
+  
+  // Now we need to find the offset that makes the local time equal to UTC time
+  // If local time is 19:00 and UTC is 02:00 (next day), the offset is -07:00
+  // We can calculate this by finding what offset makes: local_time + offset = UTC_time
+  // Or: offset = UTC_time - local_time (in the timezone)
+  
+  // Create a date string with local time components, treating them as if in the timezone
+  // We'll use a helper to calculate the offset by trying to match the UTC time
+  const localDateStr = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+  
+  // Calculate offset by finding the difference between UTC and local time
+  // We need to account for the fact that the local time components represent a time
+  // in the timezone, and we need to find what offset makes it equal to UTC
+  
+  // Method: Create a date by parsing local time with a guessed offset, adjust until it matches
+  // Actually, simpler: calculate the offset directly from the time difference
+  
+  // The UTC time components represent the actual UTC moment
+  // The local time components represent the same moment in the timezone
+  // The offset is: UTC_hour - local_hour (accounting for day boundaries)
+  
+  // Better approach: use the actual UTC timestamp and calculate what offset
+  // would produce the local time components we have
+  
+  // Parse local time as if it were UTC to get a reference point
+  const localAsUtc = new Date(`${localDateStr}Z`);
+  const localAsUtcTime = localAsUtc.getTime();
+  
+  // The offset is the difference: actual UTC - local_as_utc
+  // This tells us how many milliseconds the local timezone is offset from UTC
+  const offsetMs = actualUtcTime - localAsUtcTime;
   const offsetMinutes = Math.round(offsetMs / (1000 * 60));
   
   // Handle UTC case (offset is 0)
@@ -164,16 +195,25 @@ export function unixAndTzidToIso8601(
   }
   
   // Format offset as ±HH:MM
-  // ISO8601 offset: +HH:MM means local time = UTC + offset (ahead)
-  //                 -HH:MM means local time = UTC - offset (behind)
-  // If offsetMinutes is positive, local is behind UTC, so we need -HH:MM
-  // If offsetMinutes is negative, local is ahead of UTC, so we need +HH:MM
+  // ISO8601 offset: +HH:MM means local time = UTC + offset (ahead of UTC)
+  //                 -HH:MM means local time = UTC - offset (behind UTC)
+  // If offsetMinutes is positive, local_as_utc is before actual UTC, so local is behind UTC
+  //    This means we need -HH:MM (negative offset)
+  // If offsetMinutes is negative, local_as_utc is after actual UTC, so local is ahead of UTC
+  //    This means we need +HH:MM (positive offset)
   const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
   const offsetMins = Math.abs(offsetMinutes) % 60;
   const offsetSign = offsetMinutes > 0 ? "-" : "+";
   const offsetString = `${offsetSign}${String(offsetHours).padStart(2, "0")}:${String(offsetMins).padStart(2, "0")}`;
 
-  return `${year}-${month}-${day}T${hour}:${minute}:${second}${offsetString}`;
+  // Validate the resulting ISO8601 string by parsing it
+  const result = `${year}-${month}-${day}T${hour}:${minute}:${second}${offsetString}`;
+  const testParse = new Date(result);
+  if (isNaN(testParse.getTime())) {
+    throw new Error(`Generated invalid ISO8601 string: ${result}`);
+  }
+
+  return result;
 }
 
 /**
