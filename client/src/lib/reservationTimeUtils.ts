@@ -154,95 +154,51 @@ export function unixAndTzidToIso8601(
     throw new Error("Failed to format date in UTC");
   }
   
-  // Calculate offset by finding what offset makes the local time components
-  // equal to the UTC timestamp when parsed as an ISO8601 string
-  // 
-  // Method: Try different offsets and find the one that produces the correct UTC timestamp
-  // We know the UTC timestamp (date.getTime()) and the local time components
-  // We need to find offset such that: new Date(localTime + offset) === UTC timestamp
+  // Calculate offset using direct comparison method (environment-independent)
+  // Method: Compare UTC and local time components parsed as UTC to get offset
+  // This is more reliable than brute-force search and works consistently across environments
   
   // The actual UTC timestamp
   const actualUtcTime = date.getTime();
   
-  // Try offsets from -14 hours to +14 hours
-  // Use binary search approach: first try hour-level, then minute-level
-  let bestOffset: number | null = null;
-  let bestDiff = Infinity;
+  // Create date strings for UTC and local time (both parsed as UTC for comparison)
+  const utcTimeStr = `${utcYear}-${utcMonth}-${utcDay}T${utcHour}:${utcMinute}:${utcSecond}Z`;
+  const localTimeStr = `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
   
-  // First pass: try hour-level offsets (±14 hours)
-  for (let hours = -14; hours <= 14; hours++) {
-    const offsetHours = Math.abs(hours);
-    const offsetSign = hours >= 0 ? "+" : "-";
-    const offsetString = `${offsetSign}${String(offsetHours).padStart(2, "0")}:00`;
-    
-    const testIso8601 = `${year}-${month}-${day}T${hour}:${minute}:${second}${offsetString}`;
-    const testDate = new Date(testIso8601);
-    
-    if (isNaN(testDate.getTime())) {
-      continue; // Invalid date, skip
-    }
-    
-    const diff = Math.abs(testDate.getTime() - actualUtcTime);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      bestOffset = hours * 60;
-    }
-    
-    // If we found an exact match (within 1 second), use it
-    if (diff < 1000) {
-      bestOffset = hours * 60;
-      break;
-    }
+  const utcParsed = new Date(utcTimeStr);
+  const localParsed = new Date(localTimeStr);
+  
+  // Validate parsing
+  if (isNaN(utcParsed.getTime())) {
+    throw new Error(`Failed to parse UTC time string: ${utcTimeStr}`);
+  }
+  if (isNaN(localParsed.getTime())) {
+    throw new Error(`Failed to parse local time string: ${localTimeStr}`);
   }
   
-  // Second pass: refine to minute-level if needed (within ±1 hour of best)
-  if (bestOffset !== null && bestDiff > 1000) {
-    const bestHours = Math.floor(bestOffset / 60);
-    const startHour = Math.max(-14, bestHours - 1);
-    const endHour = Math.min(14, bestHours + 1);
-    
-    for (let hours = startHour; hours <= endHour; hours++) {
-      for (let minutes = 0; minutes < 60; minutes++) {
-        const offsetHours = Math.abs(hours);
-        const offsetMins = minutes;
-        const offsetSign = hours >= 0 ? "+" : "-";
-        const offsetString = `${offsetSign}${String(offsetHours).padStart(2, "0")}:${String(offsetMins).padStart(2, "0")}`;
-        
-        const testIso8601 = `${year}-${month}-${day}T${hour}:${minute}:${second}${offsetString}`;
-        const testDate = new Date(testIso8601);
-        
-        if (isNaN(testDate.getTime())) {
-          continue;
-        }
-        
-        const diff = Math.abs(testDate.getTime() - actualUtcTime);
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          bestOffset = hours * 60 + (hours >= 0 ? minutes : -minutes);
-        }
-        
-        if (diff < 1000) {
-          bestOffset = hours * 60 + (hours >= 0 ? minutes : -minutes);
-          break;
-        }
-      }
-      if (bestDiff < 1000) break;
-    }
-  }
+  // Calculate offset: difference between UTC and local time (both parsed as UTC)
+  // If local time is behind UTC, offset is positive (we need -HH:MM)
+  // If local time is ahead of UTC, offset is negative (we need +HH:MM)
+  const offsetMs = utcParsed.getTime() - localParsed.getTime();
+  const offsetMinutes = Math.round(offsetMs / (1000 * 60));
   
-  if (bestOffset === null || bestDiff > 60 * 1000) {
-    throw new Error(`Could not find valid offset for timezone ${tzid} at timestamp ${unixTimestamp} (best diff: ${bestDiff}ms)`);
+  // Validate offset is within reasonable bounds
+  if (Math.abs(offsetMinutes) > 14 * 60) {
+    throw new Error(`Calculated offset is out of bounds: ${offsetMinutes} minutes (timezone: ${tzid}, timestamp: ${unixTimestamp})`);
   }
   
   // Handle UTC case (offset is 0)
-  if (bestOffset === 0) {
+  if (offsetMinutes === 0) {
     return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
   }
   
   // Format offset as ±HH:MM
-  const offsetHours = Math.floor(Math.abs(bestOffset) / 60);
-  const offsetMins = Math.abs(bestOffset) % 60;
-  const offsetSign = bestOffset > 0 ? "+" : "-";
+  // ISO8601: +HH:MM means UTC+offset (ahead), -HH:MM means UTC-offset (behind)
+  // If offsetMinutes is positive, local is behind UTC, so we need -HH:MM
+  // If offsetMinutes is negative, local is ahead of UTC, so we need +HH:MM
+  const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+  const offsetMins = Math.abs(offsetMinutes) % 60;
+  const offsetSign = offsetMinutes > 0 ? "-" : "+";
   const offsetString = `${offsetSign}${String(offsetHours).padStart(2, "0")}:${String(offsetMins).padStart(2, "0")}`;
 
   // Construct and validate the resulting ISO8601 string
