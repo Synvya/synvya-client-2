@@ -403,7 +403,7 @@ export function BusinessProfileForm(): JSX.Element {
       city: profile.city?.trim() || undefined,
       state: profile.state?.trim() || undefined,
       zip: profile.zip?.trim() || undefined,
-      memberOf: memberOfDomain || undefined
+      memberOf: profile.memberOf || memberOfDomain || undefined
     };
 
     if (!relays.length) {
@@ -582,7 +582,8 @@ export function BusinessProfileForm(): JSX.Element {
           city: patch.city ?? prev.city,
           state: patch.state ?? prev.state,
           zip: patch.zip ?? prev.zip,
-          location: patch.location ?? prev.location
+          location: patch.location ?? prev.location,
+          memberOf: patch.memberOf ?? prev.memberOf
         }));
 
         // Store the original business type to detect changes
@@ -690,6 +691,19 @@ export function BusinessProfileForm(): JSX.Element {
               />
             </div>
           </div>
+
+          {(profile.memberOf || memberOfDomain) && (
+            <div className="grid gap-2">
+              <Label htmlFor="memberOf">Member Of</Label>
+              <Input
+                id="memberOf"
+                readOnly
+                value={profile.memberOf || memberOfDomain || ""}
+                className="bg-muted cursor-not-allowed"
+              />
+              <p className="text-xs text-muted-foreground">Organization membership (read-only).</p>
+            </div>
+          )}
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
