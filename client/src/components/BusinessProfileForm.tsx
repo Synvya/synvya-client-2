@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { uploadMedia } from "@/services/upload";
 import type { Event } from "nostr-tools";
-import { CheckCircle2, Image as ImageIcon, UploadCloud, Clock } from "lucide-react";
+import { Image as ImageIcon, UploadCloud, Clock } from "lucide-react";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { OpeningHoursDialog } from "@/components/OpeningHoursDialog";
 import type { OpeningHoursSpec } from "@/types/profile";
@@ -618,8 +618,7 @@ export function BusinessProfileForm(): JSX.Element {
     <form onSubmit={handleSubmit} className="space-y-8">
       <section className="grid gap-6 rounded-lg border bg-card p-6 shadow-sm">
         <header>
-          <h2 className="text-lg font-semibold">Business profile</h2>
-          <p className="text-sm text-muted-foreground">The business profile AI shopping assistants will see.</p>
+          <h2 className="text-lg font-semibold">Profile</h2>
         </header>
 
         <div className="grid gap-4">
@@ -636,7 +635,7 @@ export function BusinessProfileForm(): JSX.Element {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="displayName">Display name</Label>
+            <Label htmlFor="displayName">Display Name</Label>
             <Input
               id="displayName"
               placeholder="My Shop"
@@ -758,7 +757,7 @@ export function BusinessProfileForm(): JSX.Element {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="businessType">Business type</Label>
+            <Label htmlFor="businessType">Food Establishment Type</Label>
             <select
               id="businessType"
               className="h-10 rounded-md border border-input bg-transparent px-3 text-sm"
@@ -844,7 +843,7 @@ export function BusinessProfileForm(): JSX.Element {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="grid gap-2">
-            <Label htmlFor="picture">Profile picture</Label>
+            <Label htmlFor="picture">Profile Picture</Label>
             <div className="flex items-center gap-3">
               <Input
                 id="picture"
@@ -885,7 +884,7 @@ export function BusinessProfileForm(): JSX.Element {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="banner">Banner</Label>
+            <Label htmlFor="banner">Profile Banner</Label>
             <div className="flex items-center gap-3">
               <Input
                 id="banner"
@@ -928,14 +927,6 @@ export function BusinessProfileForm(): JSX.Element {
       </section>
 
       <section className="grid gap-4 rounded-lg border bg-card p-6 shadow-sm">
-        <header className="flex items-center gap-3">
-          <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <h3 className="text-lg font-semibold">Publish</h3>
-            <p className="text-sm text-muted-foreground">Publish your profile to make it discoverable by AI shopping assistants.</p>
-          </div>
-        </header>
-
         <Button type="submit" disabled={publishing}>
           {publishing ? "Publishing…" : "Publish Profile"}
         </Button>
