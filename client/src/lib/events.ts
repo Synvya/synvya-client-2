@@ -12,16 +12,6 @@ interface BuildOptions {
 }
 
 /**
- * Maps BusinessType (camelCase) to Schema.org URL format
- * e.g., "barOrPub" → "https://schema.org:BarOrPub"
- */
-function businessTypeToSchemaOrgUrl(businessType: BusinessType): string {
-  // Convert camelCase to PascalCase - just capitalize first letter
-  const pascalCase = businessType.charAt(0).toUpperCase() + businessType.slice(1);
-  return `https://schema.org:${pascalCase}`;
-}
-
-/**
  * Maps ISO 3166-1 alpha-2 country code to telephone country code
  * e.g., "US" → "+1"
  */
