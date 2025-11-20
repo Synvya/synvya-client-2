@@ -499,7 +499,18 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
                           href={request.telephone.startsWith("tel:") ? request.telephone : `tel:${request.telephone}`}
                           className="text-primary hover:underline"
                         >
-                          {formatPhoneNumber(request.telephone.replace(/^tel:/, ""))}
+                          {request.telephone.replace(/^tel:/, "")}
+                        </a>
+                      </>
+                    )}
+                    {request.email && (
+                      <>
+                        <span>•</span>
+                        <a 
+                          href={request.email.startsWith("mailto:") ? request.email : `mailto:${request.email}`}
+                          className="text-primary hover:underline"
+                        >
+                          {request.email.replace(/^mailto:/, "")}
                         </a>
                       </>
                     )}
@@ -615,6 +626,17 @@ function ConversationMessageItem({ message, isLatest }: ConversationMessageItemP
                     className="text-primary hover:underline"
                   >
                     {request.telephone.replace(/^tel:/, "")}
+                  </a>
+                </p>
+              )}
+              {request.email && (
+                <p className="mt-1">
+                  <span className="text-muted-foreground">Email: </span>
+                  <a 
+                    href={request.email.startsWith("mailto:") ? request.email : `mailto:${request.email}`}
+                    className="text-primary hover:underline"
+                  >
+                    {request.email.replace(/^mailto:/, "")}
                   </a>
                 </p>
               )}
