@@ -1,40 +1,37 @@
 /**
  * Types for Synvya Reservation Messages (NIP-9901/9902/9903/9904)
  * 
- * These types match the JSON schemas defined in https://github.com/Synvya/nip-rr/tree/main/schemas
+ * These types match the tag-based structure defined in NIP-RP schemas.
+ * Data is stored in event tags, not JSON content.
+ * Content field contains plain text message.
  */
-
-/**
- * Contact information for a reservation guest
- */
-export interface ReservationContact {
-  name?: string;
-  phone?: string;
-  email?: string;
-}
-
-/**
- * Constraints and preferences for reservation negotiation
- */
-export interface ReservationConstraints {
-  earliest_iso_time?: string;
-  latest_iso_time?: string;
-}
 
 /**
  * Reservation request payload (kind 9901)
+ * 
+ * All data is stored in event tags. The content field contains plain text message.
  */
 export interface ReservationRequest {
   /** Number of guests (1-20) */
   party_size: number;
-  /** Requested time in ISO8601 format with timezone */
-  iso_time: string;
-  /** Optional notes or special requests */
-  notes?: string;
-  /** Optional contact information */
-  contact?: ReservationContact;
-  /** Optional constraints for negotiation */
-  constraints?: ReservationConstraints;
+  /** Requested time as Unix timestamp in seconds */
+  time: number;
+  /** IANA timezone identifier (e.g., "America/Los_Angeles") */
+  tzid: string;
+  /** Optional reservation holder name (max 200 chars) */
+  name?: string;
+  /** Optional phone number as tel: URI (e.g., "tel:+1234567890") */
+  telephone?: string;
+  /** Optional email as mailto: URI (e.g., "mailto:guest@example.com") */
+  email?: string;
+  /** Optional duration in seconds */
+  duration?: number;
+  /** Optional earliest acceptable time as Unix timestamp in seconds */
+  earliest_time?: number;
+  /** Optional latest acceptable time as Unix timestamp in seconds */
+  latest_time?: number;
+  /** Plain text message/notes (stored in content field) */
+  message?: string;
 }
 
 /**
@@ -47,16 +44,20 @@ export type ReservationStatus =
 
 /**
  * Reservation response payload (kind 9902)
+ * 
+ * All data is stored in event tags. The content field contains plain text message.
  */
 export interface ReservationResponse {
   /** Status of the reservation */
   status: ReservationStatus;
-  /** Proposed or confirmed time (null for declined/cancelled) */
-  iso_time: string | null;
-  /** Optional message to the requester */
+  /** Proposed or confirmed time as Unix timestamp in seconds (null for declined/cancelled) */
+  time: number | null;
+  /** IANA timezone identifier (required when time is present) */
+  tzid?: string;
+  /** Optional duration in seconds */
+  duration?: number;
+  /** Plain text message (stored in content field) */
   message?: string;
-  /** Optional table identifier */
-  table?: string | null;
 }
 
 /**
@@ -64,18 +65,31 @@ export interface ReservationResponse {
  * 
  * Sent by user/agent in response to a restaurant's "suggested" response (9902).
  * Allows user to accept or counter-propose the suggested time.
+ * 
+ * All data is stored in event tags. The content field contains plain text message.
+ * Contact fields (name, telephone, email) must be included if present in original 9901.
  */
 export interface ReservationModificationRequest {
   /** Number of guests (1-20) */
   party_size: number;
-  /** Requested time in ISO8601 format with timezone */
-  iso_time: string;
-  /** Optional notes or special requests */
-  notes?: string;
-  /** Optional contact information */
-  contact?: ReservationContact;
-  /** Optional constraints for negotiation */
-  constraints?: ReservationConstraints;
+  /** Requested time as Unix timestamp in seconds */
+  time: number;
+  /** IANA timezone identifier (e.g., "America/Los_Angeles") */
+  tzid: string;
+  /** Optional reservation holder name (max 200 chars, must be included if present in original 9901) */
+  name?: string;
+  /** Optional phone number as tel: URI (must be included if present in original 9901) */
+  telephone?: string;
+  /** Optional email as mailto: URI (must be included if present in original 9901) */
+  email?: string;
+  /** Optional duration in seconds */
+  duration?: number;
+  /** Optional earliest acceptable time as Unix timestamp in seconds */
+  earliest_time?: number;
+  /** Optional latest acceptable time as Unix timestamp in seconds */
+  latest_time?: number;
+  /** Plain text message/notes (stored in content field) */
+  message?: string;
 }
 
 /**
@@ -89,13 +103,19 @@ export type ReservationModificationStatus =
  * Reservation modification response payload (kind 9904)
  * 
  * Sent by restaurant in response to a user's modification request (9903).
+ * 
+ * All data is stored in event tags. The content field contains plain text message.
  */
 export interface ReservationModificationResponse {
   /** Status of the modification */
   status: ReservationModificationStatus;
-  /** Proposed or confirmed time (null for declined) */
-  iso_time: string | null;
-  /** Optional message to the requester */
+  /** Proposed or confirmed time as Unix timestamp in seconds (null for declined) */
+  time: number | null;
+  /** IANA timezone identifier (required when time is present) */
+  tzid?: string;
+  /** Optional duration in seconds */
+  duration?: number;
+  /** Plain text message (stored in content field) */
   message?: string;
 }
 

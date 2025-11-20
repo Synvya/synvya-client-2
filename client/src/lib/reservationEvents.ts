@@ -78,21 +78,27 @@ export function validateReservationRequest(payload: unknown): ValidationResult {
   if (typeof p.party_size !== "number" || p.party_size < 1 || p.party_size > 20) {
     errors.push({ field: "party_size", message: "party_size must be between 1 and 20" });
   }
-  if (typeof p.iso_time !== "string" || !p.iso_time) {
-    errors.push({ field: "iso_time", message: "iso_time is required" });
+  if (typeof p.time !== "number") {
+    errors.push({ field: "time", message: "time (Unix timestamp) is required" });
+  }
+  if (typeof p.tzid !== "string" || !p.tzid) {
+    errors.push({ field: "tzid", message: "tzid (IANA timezone identifier) is required" });
   }
   
   // Optional contact validation
-  if (p.contact && typeof p.contact === "object") {
-    const contact = p.contact as Record<string, unknown>;
-    if (contact.email && typeof contact.email === "string" && !contact.email.includes("@")) {
-      errors.push({ field: "contact.email", message: "Invalid email format" });
-    }
+  if (p.email && typeof p.email === "string" && !p.email.startsWith("mailto:")) {
+    errors.push({ field: "email", message: "email must be a mailto: URI" });
+  }
+  if (p.telephone && typeof p.telephone === "string" && !p.telephone.startsWith("tel:")) {
+    errors.push({ field: "telephone", message: "telephone must be a tel: URI" });
+  }
+  if (p.name && typeof p.name === "string" && p.name.length > 200) {
+    errors.push({ field: "name", message: "name must be max 200 characters" });
   }
   
-  // Notes length
-  if (p.notes && typeof p.notes === "string" && p.notes.length > 2000) {
-    errors.push({ field: "notes", message: "notes must be max 2000 characters" });
+  // Message length
+  if (p.message && typeof p.message === "string" && p.message.length > 2000) {
+    errors.push({ field: "message", message: "message must be max 2000 characters" });
   }
   
   if (errors.length > 0) {
@@ -154,9 +160,19 @@ export function validateReservationResponse(payload: unknown): ValidationResult 
     errors.push({ field: "status", message: "status must be confirmed, declined, or cancelled" });
   }
   
-  // iso_time is required (can be null for declined/cancelled)
-  if (p.iso_time !== null && typeof p.iso_time !== "string") {
-    errors.push({ field: "iso_time", message: "iso_time must be a string or null" });
+  // time is required when status is confirmed (can be null for declined/cancelled)
+  if (p.status === "confirmed") {
+    if (p.time === null || p.time === undefined || typeof p.time !== "number") {
+      errors.push({ field: "time", message: "time (Unix timestamp) is required when status is confirmed" });
+    }
+    if (!p.tzid || typeof p.tzid !== "string") {
+      errors.push({ field: "tzid", message: "tzid (IANA timezone identifier) is required when status is confirmed" });
+    }
+  } else if (p.time !== null && p.time !== undefined) {
+    // If time is provided for declined/cancelled, tzid should also be provided
+    if (p.time !== null && (!p.tzid || typeof p.tzid !== "string")) {
+      errors.push({ field: "tzid", message: "tzid is required when time is provided" });
+    }
   }
   
   if (errors.length > 0) {
@@ -474,21 +490,27 @@ export function validateReservationModificationRequest(payload: unknown): Valida
   if (typeof p.party_size !== "number" || p.party_size < 1 || p.party_size > 20) {
     errors.push({ field: "party_size", message: "party_size must be between 1 and 20" });
   }
-  if (typeof p.iso_time !== "string" || !p.iso_time) {
-    errors.push({ field: "iso_time", message: "iso_time is required" });
+  if (typeof p.time !== "number") {
+    errors.push({ field: "time", message: "time (Unix timestamp) is required" });
+  }
+  if (typeof p.tzid !== "string" || !p.tzid) {
+    errors.push({ field: "tzid", message: "tzid (IANA timezone identifier) is required" });
   }
   
   // Optional contact validation
-  if (p.contact && typeof p.contact === "object") {
-    const contact = p.contact as Record<string, unknown>;
-    if (contact.email && typeof contact.email === "string" && !contact.email.includes("@")) {
-      errors.push({ field: "contact.email", message: "Invalid email format" });
-    }
+  if (p.email && typeof p.email === "string" && !p.email.startsWith("mailto:")) {
+    errors.push({ field: "email", message: "email must be a mailto: URI" });
+  }
+  if (p.telephone && typeof p.telephone === "string" && !p.telephone.startsWith("tel:")) {
+    errors.push({ field: "telephone", message: "telephone must be a tel: URI" });
+  }
+  if (p.name && typeof p.name === "string" && p.name.length > 200) {
+    errors.push({ field: "name", message: "name must be max 200 characters" });
   }
   
-  // Notes length
-  if (p.notes && typeof p.notes === "string" && p.notes.length > 2000) {
-    errors.push({ field: "notes", message: "notes must be max 2000 characters" });
+  // Message length
+  if (p.message && typeof p.message === "string" && p.message.length > 2000) {
+    errors.push({ field: "message", message: "message must be max 2000 characters" });
   }
   
   if (errors.length > 0) {
@@ -550,9 +572,19 @@ export function validateReservationModificationResponse(payload: unknown): Valid
     errors.push({ field: "status", message: "status must be confirmed or declined" });
   }
   
-  // iso_time is required (can be null for declined)
-  if (p.iso_time !== null && typeof p.iso_time !== "string") {
-    errors.push({ field: "iso_time", message: "iso_time must be a string or null" });
+  // time is required when status is confirmed (can be null for declined)
+  if (p.status === "confirmed") {
+    if (p.time === null || p.time === undefined || typeof p.time !== "number") {
+      errors.push({ field: "time", message: "time (Unix timestamp) is required when status is confirmed" });
+    }
+    if (!p.tzid || typeof p.tzid !== "string") {
+      errors.push({ field: "tzid", message: "tzid (IANA timezone identifier) is required when status is confirmed" });
+    }
+  } else if (p.time !== null && p.time !== undefined) {
+    // If time is provided for declined, tzid should also be provided
+    if (p.time !== null && (!p.tzid || typeof p.tzid !== "string")) {
+      errors.push({ field: "tzid", message: "tzid is required when time is provided" });
+    }
   }
   
   if (errors.length > 0) {

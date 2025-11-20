@@ -27,6 +27,7 @@ import type {
   ReservationModificationRequest,
   ReservationModificationResponse,
 } from "@/types/reservation";
+import { iso8601ToUnixAndTzid } from "@/lib/reservationTimeUtils";
 
 describe("Reservation Flow Integration Tests", () => {
   let conciergePrivateKey: Uint8Array;
@@ -44,10 +45,12 @@ describe("Reservation Flow Integration Tests", () => {
   describe("Complete 4-Message Flow", () => {
     it("should handle complete flow: request → response → modification-request → modification-response", () => {
       // Step 1: Concierge sends initial reservation request (9901)
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const initialRequest: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
-        notes: "Window seat preferred",
+        time: unixTimestamp,
+        tzid,
+        message: "Window seat preferred",
       };
 
       const requestTemplate = buildReservationRequest(
@@ -64,12 +67,14 @@ describe("Reservation Flow Integration Tests", () => {
       const parsedRequest = parseReservationRequest(unwrappedRequestRumor, restaurantPrivateKey);
 
       expect(parsedRequest.party_size).toBe(2);
-      expect(parsedRequest.iso_time).toBe("2025-10-20T19:00:00-07:00");
+      expect(parsedRequest.time).toBe(unixTimestamp);
 
       // Step 2: Restaurant responds with alternative time (9902 with confirmed status)
+      const { unixTimestamp: suggestionTime, tzid: suggestionTzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const suggestion: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: suggestionTime,
+        tzid: suggestionTzid,
         message: "7pm is full, how about 7:30?",
       };
 
@@ -94,13 +99,14 @@ describe("Reservation Flow Integration Tests", () => {
       const parsedSuggestion = parseReservationResponse(unwrappedSuggestionRumor, conciergePrivateKey);
 
       expect(parsedSuggestion.status).toBe("confirmed");
-      expect(parsedSuggestion.iso_time).toBe("2025-10-20T19:30:00-07:00");
+      expect(parsedSuggestion.time).toBe(suggestionTime);
 
       // Step 3: Concierge accepts with modification request (9903)
       const modificationRequest: ReservationModificationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:30:00-07:00",
-        notes: "7:30pm works for us",
+        time: suggestionTime,
+        tzid: suggestionTzid,
+        message: "7:30pm works for us",
       };
 
       // Add threading tags referencing unsigned rumor IDs per NIP-17
@@ -133,12 +139,13 @@ describe("Reservation Flow Integration Tests", () => {
       );
 
       expect(parsedModRequest.party_size).toBe(2);
-      expect(parsedModRequest.iso_time).toBe("2025-10-20T19:30:00-07:00");
+      expect(parsedModRequest.time).toBe(suggestionTime);
 
       // Step 4: Restaurant confirms modification (9904)
       const confirmation: ReservationModificationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: suggestionTime,
+        tzid: suggestionTzid,
         message: "Confirmed! See you at 7:30pm",
       };
 
@@ -163,16 +170,18 @@ describe("Reservation Flow Integration Tests", () => {
       const parsedConfirm = parseReservationModificationResponse(confirmRumor, conciergePrivateKey);
 
       expect(parsedConfirm.status).toBe("confirmed");
-      expect(parsedConfirm.iso_time).toBe("2025-10-20T19:30:00-07:00");
+      expect(parsedConfirm.time).toBe(suggestionTime);
     });
   });
 
   describe("Thread Tracking", () => {
     it("should maintain thread integrity across all 4 message types", () => {
       // Initial request
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const requestTemplate = buildReservationRequest(
@@ -188,9 +197,11 @@ describe("Reservation Flow Integration Tests", () => {
       const rootEventId = rootRumorId;
 
       // Response with threading to root (using unsigned 9901 rumor ID)
+      const { unixTimestamp: responseTime, tzid: responseTzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: responseTime,
+        tzid: responseTzid,
       };
 
       const responseTemplate = buildReservationResponse(
@@ -213,7 +224,8 @@ describe("Reservation Flow Integration Tests", () => {
       // Modification request with threading (using unsigned rumor IDs)
       const modRequest: ReservationModificationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: responseTime,
+        tzid: responseTzid,
       };
 
       const modRequestTemplate = buildReservationModificationRequest(
@@ -243,7 +255,8 @@ describe("Reservation Flow Integration Tests", () => {
       // Modification response with threading (using unsigned rumor IDs)
       const modResponse: ReservationModificationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: responseTime,
+        tzid: responseTzid,
       };
 
       const modResponseTemplate = buildReservationModificationResponse(
@@ -273,9 +286,11 @@ describe("Reservation Flow Integration Tests", () => {
   describe("NIP-17 Self CC Pattern", () => {
     it("should support Self CC for all message types", () => {
       // Test that we can create both recipient and self-addressed versions
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       // Create request to recipient
@@ -303,9 +318,11 @@ describe("Reservation Flow Integration Tests", () => {
       expect(selfWrap.tags).toContainEqual(["p", conciergePublicKey]);
 
       // Same pattern for modification request
+      const { unixTimestamp: modTime, tzid: modTzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const modRequest: ReservationModificationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: modTime,
+        tzid: modTzid,
       };
 
       const modRequestToRecipient = buildReservationModificationRequest(
@@ -326,9 +343,11 @@ describe("Reservation Flow Integration Tests", () => {
 
   describe("Error Handling", () => {
     it("should handle declined modification requests", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const modificationRequest: ReservationModificationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const modRequestTemplate = buildReservationModificationRequest(
@@ -346,7 +365,7 @@ describe("Reservation Flow Integration Tests", () => {
       // Restaurant declines modification
       const decline: ReservationModificationResponse = {
         status: "declined",
-        iso_time: null,
+        time: null,
         message: "That time is no longer available",
       };
 

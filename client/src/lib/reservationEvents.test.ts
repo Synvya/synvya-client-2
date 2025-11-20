@@ -25,13 +25,16 @@ import type {
   ReservationModificationResponse
 } from "@/types/reservation";
 import { unwrapEvent, wrapEvent } from "./nip59";
+import { iso8601ToUnixAndTzid } from "./reservationTimeUtils";
 
 describe("reservationEvents", () => {
   describe("validateReservationRequest", () => {
     it("validates a valid request", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const result = validateReservationRequest(request);
@@ -41,19 +44,19 @@ describe("reservationEvents", () => {
     });
 
     it("validates request with all optional fields", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
+      const { unixTimestamp: earliest } = iso8601ToUnixAndTzid("2025-10-20T18:30:00-07:00");
+      const { unixTimestamp: latest } = iso8601ToUnixAndTzid("2025-10-20T20:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 4,
-        iso_time: "2025-10-20T19:00:00-07:00",
-        notes: "Window seat if possible",
-        contact: {
-          name: "John Doe",
-          phone: "+1-555-0100",
-          email: "john@example.com",
-        },
-        constraints: {
-          earliest_iso_time: "2025-10-20T18:30:00-07:00",
-          latest_iso_time: "2025-10-20T20:00:00-07:00",
-        },
+        time: unixTimestamp,
+        tzid,
+        message: "Window seat if possible",
+        name: "John Doe",
+        telephone: "tel:+1-555-0100",
+        email: "mailto:john@example.com",
+        earliest_time: earliest,
+        latest_time: latest,
       };
 
       const result = validateReservationRequest(request);
@@ -64,7 +67,7 @@ describe("reservationEvents", () => {
     it("rejects request missing required fields", () => {
       const request = {
         party_size: 2,
-        // missing iso_time
+        // missing time and tzid
       };
 
       const result = validateReservationRequest(request);
@@ -75,9 +78,11 @@ describe("reservationEvents", () => {
     });
 
     it("rejects request with invalid party_size", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request = {
         party_size: 0, // Invalid: must be >= 1
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const result = validateReservationRequest(request);
@@ -86,9 +91,11 @@ describe("reservationEvents", () => {
     });
 
     it("rejects request with party_size > 20", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request = {
         party_size: 25, // Invalid: must be <= 20
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const result = validateReservationRequest(request);
@@ -97,12 +104,12 @@ describe("reservationEvents", () => {
     });
 
     it("rejects request with invalid email", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
-        contact: {
-          email: "not-an-email",
-        },
+        time: unixTimestamp,
+        tzid,
+        email: "not-an-email", // Should be mailto: URI
       };
 
       const result = validateReservationRequest(request);
@@ -110,11 +117,13 @@ describe("reservationEvents", () => {
       expect(result.valid).toBe(false);
     });
 
-    it("rejects request with notes too long", () => {
+    it("rejects request with message too long", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
-        notes: "x".repeat(2001), // Max 2000
+        time: unixTimestamp,
+        tzid,
+        message: "x".repeat(2001), // Max 2000
       };
 
       const result = validateReservationRequest(request);
@@ -125,11 +134,12 @@ describe("reservationEvents", () => {
 
   describe("validateReservationResponse", () => {
     it("validates confirmed response", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const response: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
         message: "See you at 7pm!",
-        table: "A4",
       };
 
       const result = validateReservationResponse(response);
@@ -140,7 +150,7 @@ describe("reservationEvents", () => {
     it("validates cancelled response", () => {
       const response: ReservationResponse = {
         status: "cancelled",
-        iso_time: null,
+        time: null,
         message: "Cancelled by customer",
       };
 
@@ -152,7 +162,7 @@ describe("reservationEvents", () => {
     it("validates declined response", () => {
       const response: ReservationResponse = {
         status: "declined",
-        iso_time: null,
+        time: null,
         message: "Sorry, we're fully booked",
       };
 
@@ -162,8 +172,10 @@ describe("reservationEvents", () => {
     });
 
     it("rejects response missing required status", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const response = {
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const result = validateReservationResponse(response);
@@ -181,10 +193,10 @@ describe("reservationEvents", () => {
       expect(result.valid).toBe(false);
     });
 
-    it("rejects confirmed response without iso_time", () => {
+    it("rejects confirmed response without time", () => {
       const response = {
         status: "confirmed",
-        // missing required iso_time for confirmed status
+        // missing required time for confirmed status
       };
 
       const result = validateReservationResponse(response);
@@ -198,10 +210,12 @@ describe("reservationEvents", () => {
       const senderPrivateKey = generateSecretKey();
       const recipientPublicKey = getPublicKey(generateSecretKey());
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
-        notes: "Window seat",
+        time: unixTimestamp,
+        tzid,
+        message: "Window seat",
       };
 
       const template = buildReservationRequest(
@@ -220,9 +234,11 @@ describe("reservationEvents", () => {
       const senderPrivateKey = generateSecretKey();
       const recipientPublicKey = getPublicKey(generateSecretKey());
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const additionalTags = [
@@ -243,10 +259,12 @@ describe("reservationEvents", () => {
       const senderPrivateKey = generateSecretKey();
       const recipientPublicKey = getPublicKey(generateSecretKey());
 
-      const invalidRequest = {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
+      const invalidRequest: ReservationRequest = {
         party_size: 0, // Invalid
-        iso_time: "2025-10-20T19:00:00-07:00",
-      } as ReservationRequest;
+        time: unixTimestamp,
+        tzid,
+      };
 
       expect(() =>
         buildReservationRequest(invalidRequest, senderPrivateKey, recipientPublicKey)
@@ -259,10 +277,11 @@ describe("reservationEvents", () => {
       const senderPrivateKey = generateSecretKey();
       const recipientPublicKey = getPublicKey(generateSecretKey());
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const response: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:00:00-07:00",
-        table: "A4",
+        time: unixTimestamp,
+        tzid,
       };
 
       const template = buildReservationResponse(
@@ -297,10 +316,12 @@ describe("reservationEvents", () => {
       const senderPublicKey = getPublicKey(senderPrivateKey);
       const recipientPublicKey = getPublicKey(recipientPrivateKey);
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T20:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 4,
-        iso_time: "2025-10-20T20:00:00-07:00",
-        notes: "Anniversary dinner",
+        time: unixTimestamp,
+        tzid,
+        message: "Anniversary dinner",
       };
 
       const template = buildReservationRequest(
@@ -345,10 +366,11 @@ describe("reservationEvents", () => {
       const senderPublicKey = getPublicKey(senderPrivateKey);
       const recipientPublicKey = getPublicKey(recipientPrivateKey);
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T20:00:00-07:00");
       const response: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T20:00:00-07:00",
-        table: "12",
+        time: unixTimestamp,
+        tzid,
         message: "Confirmed!",
       };
 
@@ -392,14 +414,14 @@ describe("reservationEvents", () => {
       const restaurantPrivateKey = generateSecretKey();
       const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
-        notes: "Window seat if possible",
-        contact: {
-          name: "John",
-          email: "john@example.com",
-        },
+        time: unixTimestamp,
+        tzid,
+        message: "Window seat if possible",
+        name: "John",
+        email: "mailto:john@example.com",
       };
 
       // Build and wrap
@@ -423,9 +445,11 @@ describe("reservationEvents", () => {
       const conciergePrivateKey = generateSecretKey();
       const conciergePublicKey = getPublicKey(conciergePrivateKey);
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
         message: "7pm is full, but 7:30 works!",
       };
 
@@ -452,7 +476,7 @@ describe("reservationEvents", () => {
 
       const response: ReservationResponse = {
         status: "declined",
-        iso_time: null,
+        time: null,
         message: "Sorry, fully booked that evening",
       };
 
@@ -477,9 +501,11 @@ describe("reservationEvents", () => {
       const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
 
       // Step 1: Concierge requests reservation
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const requestTemplate = buildReservationRequest(
@@ -502,8 +528,8 @@ describe("reservationEvents", () => {
       // Step 2: Restaurant confirms original time
       const confirmation: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:00:00-07:00",
-        table: "A5",
+        time: unixTimestamp,
+        tzid,
         message: "Confirmed!",
       };
 
@@ -523,15 +549,16 @@ describe("reservationEvents", () => {
       const parsedConfirm = parseReservationResponse(confirmRumor, conciergePrivateKey);
 
       expect(parsedConfirm.status).toBe("confirmed");
-      expect(parsedConfirm.table).toBe("A5");
     });
   });
 
   describe("validateReservationModificationRequest", () => {
     it("validates a valid modification request", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const request: ReservationModificationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const result = validateReservationModificationRequest(request);
@@ -543,7 +570,7 @@ describe("reservationEvents", () => {
     it("rejects modification request missing required fields", () => {
       const request = {
         party_size: 2,
-        // missing iso_time
+        // missing time and tzid
       };
 
       const result = validateReservationModificationRequest(request);
@@ -553,9 +580,11 @@ describe("reservationEvents", () => {
     });
 
     it("rejects modification request with invalid party_size", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const request = {
         party_size: 0,
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const result = validateReservationModificationRequest(request);
@@ -566,9 +595,11 @@ describe("reservationEvents", () => {
 
   describe("validateReservationModificationResponse", () => {
     it("validates a valid modification response", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response: ReservationModificationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const result = validateReservationModificationResponse(response);
@@ -577,8 +608,10 @@ describe("reservationEvents", () => {
     });
 
     it("rejects modification response missing status", () => {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response = {
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const result = validateReservationModificationResponse(response);
@@ -592,10 +625,12 @@ describe("reservationEvents", () => {
       const conciergePrivateKey = generateSecretKey();
       const restaurantPublicKey = getPublicKey(generateSecretKey());
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const request: ReservationModificationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:30:00-07:00",
-        notes: "This time works for us",
+        time: unixTimestamp,
+        tzid,
+        message: "This time works for us",
       };
 
       const template = buildReservationModificationRequest(
@@ -613,14 +648,16 @@ describe("reservationEvents", () => {
       const conciergePrivateKey = generateSecretKey();
       const restaurantPublicKey = getPublicKey(generateSecretKey());
 
-      const request = {
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
+      const request: ReservationModificationRequest = {
         party_size: 0, // Invalid
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       expect(() => {
         buildReservationModificationRequest(
-          request as ReservationModificationRequest,
+          request,
           conciergePrivateKey,
           restaurantPublicKey
         );
@@ -633,9 +670,11 @@ describe("reservationEvents", () => {
       const restaurantPrivateKey = generateSecretKey();
       const conciergePublicKey = getPublicKey(generateSecretKey());
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response: ReservationModificationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
         message: "Perfect!",
       };
 
@@ -654,9 +693,11 @@ describe("reservationEvents", () => {
       const restaurantPrivateKey = generateSecretKey();
       const conciergePublicKey = getPublicKey(generateSecretKey());
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response = {
         // missing status
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       expect(() => {
@@ -675,10 +716,12 @@ describe("reservationEvents", () => {
       const restaurantPrivateKey = generateSecretKey();
       const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const request: ReservationModificationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:30:00-07:00",
-        notes: "Works for us",
+        time: unixTimestamp,
+        tzid,
+        message: "Works for us",
       };
 
       const template = buildReservationModificationRequest(
@@ -714,9 +757,11 @@ describe("reservationEvents", () => {
       const conciergePrivateKey = generateSecretKey();
       const conciergePublicKey = getPublicKey(conciergePrivateKey);
 
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const response: ReservationModificationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: unixTimestamp,
+        tzid,
         message: "See you then!",
       };
 
@@ -755,9 +800,11 @@ describe("reservationEvents", () => {
       const restaurantPublicKey = getPublicKey(restaurantPrivateKey);
 
       // Step 1: Initial request
+      const { unixTimestamp, tzid } = iso8601ToUnixAndTzid("2025-10-20T19:00:00-07:00");
       const request: ReservationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:00:00-07:00",
+        time: unixTimestamp,
+        tzid,
       };
 
       const requestTemplate = buildReservationRequest(
@@ -769,9 +816,11 @@ describe("reservationEvents", () => {
       const requestRumor = unwrapEvent(requestWrap, restaurantPrivateKey);
 
       // Step 2: Restaurant responds with a suggested time (using 9902)
+      const { unixTimestamp: suggestionTime, tzid: suggestionTzid } = iso8601ToUnixAndTzid("2025-10-20T19:30:00-07:00");
       const suggestion: ReservationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: suggestionTime,
+        tzid: suggestionTzid,
         message: "7pm is full, how about 7:30?",
       };
 
@@ -790,8 +839,9 @@ describe("reservationEvents", () => {
       // Step 3: User sends modification request (9903) accepting the suggested time
       const modificationRequest: ReservationModificationRequest = {
         party_size: 2,
-        iso_time: "2025-10-20T19:30:00-07:00",
-        notes: "7:30pm works for us",
+        time: suggestionTime,
+        tzid: suggestionTzid,
+        message: "7:30pm works for us",
       };
 
       const modRequestTemplate = buildReservationModificationRequest(
@@ -811,12 +861,13 @@ describe("reservationEvents", () => {
       );
 
       expect(parsedModRequest.party_size).toBe(2);
-      expect(parsedModRequest.iso_time).toBe("2025-10-20T19:30:00-07:00");
+      expect(parsedModRequest.time).toBe(suggestionTime);
 
       // Step 4: Restaurant confirms modification
       const confirmation: ReservationModificationResponse = {
         status: "confirmed",
-        iso_time: "2025-10-20T19:30:00-07:00",
+        time: suggestionTime,
+        tzid: suggestionTzid,
         message: "Confirmed!",
       };
 
@@ -830,7 +881,7 @@ describe("reservationEvents", () => {
       const parsedConfirm = parseReservationModificationResponse(confirmRumor, conciergePrivateKey);
 
       expect(parsedConfirm.status).toBe("confirmed");
-      expect(parsedConfirm.iso_time).toBe("2025-10-20T19:30:00-07:00");
+      expect(parsedConfirm.time).toBe(suggestionTime);
     });
   });
 });
