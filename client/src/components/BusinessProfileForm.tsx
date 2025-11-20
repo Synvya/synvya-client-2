@@ -182,7 +182,7 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       }
     } else if (tag[0] === "i" && typeof tag[1] === "string" && tag[1] === "rp") {
       patch.acceptsReservations = true;
-    } else if (tag[0] === "schema.org:openingHours" && typeof tag[1] === "string") {
+    } else if ((tag[0] === "schema.org:FoodEstablishment:openingHours" || tag[0] === "schema.org:openingHours") && typeof tag[1] === "string") {
       // Parse comma-separated opening hours string: "Tu-Th 11:00-21:00, Fr-Sa 11:00-00:00, Su 12:00-21:00"
       const hoursString = tag[1];
       const hoursParts = hoursString.split(",").map(part => part.trim()).filter(Boolean);
