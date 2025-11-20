@@ -161,7 +161,14 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
   for (const tag of event.tags) {
     if (!Array.isArray(tag) || !tag.length) continue;
 
-    if (tag[0] === "l" && typeof tag[1] === "string") {
+    if (tag[0] === "schema.org:FoodEstablishment" && typeof tag[1] === "string") {
+      // New format: ["schema.org:FoodEstablishment", "Restaurant", "https://schema.org/FoodEstablishment"]
+      // Convert PascalCase to camelCase (e.g., "Restaurant" -> "restaurant")
+      const businessTypeValue = tag[1].charAt(0).toLowerCase() + tag[1].slice(1);
+      if (allowedBusinessTypes.has(businessTypeValue as BusinessType)) {
+        patch.businessType = businessTypeValue as BusinessType;
+      }
+    } else if (tag[0] === "l" && typeof tag[1] === "string") {
       // Try new Schema.org format first
       const businessType = schemaOrgUrlToBusinessType(tag[1]);
       if (businessType) {
@@ -172,8 +179,26 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
       }
     } else if (tag[0] === "t" && typeof tag[1] === "string" && tag[1] !== "production") {
       categories.push(tag[1]);
-    } else if (tag[0] === "schema.org:servesCuisine" && typeof tag[1] === "string") {
+    } else if ((tag[0] === "schema.org:FoodEstablishment:servesCuisine" || tag[0] === "schema.org:servesCuisine") && typeof tag[1] === "string") {
       patch.cuisine = tag[1];
+    } else if (tag[0] === "schema.org:FoodEstablishment:telephone" && typeof tag[1] === "string") {
+      // Extract phone number from "tel:+155512345678" format
+      const phoneValue = tag[1].startsWith("tel:") ? tag[1].slice(4) : tag[1];
+      if (phoneValue) patch.phone = phoneValue;
+    } else if (tag[0] === "schema.org:FoodEstablishment:email" && typeof tag[1] === "string") {
+      // Extract email from "mailto:email@example.com" format
+      const emailValue = tag[1].startsWith("mailto:") ? tag[1].slice(7) : tag[1];
+      if (emailValue) patch.email = emailValue;
+    } else if (tag[0] === "schema.org:PostalAddress:streetAddress" && typeof tag[1] === "string") {
+      patch.street = tag[1];
+    } else if (tag[0] === "schema.org:PostalAddress:addressLocality" && typeof tag[1] === "string") {
+      patch.city = tag[1];
+    } else if (tag[0] === "schema.org:PostalAddress:addressRegion" && typeof tag[1] === "string") {
+      patch.state = tag[1];
+    } else if (tag[0] === "schema.org:PostalAddress:postalCode" && typeof tag[1] === "string") {
+      patch.zip = tag[1];
+    } else if (tag[0] === "schema.org:PostalAddress:addressCountry" && typeof tag[1] === "string") {
+      patch.country = tag[1];
     } else if (tag[0] === "schema.org:acceptsReservations" && typeof tag[1] === "string") {
       if (tag[1] === "False") {
         patch.acceptsReservations = false;
